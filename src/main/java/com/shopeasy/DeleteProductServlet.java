@@ -12,6 +12,7 @@ import javax.servlet.http.HttpSession;
 
 @WebServlet("/DeleteProductServlet")
 public class DeleteProductServlet extends HttpServlet {
+	
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         HttpSession session = request.getSession();
@@ -31,6 +32,10 @@ public class DeleteProductServlet extends HttpServlet {
         } catch (Exception e) {
             e.printStackTrace();
             response.sendRedirect("SellerProfileServlet?error=true");
+            
+            
         }
     }
+    
+    
 }

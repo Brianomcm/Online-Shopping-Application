@@ -271,7 +271,7 @@ String navAvatar = "seller".equals(loggedRole2) ?
                 </div>
                 <div class="card-body d-flex flex-column">
                     <h6 class="card-title">Product Name 1</h6>
-                    <p class="card-text text-danger fw-bold mb-0">₱4999.00</p>
+                    <p class="card-text text-danger fw-bold mb-0">₱499.00</p>
                     <p class="text-muted mb-2" style="font-size:11px;"><s>₱699.00</s> 28% off</p>
                     <div class="mt-auto">
                         <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">

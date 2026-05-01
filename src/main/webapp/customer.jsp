@@ -206,20 +206,20 @@
         <div class="col-md-9">
 
             <!-- STATS ROW -->
-            <div class="row g-3 mb-4">
-                <div class="col-6 col-md-3">
-                    <div class="stat-box"><div class="stat-num">12</div><div class="stat-label">Total Orders</div></div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="stat-box"><div class="stat-num">3</div><div class="stat-label">Pending</div></div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="stat-box"><div class="stat-num">8</div><div class="stat-label">Completed</div></div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="stat-box"><div class="stat-num">5</div><div class="stat-label">Reviews</div></div>
-                </div>
-            </div>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-box"><div class="stat-num">0</div><div class="stat-label">Total Orders</div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-box"><div class="stat-num">0</div><div class="stat-label">Pending</div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-box"><div class="stat-num">0</div><div class="stat-label">Completed</div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-box"><div class="stat-num">0</div><div class="stat-label">Reviews</div></div>
+    </div>
+</div>
 
             <!-- MY PROFILE TAB -->
 <div id="tab-profile" class="tab-content-section active">
@@ -309,46 +309,9 @@
             <div id="tab-orders" class="tab-content-section">
                 <div class="card-section">
                     <p class="section-title"><i class="bi bi-bag-fill text-primary"></i> My Orders</p>
-                    <div class="d-flex gap-2 mb-3 flex-wrap">
-                        <button class="btn btn-primary btn-sm">All</button>
-                        <button class="btn btn-outline-warning btn-sm">Pending</button>
-                        <button class="btn btn-outline-info btn-sm">Shipped</button>
-                        <button class="btn btn-outline-success btn-sm">Completed</button>
-                        <button class="btn btn-outline-danger btn-sm">Cancelled</button>
-                    </div>
-                    <div class="order-item">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <span style="font-size:12px;" class="text-muted">Order #SE-20260001</span>
-                            <span class="badge bg-warning text-dark order-badge">Pending</span>
-                        </div>
-                        <div class="d-flex gap-3 align-items-center">
-                            <img src="https://via.placeholder.com/60" class="order-img" alt="Product">
-                            <div class="flex-grow-1">
-                                <p class="mb-0 fw-bold" style="font-size:14px;">Product Name 1</p>
-                                <p class="mb-0 text-muted" style="font-size:12px;">Qty: 1 &nbsp;|&nbsp; ₱499.00</p>
-                            </div>
-                            <div class="text-end">
-                                <p class="mb-1 fw-bold text-danger">₱499.00</p>
-                                <button class="btn btn-outline-primary btn-sm">Track</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="order-item">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <span style="font-size:12px;" class="text-muted">Order #SE-20260002</span>
-                            <span class="badge bg-success order-badge">Completed</span>
-                        </div>
-                        <div class="d-flex gap-3 align-items-center">
-                            <img src="https://via.placeholder.com/60" class="order-img" alt="Product">
-                            <div class="flex-grow-1">
-                                <p class="mb-0 fw-bold" style="font-size:14px;">Product Name 2</p>
-                                <p class="mb-0 text-muted" style="font-size:12px;">Qty: 2 &nbsp;|&nbsp; ₱598.00</p>
-                            </div>
-                            <div class="text-end">
-                                <p class="mb-1 fw-bold text-danger">₱598.00</p>
-                                <button class="btn btn-outline-success btn-sm">Review</button>
-                            </div>
-                        </div>
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-bag fs-1 opacity-25"></i>
+                        <p class="mt-2">No orders yet.</p>
                     </div>
                 </div>
             </div>
@@ -357,20 +320,9 @@
             <div id="tab-reviews" class="tab-content-section">
                 <div class="card-section">
                     <p class="section-title"><i class="bi bi-star-fill text-primary"></i> My Reviews</p>
-                    <div class="order-item">
-                        <div class="d-flex gap-3">
-                            <img src="https://via.placeholder.com/60" class="order-img" alt="Product">
-                            <div class="flex-grow-1">
-                                <p class="mb-1 fw-bold" style="font-size:14px;">Product Name 2</p>
-                                <div class="review-star mb-1">
-                                    <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star"></i>
-                                    <span class="text-muted ms-1" style="font-size:12px;">4/5</span>
-                                </div>
-                                <p class="text-muted mb-0" style="font-size:13px;">Great product! Fast delivery and good quality.</p>
-                                <p class="text-muted mb-0" style="font-size:11px;">April 20, 2026</p>
-                            </div>
-                            <div><button class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i></button></div>
-                        </div>
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-star fs-1 opacity-25"></i>
+                        <p class="mt-2">No reviews yet.</p>
                     </div>
                 </div>
             </div>
@@ -501,20 +453,9 @@
             <div id="tab-wishlist" class="tab-content-section">
                 <div class="card-section">
                     <p class="section-title"><i class="bi bi-heart-fill text-primary"></i> My Wishlist</p>
-                    <div class="row g-3">
-                        <div class="col-6 col-md-4">
-                            <div class="card border-0 shadow-sm">
-                                <img src="https://via.placeholder.com/200x150" class="card-img-top" style="height:130px; object-fit:cover;" alt="Product">
-                                <div class="card-body p-2">
-                                    <p class="mb-0 fw-bold" style="font-size:13px;">Product Name</p>
-                                    <p class="mb-1 text-danger fw-bold" style="font-size:13px;">₱499.00</p>
-                                    <div class="d-flex gap-1">
-                                        <button class="btn btn-primary btn-sm flex-grow-1" style="font-size:11px;">Add to Cart</button>
-                                        <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-heart fs-1 opacity-25"></i>
+                        <p class="mt-2">No items in wishlist yet.</p>
                     </div>
                 </div>
             </div>

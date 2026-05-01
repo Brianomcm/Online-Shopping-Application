@@ -155,8 +155,8 @@ input::-webkit-contacts-auto-fill-button {
     <i class="bi bi-x-circle-fill"></i> <span id="errorText">Account not found. Please check your email or password.</span>
 </div>
 <!-- NAVIGATION BAR -->
-<nav class="navbar navbar-light bg-white shadow-sm py-2">
-    <div class="container-fluid px-3">
+<nav class="navbar navbar-light bg-white shadow-sm py-3">
+    <div class="container-fluid px-4">
         
         <!-- Logo -->
         <a class="navbar-brand fw-bold text-primary" href="index.jsp">
@@ -219,23 +219,19 @@ String navAvatar = "seller".equals(loggedRole2) ?
                 </ul>
             </div>
         <% } else { %>
-            <a href="#" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#loginModal">
-                <i class="bi bi-person"></i>
-                <span class="d-none d-md-inline"> Login</span>
-            </a>
-            <a href="#" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#registerModal">
-                <i class="bi bi-person-plus"></i>
-                <span class="d-none d-md-inline"> Register</span>
-            </a>
+            <a href="#" class="btn btn-outline-secondary position-relative" data-bs-toggle="modal" data-bs-target="#loginModal">
+    <i class="bi bi-cart3 fs-5"></i>
+    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
+</a>
+<a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal">
+    <i class="bi bi-person"></i>
+    <span class="d-none d-md-inline"> Login</span>
+</a>
+<a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal">
+    <i class="bi bi-person-plus"></i>
+    <span class="d-none d-md-inline"> Register</span>
+</a>
         <% } %>
-            <% if (loggedUser == null) { %>
-                <a href="#" class="btn btn-outline-secondary btn-sm position-relative" data-bs-toggle="modal" data-bs-target="#loginModal">
-            <% } else { %>
-                <a href="CartServlet" class="btn btn-outline-secondary btn-sm position-relative">
-            <% } %>
-                <i class="bi bi-cart3"></i>
-               <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
-            </a>
         </div>
     </div>
 

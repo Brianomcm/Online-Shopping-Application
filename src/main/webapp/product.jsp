@@ -84,33 +84,55 @@
 </div>
 
 <!-- NAVBAR -->
-<nav class="navbar navbar-light bg-white shadow-sm py-2">
-    <div class="container-fluid px-3">
-        <a class="navbar-brand fw-bold text-primary" href="index.jsp">
+<nav class="navbar navbar-light bg-white shadow-sm py-3 sticky-top">
+    <div class="container-fluid px-4">
+        <!-- LOGO -->
+        <a class="navbar-brand fw-bold text-primary fs-4" href="index.jsp">
             <i class="bi bi-bag-heart-fill"></i> ShopEasy
         </a>
-        <div class="d-flex align-items-center gap-3">
-            <a href="index.jsp" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-arrow-left"></i> Back to Shop
-            </a>
-            <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-            <a href="CartServlet" class="btn btn-outline-secondary btn-sm position-relative">
-                <i class="bi bi-cart3"></i>
-                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
-            </a>
-            <% } %>
-            <div class="avatar-circle">
-                <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
-                    <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
-                <% } else if (loggedUser != null) { %>
-                    <%= loggedUser.substring(0, 1).toUpperCase() %>
-                <% } else { %>
-                    <i class="bi bi-person"></i>
-                <% } %>
+
+        <!-- SEARCH BAR -->
+        <form class="d-flex flex-grow-1 mx-3" action="index.jsp" method="get">
+            <div class="input-group">
+                <input type="text" class="form-control" name="search" placeholder="Search products..." style="border-radius:8px 0 0 8px;">
+                <button class="btn btn-primary" type="submit" style="border-radius:0 8px 8px 0;">
+                    <i class="bi bi-search"></i>
+                </button>
             </div>
+        </form>
+
+        <!-- RIGHT SIDE -->
+        <div class="d-flex align-items-center gap-2">
+          <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
+    <a href="CartServlet" class="btn btn-outline-secondary position-relative">
+        <i class="bi bi-cart3 fs-5"></i>
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
+    </a>
+    <div class="avatar-circle">
+        <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
+            <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
+        <% } else { %>
+            <%= loggedUser.substring(0, 1).toUpperCase() %>
+        <% } %>
+    </div>
+<% } else { %>
+    <a href="CartServlet" class="btn btn-outline-secondary position-relative">
+        <i class="bi bi-cart3 fs-5"></i>
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
+    </a>
+    <a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal"><i class="bi bi-box-arrow-in-right"></i> Login</a>
+    <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal"><i class="bi bi-person-plus"></i> Register</a>
+<% } %>
         </div>
     </div>
 </nav>
+
+<!-- BACK TO SHOP -->
+<div class="bg-white border-bottom px-4 py-2">
+    <a href="index.jsp" class="text-decoration-none text-muted" style="font-size:13px;">
+        <i class="bi bi-arrow-left"></i> Back to Shop
+    </a>
+</div>
 
 <div class="container py-4">
     <!-- BREADCRUMB -->
@@ -172,16 +194,19 @@
                             </button>
                         <% } %>
                     <% } else { %>
-                        <a href="index.jsp" class="btn btn-primary add-cart-btn w-100 text-white">
-                            <i class="bi bi-box-arrow-in-right"></i> Login to Add to Cart
-                        </a>
-                    <% } %>
+    <button class="btn btn-primary add-cart-btn w-100 text-white" data-bs-toggle="modal" data-bs-target="#loginModal">
+        <i class="bi bi-box-arrow-in-right"></i> Login to Add to Cart
+    </button>
+<% } %>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+
+
+<%@ include file="modals.jsp" %>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 function addToCart(productId) {
@@ -201,6 +226,18 @@ function addToCart(productId) {
         }
     })
     .catch(err => console.error(err));
+}
+
+
+function handleLoginSubmit(e, form) {
+    e.preventDefault();
+    var modal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+    if (modal) modal.hide();
+    setTimeout(() => {
+        document.getElementById('loginLoadingOverlay').style.display = 'flex';
+        setTimeout(() => { form.submit(); }, 1500);
+    }, 300);
+    return false;
 }
 </script>
 </body>

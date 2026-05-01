@@ -77,8 +77,14 @@ public class SellerProfileServlet extends HttpServlet {
             String updated = request.getParameter("updated");
             String error = request.getParameter("error");
 
+            String tab = request.getParameter("tab");
+            String msg = request.getParameter("msg");
+
             if ("true".equals(updated)) {
-                response.sendRedirect("seller.jsp?updated=true");
+                String redirect = "seller.jsp?updated=true";
+                if (tab != null) redirect += "&tab=" + tab;
+                if (msg != null) redirect += "&msg=" + msg;
+                response.sendRedirect(redirect);
             } else if ("true".equals(error)) {
                 response.sendRedirect("seller.jsp?error=true");
             } else {

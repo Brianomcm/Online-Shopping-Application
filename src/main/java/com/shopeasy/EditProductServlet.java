@@ -36,7 +36,7 @@ public class EditProductServlet extends HttpServlet {
             ps.executeUpdate();
             ps.close();
             conn.close();
-            response.sendRedirect("seller.jsp?updated=true&msg=product&tab=products");
+            response.sendRedirect("SellerProfileServlet?updated=true&msg=product&tab=products");
         } catch (Exception e) {
             e.printStackTrace();
             response.sendRedirect("SellerProfileServlet?error=true");

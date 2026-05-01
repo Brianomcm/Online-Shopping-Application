@@ -1165,7 +1165,7 @@ window.addEventListener('load', function() {
     function deleteProduct(id, name) {
         if (!confirm('Delete "' + name + '"?')) return;
         document.getElementById('savingOverlay').style.display = 'flex';
-        window.location.href = 'DeleteProductServlet?productId=' + id;
+        window.location.href = 'DeleteProductServlet?productId=' + id + '&tab=products&msg=deleted';
     }
 
     function editProduct(id, name, price, stock, description, category) {

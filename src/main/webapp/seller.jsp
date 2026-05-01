@@ -1020,6 +1020,7 @@
         ctx.strokeRect(2, 2, displayW - 4, displayH - 4);
         ctx.setLineDash([]);
     }
+    
 
     function applyBannerCrop() {
         const canvas = document.getElementById('bannerCropCanvas');
@@ -1096,8 +1097,12 @@ window.addEventListener('load', function() {
 
     const tab = params.get('tab');
     if (tab) {
-        const link = document.querySelector('.sidebar-nav a[onclick*="' + tab + '"]');
-        if (link) showTab(tab, link);
+        setTimeout(() => {
+            const link = document.querySelector('.sidebar-nav a[onclick*="' + tab + '"]');
+            if (link) {
+                link.click();
+            }
+        }, 100);
     }
 });
     function doLogout() {
@@ -1116,6 +1121,10 @@ window.addEventListener('load', function() {
         e.preventDefault();
         document.getElementById('savingOverlay').style.display = 'flex';
         setTimeout(() => { this.submit(); }, 1500);
+    });
+
+    document.getElementById('productForm').addEventListener('submit', function(e) {
+        document.getElementById('savingOverlay').style.display = 'flex';
     });
     
     function removeBanner() {

@@ -1,5 +1,4 @@
 package com.shopeasy;
-
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -12,19 +11,14 @@ import javax.servlet.http.HttpSession;
 
 @WebServlet("/AddProductServlet")
 public class AddProductServlet extends HttpServlet {
-
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-
         HttpSession session = request.getSession();
-
         if (session.getAttribute("userId") == null || !"seller".equals(session.getAttribute("userRole"))) {
             response.sendRedirect("index.jsp");
             return;
         }
-
         int sellerId = (int) session.getAttribute("userId");
-
         String productName = request.getParameter("productName");
         String description = request.getParameter("description");
         String price = request.getParameter("price");
@@ -42,13 +36,15 @@ public class AddProductServlet extends HttpServlet {
             ps.setString(4, description);
             ps.setDouble(5, Double.parseDouble(price));
             ps.setInt(6, Integer.parseInt(stock));
-            ps.setString(7, productImage != null && !productImage.isEmpty() ? productImage : null);
+            if (productImage != null && !productImage.isEmpty()) {
+                ps.setString(7, productImage);
+            } else {
+                ps.setNull(7, java.sql.Types.VARCHAR);
+            }
             ps.executeUpdate();
             ps.close();
             conn.close();
-
-            response.sendRedirect("seller.jsp?updated=true&msg=product&tab=products");
-
+            response.sendRedirect("SellerProfileServlet?updated=true&msg=product&tab=products");
         } catch (Exception e) {
             e.printStackTrace();
             response.sendRedirect("SellerProfileServlet?error=true");

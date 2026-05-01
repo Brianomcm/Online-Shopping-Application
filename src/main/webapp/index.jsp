@@ -19,7 +19,27 @@
         }
         prodRs.close();
         prodPs.close();
-        prodConn.close();
+      prodConn.close();
+    } catch (Exception ex) {
+        ex.printStackTrace();
+    }
+
+    // Get cart count
+    int cartCount = 0;
+    try {
+        String sessionRole = (String) session.getAttribute("userRole");
+        Integer sessionUserId = (Integer) session.getAttribute("userId");
+        if (sessionUserId != null && "customer".equals(sessionRole)) {
+            java.sql.Connection cartConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement cartPs = cartConn.prepareStatement(
+                "SELECT SUM(ci.quantity) FROM cart c JOIN cartitem ci ON c.cart_id = ci.cart_id WHERE c.customer_id = ?");
+            cartPs.setInt(1, sessionUserId);
+            java.sql.ResultSet cartRs = cartPs.executeQuery();
+            if (cartRs.next()) cartCount = cartRs.getInt(1);
+            cartRs.close();
+            cartPs.close();
+            cartConn.close();
+        }
     } catch (Exception ex) {
         ex.printStackTrace();
     }
@@ -72,11 +92,13 @@ input::-webkit-contacts-auto-fill-button {
             box-shadow: 0 6px 20px rgba(0,0,0,0.15);
             transform: translateY(-4px);
         }
-        .product-card img {
-            height: 160px;
-            object-fit: cover;
-            width: 100%;
-        }
+       .product-card img {
+    height: 200px;
+    object-fit: contain;
+    width: 100%;
+    background: #f8f9fa;
+    padding: 8px;
+}
         @media (max-width: 576px) {
             .product-card img { height: 120px; }
             .card-title { font-size: 13px; }
@@ -208,10 +230,10 @@ String navAvatar = "seller".equals(loggedRole2) ?
             <% if (loggedUser == null) { %>
                 <a href="#" class="btn btn-outline-secondary btn-sm position-relative" data-bs-toggle="modal" data-bs-target="#loginModal">
             <% } else { %>
-                <a href="cart.jsp" class="btn btn-outline-secondary btn-sm position-relative">
+                <a href="CartServlet" class="btn btn-outline-secondary btn-sm position-relative">
             <% } %>
                 <i class="bi bi-cart3"></i>
-                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
+               <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
             </a>
         </div>
     </div>
@@ -308,10 +330,13 @@ String navAvatar = "seller".equals(loggedRole2) ?
                     <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
                     <div class="mt-auto">
                         <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-                            <button class="btn btn-primary btn-sm w-100">
-                                <i class="bi bi-cart-plus"></i> Add to Cart
-                            </button>
-                        <% } else { %>
+    <form action="AddToCartServlet" method="post">
+        <input type="hidden" name="productId" value="<%= prod.get("id") %>">
+        <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="bi bi-cart-plus"></i> Add to Cart
+        </button>
+    </form>
+<% } else { %>
                             <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
                                 <i class="bi bi-cart-plus"></i> Add to Cart
                             </button>

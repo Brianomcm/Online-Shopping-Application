@@ -203,7 +203,16 @@
     }
 
     function checkout() {
-        showToast('Checkout coming soon! 🚀');
+        fetch('PrepareCheckoutServlet', {
+            method: 'POST'
+        }).then(res => res.json())
+          .then(data => {
+              if (data.success) {
+                  window.location.href = 'checkout.jsp';
+              } else {
+                  showToast(data.message, '#dc3545');
+              }
+          });
     }
 </script>
 </body>

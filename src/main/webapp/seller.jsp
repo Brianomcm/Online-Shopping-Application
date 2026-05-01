@@ -198,6 +198,13 @@
     cursor: grab;
 }
 #bannerCropCanvas:active { cursor: grabbing; }
+#productCropCanvas {
+    display: block;
+    width: 300px;
+    height: 300px;
+    cursor: grab;
+}
+#productCropCanvas:active { cursor: grabbing; }
     </style>
 </head>
 <body>
@@ -479,13 +486,14 @@
                         <textarea name="description" class="form-control" rows="3" placeholder="Describe your product..."></textarea>
                     </div>
                     <div class="col-12">
-                        <label class="form-label fw-bold" style="font-size:13px;">Product Image</label>
-                        <input type="file" id="productImageInput" class="form-control" accept="image/*" onchange="previewProductImage(this)">
-                        <input type="hidden" name="productImage" id="productImageData">
-                        <div id="productImagePreview" class="mt-2" style="display:none;">
-                            <img id="productImgPreview" src="" style="width:120px; height:120px; object-fit:cover; border-radius:8px; border:2px solid #198754;">
-                        </div>
-                    </div>
+    <label class="form-label fw-bold" style="font-size:13px;">Product Image</label>
+    <input type="file" id="productImageInput" class="form-control" accept="image/*" onchange="openProductCropModal(this)">
+    <input type="hidden" name="productImage" id="productImageData">
+    <div id="productImagePreview" class="mt-2" style="display:none;">
+        <img id="productImgPreview" src="" style="width:120px; height:120px; object-fit:cover; border-radius:8px; border:2px solid #198754;">
+        <p class="text-muted mt-1" style="font-size:11px;">Click the file input again to change photo</p>
+    </div>
+</div>
                     <div class="col-12 d-flex gap-2 justify-content-end">
                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="hideAddProduct()">
                             <i class="bi bi-x"></i> Cancel
@@ -1146,28 +1154,125 @@ window.addEventListener('load', function() {
         document.getElementById('addProductForm').style.display = 'none';
         document.getElementById('noProductsMsg').style.display = 'block';
     }
-    function previewProductImage(input) {
+    let productCropImg = new Image();
+    let productCropOffX = 0, productCropOffY = 0;
+    let productCropIsDragging = false;
+    let productCropStartX, productCropStartY;
+    let productCropScale = 1;
+    const PRODUCT_SIZE = 600;
+
+    function openProductCropModal(input) {
         if (input.files && input.files[0]) {
             const reader = new FileReader();
-            reader.onload = e => {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const MAX = 600;
-                    let w = img.width, h = img.height;
-                    if (w > h) { if (w > MAX) { h = h * MAX / w; w = MAX; } }
-                    else { if (h > MAX) { w = w * MAX / h; h = MAX; } }
-                    canvas.width = w; canvas.height = h;
-                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                    const compressed = canvas.toDataURL('image/jpeg', 0.8);
-                    document.getElementById('productImgPreview').src = compressed;
-                    document.getElementById('productImagePreview').style.display = 'block';
-                    document.getElementById('productImageData').value = compressed;
+            reader.onload = function(e) {
+                document.getElementById('productCropModal').style.display = 'flex';
+                productCropScale = 1;
+                document.getElementById('productCropZoom').value = 1;
+
+                productCropImg = new Image();
+                productCropImg.onload = function() {
+                    const fitScale = Math.max(PRODUCT_SIZE / productCropImg.width, PRODUCT_SIZE / productCropImg.height);
+                    productCropScale = fitScale;
+                    document.getElementById('productCropZoom').min = fitScale;
+                    document.getElementById('productCropZoom').value = fitScale;
+                    productCropOffX = (PRODUCT_SIZE - productCropImg.width * productCropScale) / 2;
+                    productCropOffY = (PRODUCT_SIZE - productCropImg.height * productCropScale) / 2;
+                    drawProductCropCanvas();
                 };
-                img.src = e.target.result;
+                productCropImg.src = e.target.result;
+
+                const canvas = document.getElementById('productCropCanvas');
+                canvas.width = PRODUCT_SIZE;
+                canvas.height = PRODUCT_SIZE;
+
+                const newCanvas = canvas.cloneNode(true);
+                canvas.parentNode.replaceChild(newCanvas, canvas);
+                const c = document.getElementById('productCropCanvas');
+
+                c.addEventListener('mousedown', (e) => {
+                    productCropIsDragging = true;
+                    productCropStartX = e.clientX - productCropOffX;
+                    productCropStartY = e.clientY - productCropOffY;
+                });
+                c.addEventListener('mousemove', (e) => {
+                    if (!productCropIsDragging) return;
+                    productCropOffX = e.clientX - productCropStartX;
+                    productCropOffY = e.clientY - productCropStartY;
+                    clampProductCrop();
+                    drawProductCropCanvas();
+                });
+                c.addEventListener('mouseup', () => productCropIsDragging = false);
+                c.addEventListener('mouseleave', () => productCropIsDragging = false);
+                c.addEventListener('touchstart', (e) => {
+                    productCropIsDragging = true;
+                    productCropStartX = e.touches[0].clientX - productCropOffX;
+                    productCropStartY = e.touches[0].clientY - productCropOffY;
+                }, {passive: true});
+                c.addEventListener('touchmove', (e) => {
+                    if (!productCropIsDragging) return;
+                    productCropOffX = e.touches[0].clientX - productCropStartX;
+                    productCropOffY = e.touches[0].clientY - productCropStartY;
+                    clampProductCrop();
+                    drawProductCropCanvas();
+                }, {passive: true});
+                c.addEventListener('touchend', () => productCropIsDragging = false);
+
+                document.getElementById('productCropZoom').oninput = function() {
+                    const oldScale = productCropScale;
+                    productCropScale = parseFloat(this.value);
+                    productCropOffX = PRODUCT_SIZE/2 - (PRODUCT_SIZE/2 - productCropOffX) * (productCropScale / oldScale);
+                    productCropOffY = PRODUCT_SIZE/2 - (PRODUCT_SIZE/2 - productCropOffY) * (productCropScale / oldScale);
+                    clampProductCrop();
+                    drawProductCropCanvas();
+                };
             };
             reader.readAsDataURL(input.files[0]);
         }
+    }
+
+    function clampProductCrop() {
+        const w = productCropImg.width * productCropScale;
+        const h = productCropImg.height * productCropScale;
+        if (productCropOffX > 0) productCropOffX = 0;
+        if (productCropOffY > 0) productCropOffY = 0;
+        if (productCropOffX + w < PRODUCT_SIZE) productCropOffX = PRODUCT_SIZE - w;
+        if (productCropOffY + h < PRODUCT_SIZE) productCropOffY = PRODUCT_SIZE - h;
+    }
+
+    function drawProductCropCanvas() {
+        const canvas = document.getElementById('productCropCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = PRODUCT_SIZE;
+        canvas.height = PRODUCT_SIZE;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, PRODUCT_SIZE, PRODUCT_SIZE);
+        ctx.drawImage(productCropImg, productCropOffX, productCropOffY,
+            productCropImg.width * productCropScale, productCropImg.height * productCropScale);
+        ctx.strokeStyle = '#198754';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 4]);
+        ctx.strokeRect(2, 2, PRODUCT_SIZE - 4, PRODUCT_SIZE - 4);
+        ctx.setLineDash([]);
+    }
+
+    function applyProductCrop() {
+        const canvas = document.getElementById('productCropCanvas');
+        const output = document.createElement('canvas');
+        output.width = PRODUCT_SIZE;
+        output.height = PRODUCT_SIZE;
+        const ctx = output.getContext('2d');
+        ctx.drawImage(productCropImg, productCropOffX, productCropOffY,
+            productCropImg.width * productCropScale, productCropImg.height * productCropScale);
+        const result = output.toDataURL('image/jpeg', 0.85);
+        document.getElementById('productImgPreview').src = result;
+        document.getElementById('productImagePreview').style.display = 'block';
+        document.getElementById('productImageData').value = result;
+        closeProductCropModal();
+    }
+
+    function closeProductCropModal() {
+        document.getElementById('productCropModal').style.display = 'none';
+        productCropIsDragging = false;
     }
     
     
@@ -1256,7 +1361,29 @@ window.addEventListener('load', function() {
     <p class="fw-bold text-success fs-5">Saving...</p>
 </div>
 
-
+<!-- CROP MODAL FOR PRODUCT IMAGE -->
+<div class="crop-modal-overlay" id="productCropModal">
+    <div class="crop-container">
+        <p class="fw-bold mb-3 text-center" style="font-size:15px;"><i class="bi bi-crop text-success"></i> Crop Product Image</p>
+        <div class="crop-canvas-wrapper" id="productCropWrapper" style="width:300px; height:300px; margin:0 auto; overflow:hidden; border-radius:8px;">
+            <canvas id="productCropCanvas"></canvas>
+        </div>
+        <div class="mt-3 d-flex justify-content-between align-items-center">
+            <div>
+                <label style="font-size:12px;" class="text-muted">Zoom</label>
+                <input type="range" id="productCropZoom" min="0.5" max="3" step="0.01" value="1" style="width:120px;">
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" onclick="closeProductCropModal()">
+                    <i class="bi bi-x"></i> Cancel
+                </button>
+                <button class="btn btn-success btn-sm" onclick="applyProductCrop()">
+                    <i class="bi bi-check2"></i> Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- EDIT PRODUCT MODAL -->
 <div id="editProductModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:500px;">

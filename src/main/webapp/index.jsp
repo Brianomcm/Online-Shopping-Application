@@ -1,5 +1,29 @@
 <%@ page session="true" %>
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%
+    java.util.List<java.util.Map<String, Object>> products = new java.util.ArrayList<>();
+    try {
+        java.sql.Connection prodConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement prodPs = prodConn.prepareStatement(
+            "SELECT p.*, s.business_name FROM product p JOIN seller s ON p.seller_id = s.seller_id WHERE p.status='active' ORDER BY p.product_id DESC LIMIT 8");
+        java.sql.ResultSet prodRs = prodPs.executeQuery();
+        while (prodRs.next()) {
+            java.util.Map<String, Object> prod = new java.util.HashMap<>();
+            prod.put("id", prodRs.getInt("product_id"));
+            prod.put("name", prodRs.getString("name"));
+            prod.put("price", prodRs.getDouble("price"));
+            prod.put("image", prodRs.getString("image"));
+            prod.put("stock", prodRs.getInt("stock"));
+            prod.put("seller", prodRs.getString("business_name"));
+            products.add(prod);
+        }
+        prodRs.close();
+        prodPs.close();
+        prodConn.close();
+    } catch (Exception ex) {
+        ex.printStackTrace();
+    }
+%>
 <!DOCTYPE html>
 <html>
 <head>
@@ -261,164 +285,44 @@ String navAvatar = "seller".equals(loggedRole2) ?
 <div class="container mt-4" id="products">
     <h5 class="mb-3 fw-bold">Featured Products</h5>
     <div class="row g-3">
-
-        <!-- Product 1 -->
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card h-100 product-card">
-                <div class="product-wrapper">
-                    <span class="badge-sale">SALE</span>
-                    <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="Product 1">
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h6 class="card-title">Product Name 12</h6>
-                    <p class="card-text text-danger fw-bold mb-0">₱499.00</p>
-                    <p class="text-muted mb-2" style="font-size:11px;"><s>₱699.00</s> 28% off</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            <i class="bi bi-cart-plus"></i> Add to Cart
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Product 2 -->
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card h-100 product-card">
-                <div class="product-wrapper">
-                    <span class="badge-sale">SALE</span>
-                    <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="Product 2">
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h6 class="card-title">Product Name 2</h6>
-                    <p class="card-text text-danger fw-bold mb-0">₱299.00</p>
-                    <p class="text-muted mb-2" style="font-size:11px;"><s>₱399.00</s> 25% off</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            <i class="bi bi-cart-plus"></i> Add to Cart
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Product 3 -->
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card h-100 product-card">
-                <div class="product-wrapper">
-                    <span class="badge-sale">SALE</span>
-                    <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="Product 3">
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h6 class="card-title">Product Name 3</h6>
-                    <p class="card-text text-danger fw-bold mb-0">₱799.00</p>
-                    <p class="text-muted mb-2" style="font-size:11px;"><s>₱999.00</s> 20% off</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            <i class="bi bi-cart-plus"></i> Add to Cart
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Product 4 -->
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card h-100 product-card">
-                <div class="product-wrapper">
-                    <span class="badge-sale">SALE</span>
-                    <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="Product 4">
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h6 class="card-title">Product Name 4</h6>
-                    <p class="card-text text-danger fw-bold mb-0">₱199.00</p>
-                    <p class="text-muted mb-2" style="font-size:11px;"><s>₱299.00</s> 33% off</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            <i class="bi bi-cart-plus"></i> Add to Cart
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Product 5 -->
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card h-100 product-card">
-                <div class="product-wrapper">
-                    <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="Product 5">
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h6 class="card-title">Product Name 5</h6>
-                    <p class="card-text text-danger fw-bold mb-0">₱999.00</p>
-                    <p class="text-muted mb-2" style="font-size:11px;"><s>₱1299.00</s> 23% off</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            <i class="bi bi-cart-plus"></i> Add to Cart
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Product 6 -->
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card h-100 product-card">
-                <div class="product-wrapper">
-                    <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="Product 6">
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h6 class="card-title">Product Name 6</h6>
-                    <p class="card-text text-danger fw-bold mb-0">₱149.00</p>
-                    <p class="text-muted mb-2" style="font-size:11px;"><s>₱199.00</s> 25% off</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            <i class="bi bi-cart-plus"></i> Add to Cart
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Product 7 -->
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card h-100 product-card">
-                <div class="product-wrapper">
-                    <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="Product 7">
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h6 class="card-title">Product Name 7</h6>
-                    <p class="card-text text-danger fw-bold mb-0">₱349.00</p>
-                    <p class="text-muted mb-2" style="font-size:11px;"><s>₱449.00</s> 22% off</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            <i class="bi bi-cart-plus"></i> Add to Cart
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Product 8 -->
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card h-100 product-card">
-                <div class="product-wrapper">
-                    <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="Product 8">
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h6 class="card-title">Product Name 8</h6>
-                    <p class="card-text text-danger fw-bold mb-0">₱599.00</p>
-                    <p class="text-muted mb-2" style="font-size:11px;"><s>₱799.00</s> 25% off</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            <i class="bi bi-cart-plus"></i> Add to Cart
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
+<% if (products.isEmpty()) { %>
+    <div class="col-12 text-center py-5 text-muted">
+        <i class="bi bi-box-seam fs-1 opacity-25"></i>
+        <p class="mt-2">No products available yet.</p>
     </div>
+<% } else { %>
+    <% for (java.util.Map<String, Object> prod : products) { %>
+        <div class="col-6 col-md-4 col-lg-3">
+            <div class="card h-100 product-card">
+                <div class="product-wrapper">
+                    <% if (prod.get("image") != null) { %>
+                        <img src="<%= prod.get("image") %>" class="card-img-top" alt="<%= prod.get("name") %>">
+                    <% } else { %>
+                        <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="<%= prod.get("name") %>">
+                    <% } %>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <h6 class="card-title"><%= prod.get("name") %></h6>
+                    <p class="text-muted mb-1" style="font-size:11px;"><i class="bi bi-shop"></i> <%= prod.get("seller") %></p>
+                    <p class="card-text text-danger fw-bold mb-0">₱<%= String.format("%.2f", prod.get("price")) %></p>
+                    <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
+                    <div class="mt-auto">
+                        <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
+                            <button class="btn btn-primary btn-sm w-100">
+                                <i class="bi bi-cart-plus"></i> Add to Cart
+                            </button>
+                        <% } else { %>
+                            <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
+                                <i class="bi bi-cart-plus"></i> Add to Cart
+                            </button>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <% } %>
+<% } %>
+</div>
 </div>
 
 <!-- LOGIN MODAL -->

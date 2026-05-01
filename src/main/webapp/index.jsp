@@ -140,7 +140,7 @@ input::-webkit-contacts-auto-fill-button {
 </head>
 <body>
 
-<!-- TOP BAR -->
+<!-- TOP BAR -- nigga>
 <div class="top-bar text-white py-1 text-center">
     🎉 Free shipping on orders over ₱500! Limited time only!
 </div>

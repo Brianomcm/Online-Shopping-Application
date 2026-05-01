@@ -236,7 +236,7 @@
 <!-- LOGIN LOADING OVERLAY -->
 <div id="loginLoadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
     <div class="spinner-border text-primary mb-3" style="width:3.5rem; height:3.5rem;" role="status"></div>
-    <p class="fw-bold text-primary fs-5">Logging in..a.</p>
+    <p class="fw-bold text-primary fs-5">Logging in...</p>
     <p class="text-muted" style="font-size:13px;">Please wait a moment</p>
 </div>
 

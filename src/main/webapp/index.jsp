@@ -23,6 +23,27 @@
     } catch (Exception ex) {
         ex.printStackTrace();
     }
+    
+ // Get cart count
+    int cartCount = 0;
+    try {
+        String sessionRole = (String) session.getAttribute("userRole");
+        Integer sessionUserId = (Integer) session.getAttribute("userId");
+        if (sessionUserId != null && "customer".equals(sessionRole)) {
+            java.sql.Connection cartConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement cartPs = cartConn.prepareStatement(
+                "SELECT SUM(ci.quantity) FROM cart c JOIN cartitem ci ON c.cart_id = ci.cart_id WHERE c.customer_id = ?");
+            cartPs.setInt(1, sessionUserId);
+            java.sql.ResultSet cartRs = cartPs.executeQuery();
+            if (cartRs.next()) cartCount = cartRs.getInt(1);
+            cartRs.close();
+            cartPs.close();
+            cartConn.close();
+        }
+    } catch (Exception ex) {
+        ex.printStackTrace();
+    }
+%>
 %>
 <!DOCTYPE html>
 <html>
@@ -206,12 +227,12 @@ String navAvatar = "seller".equals(loggedRole2) ?
             </a>
         <% } %>
             <% if (loggedUser == null) { %>
-                <a href="#" class="btn btn-outline-secondary btn-sm position-relative" data-bs-toggle="modal" data-bs-target="#loginModal">
-            <% } else { %>
-                <a href="cart.jsp" class="btn btn-outline-secondary btn-sm position-relative">
-            <% } %>
+    <a href="#" class="btn btn-outline-secondary btn-sm position-relative" data-bs-toggle="modal" data-bs-target="#loginModal">
+<% } else { %>
+    <a href="CartServlet" class="btn btn-outline-secondary btn-sm position-relative">
+<% } %>
                 <i class="bi bi-cart3"></i>
-                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
             </a>
         </div>
     </div>
@@ -307,15 +328,18 @@ String navAvatar = "seller".equals(loggedRole2) ?
                     <p class="card-text text-danger fw-bold mb-0">₱<%= String.format("%.2f", prod.get("price")) %></p>
                     <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
                     <div class="mt-auto">
-                        <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-                            <button class="btn btn-primary btn-sm w-100">
-                                <i class="bi bi-cart-plus"></i> Add to Cart
-                            </button>
-                        <% } else { %>
-                            <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                                <i class="bi bi-cart-plus"></i> Add to Cart
-                            </button>
-                        <% } %>
+                       <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
+    <form action="AddToCartServlet" method="post">
+        <input type="hidden" name="productId" value="<%= prod.get("id") %>">
+        <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="bi bi-cart-plus"></i> Add to Cart
+        </button>
+    </form>
+<% } else { %>
+    <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
+        <i class="bi bi-cart-plus"></i> Add to Cart
+    </button>
+<% } %>
                     </div>
                 </div>
             </div>

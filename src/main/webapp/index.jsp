@@ -192,7 +192,7 @@ String navAvatar = "seller".equals(loggedRole2) ?
         </div>
     </div>
 
-    <!-- Mobile Search Bar heloooooooooooooooooooooooo-->
+    <!-- Mobile Search Bar helooooooooooooooooooooooooo-->
     <div class="container-fluid px-3 d-md-none mt-2">
         <div class="input-group">
             <input type="text" class="form-control" placeholder="Search products...">

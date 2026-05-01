@@ -73,7 +73,7 @@ public class UpdateProfileServlet extends HttpServlet {
                 session.setAttribute("userAvatar", profilePicture);
             }
 
-            response.sendRedirect("ProfileServlet?updated=true");
+            response.sendRedirect("ProfileServlet?updated=true&msg=avatar");
         } catch (Exception e) {
             e.printStackTrace();
             response.sendRedirect("ProfileServlet?error=true");

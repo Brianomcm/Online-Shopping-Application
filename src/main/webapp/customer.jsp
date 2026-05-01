@@ -147,6 +147,13 @@
         .stat-box .stat-label { font-size: 12px; color: #666; }
         .navbar-shopeasy { background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .password-strength { height: 4px; border-radius: 2px; margin-top: 6px; transition: 0.3s; }
+        .crop-modal-overlay {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; background: rgba(0,0,0,0.8);
+            z-index: 99999; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .crop-container { background: white; border-radius: 16px; padding: 20px; width: 90%; max-width: 500px; }
+        #customerCropCanvas { display: block; width: 300px; height: 300px; cursor: grab; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -246,13 +253,13 @@
         <img src="" alt="Avatar" id="avatarPreview" 
              style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid #0d6efd; display:none; position:absolute; top:0; left:0;">
     <% } %>
-    <button class="upload-btn" id="avatarBtn" style="display:none;" onclick="document.getElementById('avatarInput').click()">
+    <button class="upload-btn" id="avatarBtn" onclick="document.getElementById('avatarInput').click()">
         <i class="bi bi-camera"></i>
     </button>
-    <input type="file" id="avatarInput" style="display:none" accept="image/*" onchange="previewAvatar(this)">
+    <input type="file" id="avatarInput" style="display:none" accept="image/*" onchange="openCustomerCropModal(this)">
 </div>
 
-            <p class="text-muted" id="avatarHint" style="font-size:12px;">To change avatar, click Edit Profile first</p>
+           <p class="text-muted" id="avatarHint" style="font-size:12px;">Click the camera icon to change photo</p>
         </div>
 
         <form action="UpdateProfileServlet" method="post" id="profileForm">
@@ -554,10 +561,12 @@ window.addEventListener('load', function() {
 
     if (profileParams.get('updated') === 'true') {
         const bar = document.getElementById('successBar');
+        const msg = profileParams.get('msg');
+        bar.querySelector('span') 
+            ? bar.querySelector('span').textContent = (msg === 'avatar' ? 'Profile picture updated! ✅' : 'Profile saved successfully! ✅')
+            : bar.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' + (msg === 'avatar' ? 'Profile picture updated! ✅' : 'Profile saved successfully! ✅');
         bar.style.display = 'block';
-        setTimeout(() => {
-            bar.style.display = 'none';
-        }, 3000);
+        setTimeout(() => { bar.style.display = 'none'; }, 3000);
         window.history.replaceState({}, '', 'customer.jsp');
     }
     
@@ -578,8 +587,7 @@ window.addEventListener('load', function() {
         document.getElementById('inputGender').removeAttribute('disabled');
         document.getElementById('saveSection').style.display = 'block';
         document.getElementById('editBtn').style.display = 'none';
-        document.getElementById('avatarBtn').style.display = 'flex';
-        document.getElementById('avatarHint').textContent = 'Click the camera icon to change photo';
+       
 
         document.querySelectorAll('#profileForm .form-control:not([style*="background"])').forEach(el => {
             el.style.borderColor = '#0d6efd';
@@ -614,29 +622,91 @@ window.addEventListener('load', function() {
         else { bar.style.width = '100%'; bar.className = 'password-strength bg-success'; text.textContent = 'Strong'; text.className = 'text-success'; }
     }
 
-    function previewAvatar(input) {
+    let custCropImg = new Image();
+    let custCropOffX = 0, custCropOffY = 0;
+    let custCropDragging = false;
+    let custCropStartX, custCropStartY;
+    let custCropScale = 1;
+    const CUST_SIZE = 300;
+
+    function openCustomerCropModal(input) {
         if (input.files && input.files[0]) {
             const reader = new FileReader();
-            reader.onload = e => {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const MAX = 300;
-                    let w = img.width, h = img.height;
-                    if (w > h) { if (w > MAX) { h = h * MAX / w; w = MAX; } }
-                    else { if (h > MAX) { w = w * MAX / h; h = MAX; } }
-                    canvas.width = w; canvas.height = h;
-                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                    const compressed = canvas.toDataURL('image/jpeg', 0.7);
-                    document.getElementById('avatarPreview').src = compressed;
-                    document.getElementById('avatarPreview').style.display = 'block';
-                    document.getElementById('avatarInitials').style.display = 'none';
-                    document.getElementById('profilePictureData').value = compressed;
+            reader.onload = function(e) {
+                document.getElementById('customerCropModal').style.display = 'flex';
+                custCropImg = new Image();
+                custCropImg.onload = function() {
+                    const fit = Math.max(CUST_SIZE / custCropImg.width, CUST_SIZE / custCropImg.height);
+                    custCropScale = fit;
+                    document.getElementById('custCropZoom').min = fit;
+                    document.getElementById('custCropZoom').value = fit;
+                    custCropOffX = (CUST_SIZE - custCropImg.width * custCropScale) / 2;
+                    custCropOffY = (CUST_SIZE - custCropImg.height * custCropScale) / 2;
+                    drawCustomerCrop();
                 };
-                img.src = e.target.result;
+                custCropImg.src = e.target.result;
+                const canvas = document.getElementById('customerCropCanvas');
+                canvas.width = CUST_SIZE; canvas.height = CUST_SIZE;
+                const nc = canvas.cloneNode(true);
+                canvas.parentNode.replaceChild(nc, canvas);
+                const c = document.getElementById('customerCropCanvas');
+                c.addEventListener('mousedown', e => { custCropDragging = true; custCropStartX = e.clientX - custCropOffX; custCropStartY = e.clientY - custCropOffY; });
+                c.addEventListener('mousemove', e => { if (!custCropDragging) return; custCropOffX = e.clientX - custCropStartX; custCropOffY = e.clientY - custCropStartY; clampCustCrop(); drawCustomerCrop(); });
+                c.addEventListener('mouseup', () => custCropDragging = false);
+                c.addEventListener('mouseleave', () => custCropDragging = false);
+                c.addEventListener('touchstart', e => { custCropDragging = true; custCropStartX = e.touches[0].clientX - custCropOffX; custCropStartY = e.touches[0].clientY - custCropOffY; }, {passive:true});
+                c.addEventListener('touchmove', e => { if (!custCropDragging) return; custCropOffX = e.touches[0].clientX - custCropStartX; custCropOffY = e.touches[0].clientY - custCropStartY; clampCustCrop(); drawCustomerCrop(); }, {passive:true});
+                c.addEventListener('touchend', () => custCropDragging = false);
+                document.getElementById('custCropZoom').oninput = function() {
+                    const old = custCropScale; custCropScale = parseFloat(this.value);
+                    custCropOffX = CUST_SIZE/2 - (CUST_SIZE/2 - custCropOffX) * (custCropScale/old);
+                    custCropOffY = CUST_SIZE/2 - (CUST_SIZE/2 - custCropOffY) * (custCropScale/old);
+                    clampCustCrop(); drawCustomerCrop();
+                };
             };
             reader.readAsDataURL(input.files[0]);
         }
+    }
+
+    function clampCustCrop() {
+        const w = custCropImg.width * custCropScale, h = custCropImg.height * custCropScale;
+        if (custCropOffX > 0) custCropOffX = 0; if (custCropOffY > 0) custCropOffY = 0;
+        if (custCropOffX + w < CUST_SIZE) custCropOffX = CUST_SIZE - w;
+        if (custCropOffY + h < CUST_SIZE) custCropOffY = CUST_SIZE - h;
+    }
+
+    function drawCustomerCrop() {
+        const c = document.getElementById('customerCropCanvas');
+        const ctx = c.getContext('2d');
+        c.width = CUST_SIZE; c.height = CUST_SIZE;
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, CUST_SIZE, CUST_SIZE);
+        ctx.drawImage(custCropImg, custCropOffX, custCropOffY, custCropImg.width * custCropScale, custCropImg.height * custCropScale);
+        ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, CUST_SIZE, CUST_SIZE);
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath(); ctx.arc(CUST_SIZE/2, CUST_SIZE/2, CUST_SIZE/2 - 2, 0, Math.PI*2); ctx.fill(); ctx.restore();
+        ctx.strokeStyle = '#0d6efd'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(CUST_SIZE/2, CUST_SIZE/2, CUST_SIZE/2 - 2, 0, Math.PI*2); ctx.stroke();
+    }
+
+    function applyCustomerCrop() {
+        const out = document.createElement('canvas');
+        out.width = CUST_SIZE; out.height = CUST_SIZE;
+        const ctx = out.getContext('2d');
+        ctx.beginPath(); ctx.arc(CUST_SIZE/2, CUST_SIZE/2, CUST_SIZE/2, 0, Math.PI*2); ctx.clip();
+        ctx.drawImage(custCropImg, custCropOffX, custCropOffY, custCropImg.width * custCropScale, custCropImg.height * custCropScale);
+        const result = out.toDataURL('image/png');
+        document.getElementById('avatarPreview').src = result;
+        document.getElementById('avatarPreview').style.display = 'block';
+        document.getElementById('avatarInitials').style.display = 'none';
+        document.getElementById('sidebarAvatar').src = result;
+        document.getElementById('profilePictureData').value = result;
+        document.getElementById('customerCropModal').style.display = 'none';
+
+        // Auto-save to database
+        document.getElementById('savingOverlay').style.display = 'flex';
+        setTimeout(() => {
+            document.getElementById('profileForm').submit();
+        }, 600);
     }
 
     document.getElementById('profileForm').addEventListener('submit', function(e) {
@@ -689,7 +759,29 @@ window.addEventListener('load', function() {
         }
     }
 </script>
-
+<!-- CROP MODAL FOR CUSTOMER AVATAR -->
+<div class="crop-modal-overlay" id="customerCropModal">
+    <div class="crop-container">
+        <p class="fw-bold mb-3 text-center" style="font-size:15px;"><i class="bi bi-crop text-primary"></i> Crop Profile Photo</p>
+        <div class="crop-canvas-wrapper" id="custCropWrapper" style="width:300px; height:300px; margin:0 auto; overflow:hidden; border-radius:8px;">
+            <canvas id="customerCropCanvas"></canvas>
+        </div>
+        <div class="mt-3 d-flex justify-content-between align-items-center">
+            <div>
+                <label style="font-size:12px;" class="text-muted">Zoom</label>
+                <input type="range" id="custCropZoom" min="0.5" max="3" step="0.01" value="1" style="width:120px;">
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('customerCropModal').style.display='none'">
+                    <i class="bi bi-x"></i> Cancel
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="applyCustomerCrop()">
+                    <i class="bi bi-check2"></i> Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- SAVING OVERLAY -->
 <div id="savingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
     <div class="spinner-border text-primary mb-3" style="width:3rem; height:3rem;" role="status"></div>

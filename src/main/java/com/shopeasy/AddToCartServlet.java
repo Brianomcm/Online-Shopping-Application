@@ -21,11 +21,17 @@ public class AddToCartServlet extends HttpServlet {
         String role = (String) session.getAttribute("userRole");
 
         if (userId == null || !"customer".equals(role)) {
-            response.sendRedirect("index.jsp?error=login");
+            response.setContentType("application/json");
+            response.getWriter().print("{\"success\":false,\"message\":\"Not logged in\"}");
             return;
         }
-
-        int productId = Integer.parseInt(request.getParameter("productId"));
+        String productIdParam = request.getParameter("productId");
+        if (productIdParam == null || productIdParam.trim().isEmpty() || productIdParam.trim().equals("undefined")) {
+            response.setContentType("application/json");
+            response.getWriter().print("{\"success\":false,\"message\":\"Invalid product\"}");
+            return;
+        }
+        int productId = Integer.parseInt(productIdParam.trim());
         int quantity = 1;
 
         try {
@@ -80,12 +86,14 @@ public class AddToCartServlet extends HttpServlet {
             }
             rs.close();
             ps.close();
-            conn.close();
+            conn.close(); 
 
-            response.sendRedirect("index.jsp?added=true");
+            response.setContentType("application/json");
+            response.getWriter().print("{\"success\":true}");
         } catch (Exception e) {
             e.printStackTrace();
-            response.sendRedirect("index.jsp?error=true");
+            response.setContentType("application/json");
+            response.getWriter().print("{\"success\":false,\"message\":\"" + e.getMessage() + "\"}");
         }
     }
 }

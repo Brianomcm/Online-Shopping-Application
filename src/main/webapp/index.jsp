@@ -316,7 +316,7 @@ String navAvatar = "seller".equals(loggedRole2) ?
 <% } else { %>
     <% for (java.util.Map<String, Object> prod : products) { %>
     <div class="col-6 col-md-4 col-lg-3">
-        <div class="card h-100 product-card" onclick="showProduct('<%= prod.get("id") %>', '<%= ((String)prod.get("name")).replace("'", "\\'") %>', '<%= prod.get("price") %>', '<%= prod.get("stock") %>', '<%= prod.get("seller") %>', '<%= prod.get("image") != null ? prod.get("image") : "" %>', '<%= prod.get("description") != null ? ((String)prod.get("description")).replace("'","\'").replace("\n"," ") : "No description available." %>')" style="cursor:pointer;">
+    <div class="card h-100 product-card" onclick="window.location.href='product.jsp?id=<%= prod.get("id") %>'" style="cursor:pointer;">    
             <div class="product-wrapper">
                 <% if (prod.get("image") != null) { %>
                     <img src="<%= prod.get("image") %>" class="card-img-top" alt="<%= prod.get("name") %>">
@@ -331,12 +331,9 @@ String navAvatar = "seller".equals(loggedRole2) ?
                 <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
                 <div class="mt-auto" onclick="event.stopPropagation();">
                     <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-                        <form action="AddToCartServlet" method="post">
-                            <input type="hidden" name="productId" value="<%= prod.get("id") %>">
-                            <button type="submit" class="btn btn-primary btn-sm w-100">
-                                <i class="bi bi-cart-plus"></i> Add to Cart
-                            </button>
-                        </form>
+                        <button type="button" class="btn btn-primary btn-sm w-100" onclick="addToCart(<%= prod.get("id") %>)">
+    <i class="bi bi-cart-plus"></i> Add to Cart
+</button>
                     <% } else { %>
                         <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
                             <i class="bi bi-cart-plus"></i> Add to Cart
@@ -660,15 +657,12 @@ function showProduct(id, name, price, stock, seller, image, description) {
     }
 
     const cartSection = document.getElementById('modalCartSection');
-    const isLoggedIn = document.getElementById('isLoggedInFlag').value === 'true';
+    const isLoggedIn = <%= (loggedUser != null && "customer".equals(loggedRole)) ? "true" : "false" %>;
     if (isLoggedIn) {
-        cartSection.innerHTML = `
-            <form action="AddToCartServlet" method="post">
-                <input type="hidden" name="productId" value="${id}">
-                <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
-                    <i class="bi bi-cart-plus"></i> Add to Cart
-                </button>
-            </form>`;
+    	cartSection.innerHTML = `
+    	    <button type="button" class="btn btn-primary w-100 fw-bold py-2" onclick="addToCart(${id})">
+    	        <i class="bi bi-cart-plus"></i> Add to Cart
+    	    </button>`;
     } else {
         cartSection.innerHTML = `
             <button class="btn btn-primary w-100 fw-bold py-2" onclick="bootstrap.Modal.getInstance(document.getElementById('productModal')).hide(); setTimeout(()=>new bootstrap.Modal(document.getElementById('loginModal')).show(),300)">
@@ -796,7 +790,47 @@ function showProduct(id, name, price, stock, seller, image, description) {
         }, 300);
         return false;
     }
-</script>
+    
+    
+    </script>
+
+
+    <!-- ADD TO CART TOAST -->
+    <div id="cartToast" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#198754; color:white; padding:12px 28px; border-radius:12px; font-size:14px; font-weight:600; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,0.2);">
+        <i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒
+    </div>
+
+    <script>
+    function addToCart(productId) {
+        fetch('AddToCartServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'productId=' + productId
+        })
+        .then(res => res.json())
+        .then(data => {
+    console.log('Response:', data);
+    if (data.success) {
+                const toast = document.getElementById('cartToast');
+                toast.style.display = 'block';
+                setTimeout(() => toast.style.display = 'none', 2500);
+                const badge = document.querySelector('.badge.bg-danger');
+                if (badge) {
+                    badge.textContent = parseInt(badge.textContent || 0) + 1;
+                }
+                const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+                if (modal) modal.hide();
+            }
+        })
+        .catch(err => console.error(err));
+    }
+    
+    </script>
+    
+    
+    
+    
+    
 <!-- LOGIN LOADING OVERLAY -->
 <div id="loginLoadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
     <div class="spinner-border text-primary mb-3" style="width:3.5rem; height:3.5rem;" role="status"></div>
@@ -822,9 +856,11 @@ function showProduct(id, name, price, stock, seller, image, description) {
     <p class="fw-bold text-primary fs-5">Logging out...</p>
 </div>
 
-</body>
+
+
 <%
     String isLoggedInFlag = (loggedUser != null && "customer".equals(loggedRole)) ? "true" : "false";
 %>
 <input type="hidden" id="isLoggedInFlag" value="<%= isLoggedInFlag %>">
+</body>
 </html>

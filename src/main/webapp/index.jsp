@@ -118,7 +118,7 @@ input::-webkit-contacts-auto-fill-button {
 </head>
 <body>
 
-<!-- TOP BAR HELLO -->
+<!-- TOP BAR -->
 <div class="top-bar text-white py-1 text-center">
     🎉 Free shipping on orders over ₱500! Limited time only!
 </div>
@@ -126,7 +126,7 @@ input::-webkit-contacts-auto-fill-button {
 
 <div id="successMsg" class="alert alert-success text-center mb-0 py-2" style="display:none; border-radius:0;">
     <i class="bi bi-check-circle-fill"></i> Registration successful! Please login to continue.
-</div>
+</div>x
 <!-- ERROR MESSAGE -->
 <div id="errorMsg" class="alert alert-danger text-center mb-0 py-2" style="display:none; border-radius:0;">
     <i class="bi bi-x-circle-fill"></i> <span id="errorText">Account not found. Please check your email or password.</span>

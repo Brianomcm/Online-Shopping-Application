@@ -15,6 +15,7 @@
             prod.put("image", prodRs.getString("image"));
             prod.put("stock", prodRs.getInt("stock"));
             prod.put("seller", prodRs.getString("business_name"));
+            prod.put("description", prodRs.getString("description"));
             products.add(prod);
         }
         prodRs.close();
@@ -314,40 +315,68 @@ String navAvatar = "seller".equals(loggedRole2) ?
     </div>
 <% } else { %>
     <% for (java.util.Map<String, Object> prod : products) { %>
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card h-100 product-card">
-                <div class="product-wrapper">
-                    <% if (prod.get("image") != null) { %>
-                        <img src="<%= prod.get("image") %>" class="card-img-top" alt="<%= prod.get("name") %>">
-                    <% } else { %>
-                        <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="<%= prod.get("name") %>">
-                    <% } %>
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h6 class="card-title"><%= prod.get("name") %></h6>
-                    <p class="text-muted mb-1" style="font-size:11px;"><i class="bi bi-shop"></i> <%= prod.get("seller") %></p>
-                    <p class="card-text text-danger fw-bold mb-0">₱<%= String.format("%.2f", prod.get("price")) %></p>
-                    <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
-                    <div class="mt-auto">
-                        <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-    <form action="AddToCartServlet" method="post">
-        <input type="hidden" name="productId" value="<%= prod.get("id") %>">
-        <button type="submit" class="btn btn-primary btn-sm w-100">
-            <i class="bi bi-cart-plus"></i> Add to Cart
-        </button>
-    </form>
-<% } else { %>
-                            <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
+    <div class="col-6 col-md-4 col-lg-3">
+        <div class="card h-100 product-card" onclick="showProduct('<%= prod.get("id") %>', '<%= ((String)prod.get("name")).replace("'", "\\'") %>', '<%= prod.get("price") %>', '<%= prod.get("stock") %>', '<%= prod.get("seller") %>', '<%= prod.get("image") != null ? prod.get("image") : "" %>', '<%= prod.get("description") != null ? ((String)prod.get("description")).replace("'","\'").replace("\n"," ") : "No description available." %>')" style="cursor:pointer;">
+            <div class="product-wrapper">
+                <% if (prod.get("image") != null) { %>
+                    <img src="<%= prod.get("image") %>" class="card-img-top" alt="<%= prod.get("name") %>">
+                <% } else { %>
+                    <div style="height:200px; background:#f8f9fa; display:flex; align-items:center; justify-content:center; color:#aaa; font-size:40px;"><i class="bi bi-image"></i></div>
+                <% } %>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <h6 class="card-title"><%= prod.get("name") %></h6>
+                <p class="text-muted mb-1" style="font-size:11px;"><i class="bi bi-shop"></i> <%= prod.get("seller") %></p>
+                <p class="card-text text-danger fw-bold mb-0">₱<%= String.format("%.2f", prod.get("price")) %></p>
+                <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
+                <div class="mt-auto" onclick="event.stopPropagation();">
+                    <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
+                        <form action="AddToCartServlet" method="post">
+                            <input type="hidden" name="productId" value="<%= prod.get("id") %>">
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
                                 <i class="bi bi-cart-plus"></i> Add to Cart
                             </button>
-                        <% } %>
+                        </form>
+                    <% } else { %>
+                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
+                            <i class="bi bi-cart-plus"></i> Add to Cart
+                        </button>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+<% } %>
+<% } %>
+</div>
+</div>
+
+<!-- PRODUCT DETAILS MODAL -->
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="modalProductName"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-4 pb-4">
+                <div class="row g-3">
+                    <div class="col-md-5 text-center">
+                        <img id="modalProductImg" src="" style="width:100%; max-height:280px; object-fit:contain; border-radius:12px; background:#f8f9fa; padding:12px;">
+                    </div>
+                    <div class="col-md-7">
+                        <p class="text-muted mb-1" style="font-size:13px;"><i class="bi bi-shop"></i> <span id="modalSeller"></span></p>
+                        <h3 class="text-danger fw-bold mb-2" id="modalPrice"></h3>
+                        <p class="text-muted mb-3" style="font-size:13px;">Stock: <span id="modalStock"></span></p>
+                        <hr>
+                        <p class="fw-bold mb-1">Description</p>
+                        <p class="text-muted" id="modalDescription" style="font-size:14px;"></p>
+                        <div id="modalCartSection" class="mt-3"></div>
                     </div>
                 </div>
             </div>
         </div>
-    <% } %>
-<% } %>
-</div>
+    </div>
 </div>
 
 <!-- LOGIN MODAL -->
@@ -615,6 +644,43 @@ String navAvatar = "seller".equals(loggedRole2) ?
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+function showProduct(id, name, price, stock, seller, image, description) {
+    document.getElementById('modalProductName').innerText = name;
+    document.getElementById('modalPrice').innerText = '₱' + parseFloat(price).toFixed(2);
+    document.getElementById('modalStock').innerText = stock;
+    document.getElementById('modalSeller').innerText = seller;
+    document.getElementById('modalDescription').innerText = description;
+
+    const img = document.getElementById('modalProductImg');
+    if (image && image !== 'null' && image !== '') {
+        img.src = image;
+        img.style.display = 'block';
+    } else {
+        img.style.display = 'none';
+    }
+
+    const cartSection = document.getElementById('modalCartSection');
+    const isLoggedIn = document.getElementById('isLoggedInFlag').value === 'true';
+    if (isLoggedIn) {
+        cartSection.innerHTML = `
+            <form action="AddToCartServlet" method="post">
+                <input type="hidden" name="productId" value="${id}">
+                <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
+                    <i class="bi bi-cart-plus"></i> Add to Cart
+                </button>
+            </form>`;
+    } else {
+        cartSection.innerHTML = `
+            <button class="btn btn-primary w-100 fw-bold py-2" onclick="bootstrap.Modal.getInstance(document.getElementById('productModal')).hide(); setTimeout(()=>new bootstrap.Modal(document.getElementById('loginModal')).show(),300)">
+                <i class="bi bi-cart-plus"></i> Login to Add to Cart
+            </button>`;
+    }
+
+    new bootstrap.Modal(document.getElementById('productModal')).show();
+}
+</script>
+
+<script>
     function togglePassword(fieldId, btn) {
         const field = document.getElementById(fieldId);
         const icon = btn.querySelector('i');
@@ -757,4 +823,8 @@ String navAvatar = "seller".equals(loggedRole2) ?
 </div>
 
 </body>
+<%
+    String isLoggedInFlag = (loggedUser != null && "customer".equals(loggedRole)) ? "true" : "false";
+%>
+<input type="hidden" id="isLoggedInFlag" value="<%= isLoggedInFlag %>">
 </html>

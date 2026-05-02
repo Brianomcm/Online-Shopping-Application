@@ -335,8 +335,22 @@
         </div>
         <div class="col-6 col-md-3">
             <div class="stat-box">
-                <div class="stat-num">0.0</div>
-                <div class="stat-label">Rating</div>
+                <%
+double sellerAvgRating = 0.0;
+try {
+    java.sql.Connection ratingConn = com.shopeasy.DBConnection.getConnection();
+    java.sql.PreparedStatement ratingPs = ratingConn.prepareStatement(
+        "SELECT AVG(r.rating) FROM review r " +
+        "JOIN product p ON r.product_id = p.product_id " +
+        "WHERE p.seller_id = ?");
+    ratingPs.setInt(1, (int) session.getAttribute("userId"));
+    java.sql.ResultSet ratingRs = ratingPs.executeQuery();
+    if (ratingRs.next()) sellerAvgRating = ratingRs.getDouble(1);
+    ratingRs.close(); ratingPs.close(); ratingConn.close();
+} catch (Exception ex) { ex.printStackTrace(); }
+%>
+<div class="stat-num"><%= String.format("%.1f", sellerAvgRating) %></div>
+<div class="stat-label">Rating</div>
             </div>
         </div>
     </div>
@@ -809,7 +823,7 @@
     </div>
     <% } } %>
 </div>
-</div>
+
     <div id="tab-sales" class="tab-content-section" style="display:none;">
         <div class="card-section">
             <p class="section-title"><i class="bi bi-graph-up-arrow text-success"></i> Sales & Analytics</p>
@@ -821,14 +835,66 @@
     </div>
 
     <div id="tab-reviews" class="tab-content-section" style="display:none;">
-        <div class="card-section">
-            <p class="section-title"><i class="bi bi-star-fill text-success"></i> Customer Reviews</p>
-            <div class="text-center text-muted py-4">
-                <i class="bi bi-star fs-1 opacity-50"></i>
-                <p class="mt-2" style="font-size:13px;">No reviews yet.</p>
+    <div class="card-section">
+        <p class="section-title"><i class="bi bi-star-fill text-success"></i> Customer Reviews</p>
+        <%
+        boolean hasSellerReviews = false;
+        try {
+            java.sql.Connection srConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement srPs = srConn.prepareStatement(
+                "SELECT r.rating, r.comment, r.photo, p.name AS pname, p.image AS pimage, " +
+                "c.name AS cname " +
+                "FROM review r " +
+                "JOIN product p ON r.product_id = p.product_id " +
+                "JOIN customer c ON r.customer_id = c.customer_id " +
+                "WHERE p.seller_id = ? ORDER BY r.review_id DESC");
+            srPs.setInt(1, (int) session.getAttribute("userId"));
+            java.sql.ResultSet srRs = srPs.executeQuery();
+            while (srRs.next()) {
+                hasSellerReviews = true;
+        %>
+        <div class="d-flex gap-3 p-3 mb-3 border rounded-3">
+            <% if (srRs.getString("pimage") != null && !srRs.getString("pimage").isEmpty()) { %>
+                <img src="<%= srRs.getString("pimage") %>"
+                     style="width:60px; height:60px; object-fit:cover; border-radius:8px;">
+            <% } else { %>
+                <div style="width:60px; height:60px; background:#f0f0f0; border-radius:8px;
+                     display:flex; align-items:center; justify-content:center;">
+                    <i class="bi bi-image text-muted"></i>
+                </div>
+            <% } %>
+            <div class="flex-grow-1">
+                <p class="mb-0 fw-bold" style="font-size:14px;"><%= srRs.getString("pname") %></p>
+                <p class="mb-0 text-muted" style="font-size:12px;">
+                    <i class="bi bi-person-circle"></i> <%= srRs.getString("cname") %>
+                </p>
+                <div class="my-1">
+                    <% for (int s = 1; s <= 5; s++) { %>
+                        <i class="bi bi-star-fill"
+                           style="color:<%= s <= srRs.getInt("rating") ? "#ffc107" : "#ddd" %>;
+                                  font-size:13px;"></i>
+                    <% } %>
+                </div>
+                <p class="mb-1 text-muted" style="font-size:13px;"><%= srRs.getString("comment") %></p>
+                <% if (srRs.getString("photo") != null && !srRs.getString("photo").isEmpty()) { %>
+                    <img src="<%= srRs.getString("photo") %>"
+                         style="width:80px; height:80px; object-fit:cover;
+                                border-radius:8px; border:2px solid #eee; margin-top:4px;">
+                <% } %>
             </div>
         </div>
+        <%
+            }
+            srRs.close(); srPs.close(); srConn.close();
+            if (!hasSellerReviews) {
+        %>
+        <div class="text-center text-muted py-4">
+            <i class="bi bi-star fs-1 opacity-50"></i>
+            <p class="mt-2" style="font-size:13px;">No reviews yet.</p>
+        </div>
+        <% } } catch (Exception ex) { ex.printStackTrace(); } %>
     </div>
+</div>
 
     <div id="tab-security" class="tab-content-section" style="display:none;">
         <div class="card-section">
@@ -897,7 +963,7 @@
 
 </div>
     </div>
-</div>
+
 
 <!-- TOAST -->
 <div id="toast" style="display:none; position:fixed; bottom:24px; right:24px; background:#198754; color:white; padding:12px 20px; border-radius:10px; font-size:14px; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.2);">

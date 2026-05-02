@@ -22,6 +22,14 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
+    #reviewModal > div {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-height: 90vh;
+    overflow-y: auto;
+}
         body { background: #f4f6fb; }
         .sidebar {
             background: white;
@@ -154,6 +162,22 @@
         }
         .crop-container { background: white; border-radius: 16px; padding: 20px; width: 90%; max-width: 500px; }
         #customerCropCanvas { display: block; width: 300px; height: 300px; cursor: grab; border-radius: 4px; }
+        #reviewModal > div {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#starRating i {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    font-size: 2rem;
+}
+#starRating {
+    pointer-events: auto !important;
+}
+
     </style>
 </head>
 <body>
@@ -400,45 +424,76 @@
 
                             <%-- Load items for this order --%>
                             <%
-                                try {
-                                    java.sql.Connection itemConn = com.shopeasy.DBConnection.getConnection();
-                                    java.sql.PreparedStatement itemPs = itemConn.prepareStatement(
-                                        "SELECT p.name, p.image, oi.quantity, oi.price " +
-                                        "FROM order_items oi JOIN product p ON oi.product_id = p.product_id " +
-                                        "WHERE oi.order_id = ?");
-                                    itemPs.setInt(1, (Integer) ord.get("id"));
-                                    java.sql.ResultSet itemRs = itemPs.executeQuery();
-                                    while (itemRs.next()) {
-                            %>
-                            <div class="d-flex align-items-center gap-2 mb-1 mt-1">
-                                <% if (itemRs.getString("image") != null && !itemRs.getString("image").isEmpty()) { %>
-                                    <img src="<%= itemRs.getString("image") %>" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid #eee;">
-                                <% } else { %>
-                                    <div style="width:40px; height:40px; background:#f0f0f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:16px; color:#aaa;"><i class="bi bi-image"></i></div>
-                                <% } %>
-                                <div>
-                                    <p class="mb-0 fw-bold" style="font-size:12px;"><%= itemRs.getString("name") %></p>
-                                    <p class="mb-0 text-muted" style="font-size:11px;">Qty: <%= itemRs.getInt("quantity") %> &nbsp;|&nbsp; ₱<%= String.format("%.2f", itemRs.getDouble("price")) %></p>
+    int firstProductId = 0;
+    try {
+        java.sql.Connection itemConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement itemPs = itemConn.prepareStatement(
+            "SELECT p.product_id, p.name, p.image, oi.quantity, oi.price " +
+            "FROM order_items oi JOIN product p ON oi.product_id = p.product_id " +
+            "WHERE oi.order_id = ?");
+        itemPs.setInt(1, (Integer) ord.get("id"));
+        java.sql.ResultSet itemRs = itemPs.executeQuery();
+        while (itemRs.next()) {
+            if (firstProductId == 0) firstProductId = itemRs.getInt("product_id");
+%>
+                                <div class="d-flex align-items-center gap-2 mb-1 mt-1">
+                                    <% if (itemRs.getString("image") != null && !itemRs.getString("image").isEmpty()) { %>
+                                        <img src="<%= itemRs.getString("image") %>" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid #eee;">
+                                    <% } else { %>
+                                        <div style="width:40px; height:40px; background:#f0f0f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:16px; color:#aaa;"><i class="bi bi-image"></i></div>
+                                    <% } %>
+                                    <div>
+                                        <p class="mb-0 fw-bold" style="font-size:12px;"><%= itemRs.getString("name") %></p>
+                                        <p class="mb-0 text-muted" style="font-size:11px;">Qty: <%= itemRs.getInt("quantity") %> &nbsp;|&nbsp; ₱<%= String.format("%.2f", itemRs.getDouble("price")) %></p>
+                                    </div>
                                 </div>
-                            </div>
-                            <%
+                                <%
                                     }
                                     itemRs.close(); itemPs.close(); itemConn.close();
                                 } catch (Exception itemEx) { itemEx.printStackTrace(); }
-                            %>
+                                %>                         
 
                             <div class="d-flex justify-content-between align-items-center mt-2">
-                                <p class="mb-0 fw-bold text-primary">Total: ₱<%= String.format("%.2f", ord.get("total")) %></p>
-                                <% if ("Pending".equals(ord.get("status"))) { %>
-                                <form action="CancelOrderServlet" method="post" style="display:inline;">
-                                    <input type="hidden" name="orderId" value="<%= ord.get("id") %>">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm"
-                                        onclick="return confirm('Cancel this order?')">
-                                        <i class="bi bi-x-circle"></i> Cancel Order
-                                    </button>
-                                </form>
-                                <% } %>
-                            </div>
+    <p class="mb-0 fw-bold text-primary">Total: ₱<%= String.format("%.2f", ord.get("total")) %></p>
+    <div class="d-flex gap-2 flex-wrap">
+    <% if ("Pending".equals(ord.get("status"))) { %>
+        <form action="CancelOrderServlet" method="post" style="display:inline;">
+            <input type="hidden" name="orderId" value="<%= ord.get("id") %>">
+            <button type="submit" class="btn btn-outline-danger btn-sm"
+                onclick="return confirm('Cancel this order?')">
+                <i class="bi bi-x-circle"></i> Cancel Order
+            </button>
+        </form>
+    <% } %>
+    <% if ("Completed".equals(ord.get("status"))) { %>
+        <%
+            // Check if already reviewed
+            boolean hasReview = false;
+            try {
+                java.sql.Connection rvChkConn = com.shopeasy.DBConnection.getConnection();
+                java.sql.PreparedStatement rvChkPs = rvChkConn.prepareStatement(
+                	    "SELECT review_id FROM review WHERE customer_id=? AND product_id IN " +
+                	    "(SELECT product_id FROM order_items WHERE order_id=?)");
+                	rvChkPs.setInt(1, (int) session.getAttribute("userId"));
+                	rvChkPs.setInt(2, (Integer) ord.get("id"));
+                java.sql.ResultSet rvChkRs = rvChkPs.executeQuery();
+                if (rvChkRs.next()) hasReview = true;
+                rvChkRs.close(); rvChkPs.close(); rvChkConn.close();
+            } catch (Exception rvEx) { rvEx.printStackTrace(); }
+        %>
+        <% if (hasReview) { %>
+            <span class="badge bg-success px-3 py-2" style="font-size:12px;">
+                <i class="bi bi-check-circle"></i> Reviewed
+            </span>
+        <% } else { %>
+            <button class="btn btn-warning btn-sm text-dark fw-semibold"
+    onclick="openReviewModal(<%= ord.get("id") %>, <%= firstProductId %>)">
+    <i class="bi bi-star-fill"></i> Write a Review
+</button>
+        <% } %>
+    <% } %>
+    </div>
+</div>
                         </div>
                         <div class="text-center py-4 text-muted" id="emptyFilter" style="display:none;">
                             <i class="bi bi-inbox fs-1 opacity-25"></i>
@@ -448,7 +503,60 @@
                     <% } %>
                 </div>
             </div>
-
+<!-- MY REVIEWS TAB -->
+<div id="tab-reviews" class="tab-content-section">
+    <div class="card-section">
+        <p class="section-title"><i class="bi bi-star-fill text-primary"></i> My Reviews</p>
+        <%
+            try {
+                int rvCustId = (int) session.getAttribute("userId");
+                java.sql.Connection rvConn = com.shopeasy.DBConnection.getConnection();
+                java.sql.PreparedStatement rvPs = rvConn.prepareStatement(
+                		"SELECT r.rating, r.comment, r.photo, p.name AS pname, p.image AS pimage " +
+                				"FROM review r JOIN product p ON r.product_id = p.product_id " +
+                				"WHERE r.customer_id = ? ORDER BY r.review_id DESC");
+                rvPs.setInt(1, rvCustId);
+                java.sql.ResultSet rvRs = rvPs.executeQuery();
+                boolean hasReviews = false;
+                while (rvRs.next()) {
+                    hasReviews = true;
+        %>
+        <div class="d-flex gap-3 p-3 mb-3 border rounded-3">
+            <% if (rvRs.getString("pimage") != null && !rvRs.getString("pimage").isEmpty()) { %>
+                <img src="<%= rvRs.getString("pimage") %>" style="width:60px; height:60px; object-fit:cover; border-radius:8px;">
+            <% } else { %>
+                <div style="width:60px; height:60px; background:#f0f0f0; border-radius:8px; display:flex; align-items:center; justify-content:center;"><i class="bi bi-image text-muted"></i></div>
+            <% } %>
+            <div class="flex-grow-1">
+                <p class="mb-1 fw-bold" style="font-size:14px;"><%= rvRs.getString("pname") %></p>
+                <div class="mb-1">
+                    <% for (int s = 1; s <= 5; s++) { %>
+                        <i class="bi bi-star-fill" style="color:<%= s <= rvRs.getInt("rating") ? "#ffc107" : "#ddd" %>; font-size:13px;"></i>
+                    <% } %>
+                </div>
+                <p class="mb-0 text-muted" style="font-size:13px;"><%= rvRs.getString("comment") %></p>
+               <% if (rvRs.getString("photo") != null && !rvRs.getString("photo").isEmpty()) { %>
+    <img src="<%= rvRs.getString("photo") %>" 
+         style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid #eee; margin-top:6px;">
+<% } %>
+            </div>
+        </div>
+        <%
+                }
+                rvRs.close(); rvPs.close(); rvConn.close();
+                if (!hasReviews) {
+        %>
+        <div class="text-center py-4 text-muted">
+            <i class="bi bi-star fs-1 opacity-25"></i>
+            <p class="mt-2">No reviews yet.</p>
+        </div>
+      
+<%
+        }
+    } catch (Exception rvEx) { rvEx.printStackTrace(); }
+%>
+    </div>
+</div>
            <!-- ADDRESSES TAB -->
 <div id="tab-address" class="tab-content-section">
     <div class="card-section">
@@ -897,7 +1005,126 @@ window.addEventListener('load', function() {
         const ef = document.getElementById('emptyFilter');
         if (ef) ef.style.display = visible === 0 ? 'block' : 'none';
     }
+    
+    
+ // REVIEW MODAL
+    let currentReviewOrderId = 0;
+    let currentRating = 0;
+
+    function openReviewModal(orderId, productId) {
+        currentReviewOrderId = orderId;
+        currentRating = 0;
+        document.getElementById('reviewOrderId').value = orderId;
+        document.getElementById('reviewProductId').value = productId;
+        document.getElementById('reviewComment').value = '';
+        document.getElementById('reviewPhotoData').value = '';
+        document.getElementById('reviewPhotoPreview').style.display = 'none';
+        document.getElementById('reviewPhotoInput').value = '';
+        setRating(0);
+        document.getElementById('reviewModal').style.display = 'block';
+    }
+
+    function closeReviewModal() {
+        document.getElementById('reviewModal').style.display = 'none';
+    }
+
+    function setRating(val) {
+        currentRating = val;
+        document.getElementById('selectedRating').value = val;
+        for (let i = 1; i <= 5; i++) {
+            const star = document.getElementById('star' + i);
+            star.style.color = i <= val ? '#ffc107' : '#ccc';
+        }
+    }
+
+    function previewReviewPhoto(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('reviewPhotoImg').src = e.target.result;
+                document.getElementById('reviewPhotoPreview').style.display = 'block';
+                document.getElementById('reviewPhotoData').value = e.target.result;
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function submitReview() {
+        const rating = parseInt(document.getElementById('selectedRating').value);
+        const comment = document.getElementById('reviewComment').value.trim();
+        const orderId = document.getElementById('reviewOrderId').value;
+        const productId = document.getElementById('reviewProductId').value;
+        const photo = document.getElementById('reviewPhotoData').value;
+
+        if (rating === 0) { alert('Please select a star rating!'); return; }
+        if (comment === '') { alert('Please write a comment!'); return; }
+
+        const formData = new URLSearchParams();
+        formData.append('orderId', orderId);
+        formData.append('rating', rating);
+        formData.append('productId', productId);
+        formData.append('comment', comment);
+        formData.append('reviewPhoto', photo);
+
+        fetch('ReviewServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData.toString()
+        })
+        .then(res => res.text())
+.then(data => {
+    closeReviewModal();
+    document.getElementById('savingOverlay').style.display = 'flex';
+    setTimeout(() => location.reload(), 1000);
+})
+        .catch(err => alert('Error submitting review: ' + err));
+    }
 </script>
+<!-- REVIEW MODAL -->
+<div id="reviewModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000;">
+    <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:480px; max-height:90vh; overflow-y:auto;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <p class="fw-bold mb-0" style="font-size:16px;"><i class="bi bi-star-fill text-warning me-2"></i>Write a Review</p>
+            <button class="btn btn-sm btn-outline-secondary" onclick="closeReviewModal()"><i class="bi bi-x"></i></button>
+        </div>
+
+        <input type="hidden" id="reviewOrderId">
+<input type="hidden" id="reviewProductId">
+        <%-- Star Rating --%>
+        <p class="fw-semibold mb-2" style="font-size:13px;">Rating</p>
+        <div class="d-flex gap-2 mb-3" id="starRating">
+    <i class="bi bi-star-fill" id="star1" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setRating(1)"></i>
+    <i class="bi bi-star-fill" id="star2" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setRating(2)"></i>
+    <i class="bi bi-star-fill" id="star3" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setRating(3)"></i>
+    <i class="bi bi-star-fill" id="star4" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setRating(4)"></i>
+    <i class="bi bi-star-fill" id="star5" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setRating(5)"></i>
+</div>
+        <input type="hidden" id="selectedRating" value="0">
+
+        <%-- Comment --%>
+        <p class="fw-semibold mb-2" style="font-size:13px;">Comment</p>
+        <textarea id="reviewComment" class="form-control mb-3" rows="3"
+            placeholder="Share your experience with this product..."></textarea>
+
+        <%-- Photo Upload --%>
+        <p class="fw-semibold mb-2" style="font-size:13px;">Photo <span class="text-muted fw-normal">(optional)</span></p>
+        <input type="file" id="reviewPhotoInput" class="form-control mb-1" accept="image/*"
+            onchange="previewReviewPhoto(this)">
+        <div id="reviewPhotoPreview" style="display:none;" class="mb-3">
+            <img id="reviewPhotoImg" src="" style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid #0d6efd;">
+        </div>
+        <input type="hidden" id="reviewPhotoData">
+
+        <div class="d-flex gap-2 justify-content-end mt-3">
+            <button class="btn btn-outline-secondary" onclick="closeReviewModal()">Cancel</button>
+            <button class="btn btn-primary px-4" onclick="submitReview()">
+                <i class="bi bi-send"></i> Submit Review
+            </button>
+        </div>
+    </div>
+</div>
+
+
 <!-- CROP MODAL FOR CUSTOMER AVATAR -->
 <div class="crop-modal-overlay" id="customerCropModal">
     <div class="crop-container">
@@ -924,7 +1151,7 @@ window.addEventListener('load', function() {
 <!-- SAVING OVERLAY -->
 <div id="savingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
     <div class="spinner-border text-primary mb-3" style="width:3rem; height:3rem;" role="status"></div>
-    <p class="fw-bold text-primary fs-5">Saving your profile...</p>
+    <p class="fw-bold text-primary fs-5">Saving...</p>
 </div>
 
 <!-- LOGOUT OVERLAY -->

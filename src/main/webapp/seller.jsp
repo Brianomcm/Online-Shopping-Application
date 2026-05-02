@@ -249,16 +249,17 @@
                 </div>
                 <hr class="mx-3">
                 <div class="sidebar-nav">
-                   <a href="#" class="active" onclick="showTab('home', this)">
+                  <a href="#" class="<%= request.getParameter("tab") == null ? "active" : "" %>" onclick="showTab('home', this)">
     <i class="bi bi-shop"></i> Shop Settings
 </a>
 
                     <a href="#" onclick="showTab('products', this)">
                         <i class="bi bi-grid"></i> My Products
                     </a>
-                    <a href="#" onclick="showTab('orders', this)">
-                        <i class="bi bi-bag"></i> Orders Received
-                    </a>
+                    <a href="seller.jsp?tab=orders&orderTab=All"
+   class="<%= "orders".equals(request.getParameter("tab")) ? "active" : "" %>">
+    <i class="bi bi-bag"></i> Orders Received
+</a>
                     <a href="#" onclick="showTab('sales', this)">
                         <i class="bi bi-graph-up"></i> Sales & Analytics
                     </a>
@@ -279,22 +280,56 @@
 <div class="col-md-9">
 
     <!-- STATS ROW -->
+    <%
+    int sellerStatProducts = 0, sellerStatOrders = 0;
+    double sellerStatRevenue = 0;
+    try {
+        int sId = (int) session.getAttribute("userId");
+        java.sql.Connection sStatConn = com.shopeasy.DBConnection.getConnection();
+
+        // Product count
+        java.sql.PreparedStatement sStatPs1 = sStatConn.prepareStatement(
+            "SELECT COUNT(*) FROM product WHERE seller_id=? AND status='active'");
+        sStatPs1.setInt(1, sId);
+        java.sql.ResultSet sStatRs1 = sStatPs1.executeQuery();
+        if (sStatRs1.next()) sellerStatProducts = sStatRs1.getInt(1);
+        sStatRs1.close(); sStatPs1.close();
+
+        // Order count
+        java.sql.PreparedStatement sStatPs2 = sStatConn.prepareStatement(
+            "SELECT COUNT(DISTINCT o.order_id) FROM orders o JOIN order_items oi ON o.order_id=oi.order_id WHERE oi.seller_id=?");
+        sStatPs2.setInt(1, sId);
+        java.sql.ResultSet sStatRs2 = sStatPs2.executeQuery();
+        if (sStatRs2.next()) sellerStatOrders = sStatRs2.getInt(1);
+        sStatRs2.close(); sStatPs2.close();
+
+        // Revenue
+        java.sql.PreparedStatement sStatPs3 = sStatConn.prepareStatement(
+            "SELECT SUM(oi.subtotal) FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE oi.seller_id=? AND o.status='Completed'");
+        sStatPs3.setInt(1, sId);
+        java.sql.ResultSet sStatRs3 = sStatPs3.executeQuery();
+        if (sStatRs3.next()) sellerStatRevenue = sStatRs3.getDouble(1);
+        sStatRs3.close(); sStatPs3.close();
+
+        sStatConn.close();
+    } catch (Exception ex) { ex.printStackTrace(); }
+%>
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
             <div class="stat-box">
-                <div class="stat-num">0</div>
+                <div class="stat-num"><%= sellerStatProducts %></div>
                 <div class="stat-label">Products</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="stat-box">
-                <div class="stat-num">0</div>
+                <div class="stat-num"><%= sellerStatOrders %></div>
                 <div class="stat-label">Orders</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="stat-box">
-                <div class="stat-num">₱0</div>
+                <div class="stat-num">₱<%= String.format("%.0f", sellerStatRevenue) %></div>
                 <div class="stat-label">Revenue</div>
             </div>
         </div>
@@ -566,83 +601,215 @@
 
 
 
-   <div id="tab-orders" class="tab-content-section" style="display:none;">
-        <div class="card-section">
-            <p class="section-title"><i class="bi bi-bag-fill text-success"></i> Orders Received</p>
-            <%
-                java.util.List<java.util.Map<String, Object>> sellerOrders = new java.util.ArrayList<>();
-                try {
-                    int sellerId2 = (int) session.getAttribute("userId");
-                    java.sql.Connection sordConn = com.shopeasy.DBConnection.getConnection();
-                    java.sql.PreparedStatement sordPs = sordConn.prepareStatement(
-                    		"SELECT DISTINCT o.order_id, o.total_amount, o.status, o.payment_method, o.shipping_address, o.order_date, " +
-                        "c.name AS customer_name, c.email AS customer_email " +
-                        "FROM orders o " +
-                        "JOIN order_items oi ON o.order_id = oi.order_id " +
-                        "JOIN customer c ON o.customer_id = c.customer_id " +
-                        "WHERE oi.seller_id=? ORDER BY o.order_id DESC");
-                    sordPs.setInt(1, sellerId2);
-                    java.sql.ResultSet sordRs = sordPs.executeQuery();
-                    while (sordRs.next()) {
-                        java.util.Map<String, Object> ord = new java.util.HashMap<>();
-                        ord.put("id", sordRs.getInt("order_id"));
-                        ord.put("total", sordRs.getDouble("total_amount"));
-                        ord.put("status", sordRs.getString("status"));
-                        ord.put("payment", sordRs.getString("payment_method"));
-                        ord.put("address", sordRs.getString("shipping_address"));
-                        ord.put("date", sordRs.getString("order_date"));
-                        ord.put("customerName", sordRs.getString("customer_name"));
-                        ord.put("customerEmail", sordRs.getString("customer_email"));
-                        sellerOrders.add(ord);
-                    }
-                    sordRs.close(); sordPs.close(); sordConn.close();
-                } catch (Exception ex) { ex.printStackTrace(); }
-            %>
-            <% if (sellerOrders.isEmpty()) { %>
-                <div class="text-center text-muted py-4">
-                    <i class="bi bi-inbox fs-1 opacity-50"></i>
-                    <p class="mt-2" style="font-size:13px;">No orders received yet.</p>
-                </div>
-            <% } else { %>
-                <% for (java.util.Map<String, Object> ord : sellerOrders) { %>
-                <div class="product-row">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <p class="mb-0 fw-bold" style="font-size:14px;">Order #SE-<%= ord.get("id") %></p>
-                            <p class="mb-0 text-muted" style="font-size:12px;"><%= ord.get("date") %></p>
-                        </div>
-                        <%
-                            String sStatus = (String) ord.get("status");
-                            String sBadge = "bg-warning text-dark";
-                            if ("Completed".equals(sStatus)) sBadge = "bg-success";
-                            else if ("Cancelled".equals(sStatus)) sBadge = "bg-danger";
-                            else if ("Shipped".equals(sStatus)) sBadge = "bg-info";
-                            else if ("Processing".equals(sStatus)) sBadge = "bg-primary";
-                        %>
-                        <span class="badge <%= sBadge %> stock-badge"><%= sStatus %></span>
-                    </div>
-                    <p class="mb-1" style="font-size:13px;"><i class="bi bi-person"></i> <strong><%= ord.get("customerName") %></strong> &nbsp; <%= ord.get("customerEmail") %></p>
-                    <p class="mb-1 text-muted" style="font-size:12px;"><i class="bi bi-geo-alt"></i> <%= ord.get("address") %></p>
-                    <p class="mb-1 text-muted" style="font-size:12px;"><i class="bi bi-credit-card"></i> <%= ord.get("payment") %></p>
-                    <div class="d-flex justify-content-between align-items-center mt-2">
-                        <p class="mb-0 fw-bold text-success">Total: ₱<%= String.format("%.2f", ord.get("total")) %></p>
-                        <form action="UpdateOrderServlet" method="post" style="display:inline;">
-                            <input type="hidden" name="orderId" value="<%= ord.get("id") %>">
-                            <select name="status" class="form-select form-select-sm" style="width:140px; display:inline-block;" onchange="this.form.submit()">
-                                <option <%= "Pending".equals(sStatus) ? "selected" : "" %>>Pending</option>
-                                <option <%= "Processing".equals(sStatus) ? "selected" : "" %>>Processing</option>
-                                <option <%= "Shipped".equals(sStatus) ? "selected" : "" %>>Shipped</option>
-                                <option <%= "Completed".equals(sStatus) ? "selected" : "" %>>Completed</option>
-                                <option <%= "Cancelled".equals(sStatus) ? "selected" : "" %>>Cancelled</option>
-                            </select>
-                        </form>
-                    </div>
-                </div>
-                <% } %>
-            <% } %>
-        </div>
+<div id="tab-orders" class="tab-content-section" style="display:none;">
+    <%-- Fetch orders with items --%>
+    <%
+        String orderTabFilter = request.getParameter("orderTab");
+        if (orderTabFilter == null) orderTabFilter = "All";
+
+        java.util.List<java.util.Map<String, Object>> sellerOrders = new java.util.ArrayList<>();
+        try {
+            int sOrdSellerId = (int) session.getAttribute("userId");
+            java.sql.Connection sOrdConn = com.shopeasy.DBConnection.getConnection();
+
+            String sOrdSql = "SELECT DISTINCT o.order_id, o.status, o.order_date, o.total_amount AS total_price, " +
+            	    "o.payment_method, c.name AS buyer_name, c.email AS buyer_email, " +
+            	    "o.shipping_address AS address, NULL AS addr_name, NULL AS phone " +
+            	    "FROM orders o " +
+            	    "JOIN order_items oi ON o.order_id = oi.order_id " +
+            	    "JOIN customer c ON o.customer_id = c.customer_id " +
+            	    "WHERE oi.seller_id = ? ";
+            if (!"All".equals(orderTabFilter)) {
+                sOrdSql += "AND o.status = ? ";
+            }
+            sOrdSql += "ORDER BY o.order_id DESC";
+
+            java.sql.PreparedStatement sOrdPs = sOrdConn.prepareStatement(sOrdSql);
+            sOrdPs.setInt(1, sOrdSellerId);
+            if (!"All".equals(orderTabFilter)) sOrdPs.setString(2, orderTabFilter);
+            java.sql.ResultSet sOrdRs = sOrdPs.executeQuery();
+
+            while (sOrdRs.next()) {
+                java.util.Map<String, Object> ord = new java.util.HashMap<>();
+                ord.put("id", sOrdRs.getInt("order_id"));
+                ord.put("status", sOrdRs.getString("status"));
+                ord.put("date", sOrdRs.getString("order_date"));
+                ord.put("total", sOrdRs.getDouble("total_price"));
+                ord.put("payment", sOrdRs.getString("payment_method"));
+                ord.put("buyer_name", sOrdRs.getString("buyer_name"));
+                ord.put("buyer_email", sOrdRs.getString("buyer_email"));
+                ord.put("addr_name", sOrdRs.getString("addr_name"));
+                ord.put("phone", sOrdRs.getString("phone"));
+                ord.put("address", sOrdRs.getString("address"));
+
+                // Fetch items for this order belonging to this seller
+                java.util.List<java.util.Map<String, Object>> itemList = new java.util.ArrayList<>();
+                java.sql.PreparedStatement itemPs = sOrdConn.prepareStatement(
+                		"SELECT oi.quantity, oi.subtotal, p.name AS pname, p.image AS image_url " +
+                    "FROM order_items oi JOIN product p ON oi.product_id = p.product_id " +
+                    "WHERE oi.order_id = ? AND oi.seller_id = ?");
+                itemPs.setInt(1, sOrdRs.getInt("order_id"));
+                itemPs.setInt(2, sOrdSellerId);
+                java.sql.ResultSet itemRs = itemPs.executeQuery();
+                while (itemRs.next()) {
+                    java.util.Map<String, Object> item = new java.util.HashMap<>();
+                    item.put("qty", itemRs.getInt("quantity"));
+                    item.put("subtotal", itemRs.getDouble("subtotal"));
+                    item.put("pname", itemRs.getString("pname"));
+                    item.put("image", itemRs.getString("image_url"));
+                    itemList.add(item);
+                }
+                itemRs.close(); itemPs.close();
+                ord.put("items", itemList);
+                sellerOrders.add(ord);
+            }
+            sOrdRs.close(); sOrdPs.close(); sOrdConn.close();
+        } catch (Exception ex) { ex.printStackTrace(); }
+    %>
+
+    <%-- Order Tab Nav --%>
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-bag-check me-2"></i>Orders Received</h5>
     </div>
 
+    <%-- Status Filter Tabs --%>
+    <ul class="nav nav-tabs mb-4" id="orderStatusTabs">
+        <% String[] sOrderStatuses = {"All","Pending","Processing","Shipped","Completed","Cancelled"};
+           for (String st : sOrderStatuses) { %>
+            <li class="nav-item">
+                <a class="nav-link <%= st.equals(orderTabFilter) ? "active fw-semibold" : "" %>"
+                   href="seller.jsp?tab=orders&orderTab=<%= st %>">
+                    <%= st %>
+                </a>
+            </li>
+        <% } %>
+    </ul>
+
+    <%-- Orders List --%>
+    <% if (sellerOrders.isEmpty()) { %>
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-inbox" style="font-size:3rem;"></i>
+            <p class="mt-3">No <%= "All".equals(orderTabFilter) ? "" : orderTabFilter %> orders yet.</p>
+        </div>
+    <% } else {
+        for (java.util.Map<String, Object> ord : sellerOrders) {
+            String sStatus = (String) ord.get("status");
+            String badgeClass = "secondary";
+            if ("Pending".equals(sStatus)) badgeClass = "warning text-dark";
+            else if ("Processing".equals(sStatus)) badgeClass = "primary";
+            else if ("Shipped".equals(sStatus)) badgeClass = "info text-dark";
+            else if ("Completed".equals(sStatus)) badgeClass = "success";
+            else if ("Cancelled".equals(sStatus)) badgeClass = "danger";
+            @SuppressWarnings("unchecked")
+            java.util.List<java.util.Map<String, Object>> ordItems =
+                (java.util.List<java.util.Map<String, Object>>) ord.get("items");
+    %>
+    <div class="card mb-3 shadow-sm border-0" style="border-radius:12px; overflow:hidden;">
+        <%-- Card Header --%>
+        <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3"
+             style="border-bottom: 1px solid #f0f0f0;">
+            <span class="fw-semibold text-muted" style="font-size:13px;">
+                <i class="bi bi-hash"></i>Order #SE-<%= ord.get("id") %>
+                <span class="ms-2 text-secondary" style="font-weight:400; font-size:12px;">
+                    <%= ord.get("date") != null ? ord.get("date") : "Date not available" %>
+                </span>
+            </span>
+            <span class="badge bg-<%= badgeClass %> px-3 py-1" style="font-size:12px;">
+                <%= sStatus %>
+            </span>
+        </div>
+
+        <div class="card-body px-3 py-3">
+            <div class="row g-3">
+
+                <%-- LEFT: Customer Info --%>
+                <div class="col-md-4 border-end">
+                    <p class="mb-1 fw-semibold" style="font-size:13px; color:#555;">
+                        <i class="bi bi-person-circle me-1"></i>Customer
+                    </p>
+                    <p class="mb-0 fw-bold" style="font-size:14px;"><%= ord.get("buyer_name") %></p>
+                    <p class="mb-0 text-muted" style="font-size:12px;"><%= ord.get("buyer_email") %></p>
+                    <hr class="my-2">
+                    <p class="mb-1 fw-semibold" style="font-size:13px; color:#555;">
+                        <i class="bi bi-geo-alt me-1"></i>Delivery Address
+                    </p>
+                    <% if (ord.get("addr_name") != null) { %>
+                        <p class="mb-0" style="font-size:12px;"><%= ord.get("addr_name") %> | <%= ord.get("phone") %></p>
+                        <p class="mb-0 text-muted" style="font-size:12px;"><%= ord.get("address") %></p>
+                    <% } else { %>
+                        <p class="mb-0 text-muted" style="font-size:12px;">No address on file</p>
+                    <% } %>
+                    <hr class="my-2">
+                    <p class="mb-0" style="font-size:12px;">
+                        <i class="bi bi-wallet2 me-1"></i>
+                        <span class="fw-semibold">Payment:</span> <%= ord.get("payment") %>
+                    </p>
+                </div>
+
+                <%-- RIGHT: Products + Actions --%>
+                <div class="col-md-8">
+                    <p class="mb-2 fw-semibold" style="font-size:13px; color:#555;">
+                        <i class="bi bi-box-seam me-1"></i>Items Ordered
+                    </p>
+
+                    <%-- Product list --%>
+                    <% for (java.util.Map<String, Object> itm : ordItems) {
+                        String imgUrl = (String) itm.get("image");
+                        if (imgUrl == null || imgUrl.isEmpty()) imgUrl = "images/no-image.png";
+                    %>
+                    <div class="d-flex align-items-center gap-2 mb-2 p-2 rounded"
+                         style="background:#f8f9fa;">
+                        <img src="<%= imgUrl %>" alt="product"
+                             style="width:52px; height:52px; object-fit:cover; border-radius:8px; border:1px solid #e0e0e0;">
+                        <div class="flex-grow-1">
+                            <p class="mb-0 fw-semibold" style="font-size:13px;"><%= itm.get("pname") %></p>
+                            <p class="mb-0 text-muted" style="font-size:12px;">
+                                Qty: <%= itm.get("qty") %> &nbsp;|&nbsp;
+                                ₱<%= String.format("%.2f", itm.get("subtotal")) %>
+                            </p>
+                        </div>
+                    </div>
+                    <% } %>
+
+                    <%-- Total + Actions --%>
+                    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                        <span class="fw-bold text-success" style="font-size:15px;">
+                            Total: ₱<%= String.format("%.2f", ord.get("total")) %>
+                        </span>
+                        <div class="d-flex gap-2 flex-wrap" id="actions_<%= ord.get("id") %>">
+                            <% if ("Pending".equals(sStatus)) { %>
+                                <button class="btn btn-primary btn-sm"
+                                    onclick="updateOrderStatus(<%= ord.get("id") %>, 'Processing')">
+                                    <i class="bi bi-check-circle"></i> Confirm Order
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm"
+                                    onclick="updateOrderStatus(<%= ord.get("id") %>, 'Cancelled')">
+                                    <i class="bi bi-x-circle"></i> Cancel
+                                </button>
+                            <% } else if ("Processing".equals(sStatus)) { %>
+                                <button class="btn btn-info btn-sm text-white"
+                                    onclick="updateOrderStatus(<%= ord.get("id") %>, 'Shipped')">
+                                    <i class="bi bi-truck"></i> Ship Order
+                                </button>
+                            <% } else if ("Shipped".equals(sStatus)) { %>
+                                <button class="btn btn-success btn-sm"
+                                    onclick="updateOrderStatus(<%= ord.get("id") %>, 'Completed')">
+                                    <i class="bi bi-bag-check"></i> Mark Completed
+                                </button>
+                            <% } else { %>
+                                <span class="text-muted" style="font-size:12px;">
+                                    <i class="bi bi-check2-all"></i> <%= sStatus %>
+                                </span>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <% } } %>
+</div>
+</div>
     <div id="tab-sales" class="tab-content-section" style="display:none;">
         <div class="card-section">
             <p class="section-title"><i class="bi bi-graph-up-arrow text-success"></i> Sales & Analytics</p>
@@ -1171,12 +1338,15 @@ window.addEventListener('load', function() {
     }
 
     const tab = params.get('tab');
-    if (tab) {
+    if (tab === 'orders') {
+        document.getElementById('section-shop').style.display = 'none';
+        document.getElementById('section-profile').style.display = 'none';
+        const ordersTab = document.getElementById('tab-orders');
+        if (ordersTab) ordersTab.style.display = 'block';
+    } else if (tab) {
         setTimeout(() => {
             const link = document.querySelector('.sidebar-nav a[onclick*="' + tab + '"]');
-            if (link) {
-                link.click();
-            }
+            if (link) link.click();
         }, 100);
     }
 });
@@ -1359,6 +1529,32 @@ window.addEventListener('load', function() {
     }
     function closeEditModal() {
         document.getElementById('editProductModal').style.display = 'none';
+    }
+    function updateOrderStatus(orderId, newStatus) {
+        const actionLabels = {
+            'Processing': 'Confirm this order?',
+            'Shipped': 'Mark this order as Shipped?',
+            'Completed': 'Mark this order as Completed?',
+            'Cancelled': 'Cancel this order?'
+        };
+        if (!confirm(actionLabels[newStatus] || 'Update order status?')) return;
+
+        fetch('UpdateOrderServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'orderId=' + orderId + '&status=' + encodeURIComponent(newStatus)
+        })
+        .then(res => res.text())
+        .then(() => {
+            // Show success bar
+            document.getElementById('successBarMsg').textContent = 'Order status updated to ' + newStatus + '! ✅';
+            document.getElementById('successBar').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('successBar').style.display = 'none';
+                location.reload();
+            }, 1500);
+        })
+        .catch(err => alert('Error updating order: ' + err));
     }
 </script>
 

@@ -212,19 +212,39 @@
         <!-- MAIN CONTENT -->
         <div class="col-md-9">
 
-            <!-- STATS ROW -->
+           <!-- STATS ROW -->
+<%
+    int statTotal = 0, statPending = 0, statCompleted = 0, statCancelled = 0;
+    try {
+        int statId = (int) session.getAttribute("userId");
+        java.sql.Connection statConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement statPs = statConn.prepareStatement(
+            "SELECT status, COUNT(*) as cnt FROM orders WHERE customer_id=? GROUP BY status");
+        statPs.setInt(1, statId);
+        java.sql.ResultSet statRs = statPs.executeQuery();
+        while (statRs.next()) {
+            int cnt = statRs.getInt("cnt");
+            statTotal += cnt;
+            String st = statRs.getString("status");
+            if ("Pending".equals(st)) statPending += cnt;
+            else if ("Completed".equals(st)) statCompleted += cnt;
+            else if ("Cancelled".equals(st)) statCancelled += cnt;
+        }
+        statRs.close(); statPs.close(); statConn.close();
+    } catch (Exception ex) { ex.printStackTrace(); }
+%>
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
-        <div class="stat-box"><div class="stat-num">0</div><div class="stat-label">Total Orders</div></div>
+        <div class="stat-box"><div class="stat-num"><%= statTotal %></div><div class="stat-label">Total Orders</div></div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="stat-box"><div class="stat-num">0</div><div class="stat-label">Pending</div></div>
+        <div class="stat-box"><div class="stat-num"><%= statPending %></div><div class="stat-label">Pending</div></div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="stat-box"><div class="stat-num">0</div><div class="stat-label">Completed</div></div>
+        <div class="stat-box"><div class="stat-num"><%= statCompleted %></div><div class="stat-label">Completed</div></div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="stat-box"><div class="stat-num">0</div><div class="stat-label">Reviews</div></div>
+        <div class="stat-box"><div class="stat-num"><%= statCancelled %></div><div class="stat-label">Cancelled</div></div>
     </div>
 </div>
 
@@ -359,7 +379,7 @@
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
                                     <p class="mb-0 fw-bold" style="font-size:14px;">Order #SE-<%= ord.get("id") %></p>
-                                    <p class="mb-0 text-muted" style="font-size:12px;"><%= ord.get("date") %></p>
+                                    <p class="mb-0 text-muted" style="font-size:12px;"><%= ord.get("date") != null ? ord.get("date") : "Date not available" %></p>
                                 </div>
                                <%
                                     String ordStatus = (String) ord.get("status");
@@ -377,8 +397,47 @@
                             <p class="mb-1 text-muted" style="font-size:12px;">
                                 <i class="bi bi-credit-card"></i> <%= ord.get("payment") %>
                             </p>
+
+                            <%-- Load items for this order --%>
+                            <%
+                                try {
+                                    java.sql.Connection itemConn = com.shopeasy.DBConnection.getConnection();
+                                    java.sql.PreparedStatement itemPs = itemConn.prepareStatement(
+                                        "SELECT p.name, p.image, oi.quantity, oi.price " +
+                                        "FROM order_items oi JOIN product p ON oi.product_id = p.product_id " +
+                                        "WHERE oi.order_id = ?");
+                                    itemPs.setInt(1, (Integer) ord.get("id"));
+                                    java.sql.ResultSet itemRs = itemPs.executeQuery();
+                                    while (itemRs.next()) {
+                            %>
+                            <div class="d-flex align-items-center gap-2 mb-1 mt-1">
+                                <% if (itemRs.getString("image") != null && !itemRs.getString("image").isEmpty()) { %>
+                                    <img src="<%= itemRs.getString("image") %>" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid #eee;">
+                                <% } else { %>
+                                    <div style="width:40px; height:40px; background:#f0f0f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:16px; color:#aaa;"><i class="bi bi-image"></i></div>
+                                <% } %>
+                                <div>
+                                    <p class="mb-0 fw-bold" style="font-size:12px;"><%= itemRs.getString("name") %></p>
+                                    <p class="mb-0 text-muted" style="font-size:11px;">Qty: <%= itemRs.getInt("quantity") %> &nbsp;|&nbsp; ₱<%= String.format("%.2f", itemRs.getDouble("price")) %></p>
+                                </div>
+                            </div>
+                            <%
+                                    }
+                                    itemRs.close(); itemPs.close(); itemConn.close();
+                                } catch (Exception itemEx) { itemEx.printStackTrace(); }
+                            %>
+
                             <div class="d-flex justify-content-between align-items-center mt-2">
                                 <p class="mb-0 fw-bold text-primary">Total: ₱<%= String.format("%.2f", ord.get("total")) %></p>
+                                <% if ("Pending".equals(ord.get("status"))) { %>
+                                <form action="CancelOrderServlet" method="post" style="display:inline;">
+                                    <input type="hidden" name="orderId" value="<%= ord.get("id") %>">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm"
+                                        onclick="return confirm('Cancel this order?')">
+                                        <i class="bi bi-x-circle"></i> Cancel Order
+                                    </button>
+                                </form>
+                                <% } %>
                             </div>
                         </div>
                         <div class="text-center py-4 text-muted" id="emptyFilter" style="display:none;">

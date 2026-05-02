@@ -4,8 +4,13 @@
     java.util.List<java.util.Map<String, Object>> products = new java.util.ArrayList<>();
     try {
         java.sql.Connection prodConn = com.shopeasy.DBConnection.getConnection();
-        java.sql.PreparedStatement prodPs = prodConn.prepareStatement(
-            "SELECT p.*, s.business_name FROM product p JOIN seller s ON p.seller_id = s.seller_id WHERE p.status='active' ORDER BY p.product_id DESC LIMIT 8");
+       java.sql.PreparedStatement prodPs = prodConn.prepareStatement(
+    "SELECT p.*, s.business_name, " +
+    "COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) AS avg_rating, " +
+    "COALESCE((SELECT COUNT(*) FROM review r WHERE r.product_id = p.product_id), 0) AS review_count, " +
+    "COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold " +
+    "FROM product p JOIN seller s ON p.seller_id = s.seller_id " +
+    "WHERE p.status='active' ORDER BY RAND() LIMIT 20");
         java.sql.ResultSet prodRs = prodPs.executeQuery();
         while (prodRs.next()) {
             java.util.Map<String, Object> prod = new java.util.HashMap<>();
@@ -15,7 +20,10 @@
             prod.put("image", prodRs.getString("image"));
             prod.put("stock", prodRs.getInt("stock"));
             prod.put("seller", prodRs.getString("business_name"));
-            prod.put("description", prodRs.getString("description"));
+prod.put("description", prodRs.getString("description"));
+prod.put("avgRating", prodRs.getDouble("avg_rating"));
+prod.put("reviewCount", prodRs.getInt("review_count"));
+prod.put("totalSold", prodRs.getInt("total_sold"));
             products.add(prod);
         }
         prodRs.close();
@@ -328,10 +336,19 @@ String navAvatar = "seller".equals(loggedRole2) ?
                 <% } %>
             </div>
             <div class="card-body d-flex flex-column">
-                <h6 class="card-title"><%= prod.get("name") %></h6>
-                <p class="text-muted mb-1" style="font-size:11px;"><i class="bi bi-shop"></i> <%= prod.get("seller") %></p>
-                <p class="card-text text-danger fw-bold mb-0">₱<%= String.format("%.2f", prod.get("price")) %></p>
-                <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
+              <h6 class="card-title"><%= prod.get("name") %></h6>
+<p class="text-muted mb-1" style="font-size:11px;"><i class="bi bi-shop"></i> <%= prod.get("seller") %></p>
+<div class="d-flex align-items-center gap-1 mb-1">
+    <% double pRating = (Double) prod.get("avgRating");
+       int pReviews = (Integer) prod.get("reviewCount");
+       for (int s = 1; s <= 5; s++) { %>
+        <i class="bi bi-star-fill" style="color:<%= s <= Math.round(pRating) ? "#ffc107" : "#ddd" %>; font-size:11px;"></i>
+    <% } %>
+    <span class="text-muted" style="font-size:10px;">(<%= pReviews %>)</span>
+    <span class="text-muted" style="font-size:10px;">· <%= prod.get("totalSold") %> sold</span>
+</div>
+<p class="card-text text-danger fw-bold mb-0">₱<%= String.format("%.2f", prod.get("price")) %></p>
+<p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
                 <div class="mt-auto" onclick="event.stopPropagation();">
                     <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
                         <button type="button" class="btn btn-primary btn-sm w-100" onclick="addToCart(<%= prod.get("id") %>)">

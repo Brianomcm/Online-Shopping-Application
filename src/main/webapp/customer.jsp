@@ -690,16 +690,68 @@
 </div>
 
             <!-- WISHLIST TAB -->
-            <div id="tab-wishlist" class="tab-content-section">
-                <div class="card-section">
-                    <p class="section-title"><i class="bi bi-heart-fill text-primary"></i> My Wishlist</p>
-                    <div class="text-center py-4 text-muted">
-                        <i class="bi bi-heart fs-1 opacity-25"></i>
-                        <p class="mt-2">No items in wishlist yet.</p>
-                    </div>
+<div id="tab-wishlist" class="tab-content-section">
+    <div class="card-section">
+        <p class="section-title"><i class="bi bi-heart-fill text-primary"></i> My Wishlist</p>
+        <%
+        try {
+            int wlCustId = (int) session.getAttribute("userId");
+            java.sql.Connection wlConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement wlPs = wlConn.prepareStatement(
+                "SELECT p.product_id, p.name, p.price, p.image, p.stock " +
+                "FROM wishlist w JOIN product p ON w.product_id = p.product_id " +
+                "WHERE w.customer_id = ? ORDER BY w.created_at DESC");
+            wlPs.setInt(1, wlCustId);
+            java.sql.ResultSet wlRs = wlPs.executeQuery();
+            boolean hasWishlist = false;
+            while (wlRs.next()) {
+                hasWishlist = true;
+        %>
+        <div class="d-flex align-items-center gap-3 p-3 mb-3 border rounded-3">
+            <% if (wlRs.getString("image") != null && !wlRs.getString("image").isEmpty()) { %>
+                <img src="<%= wlRs.getString("image") %>"
+                     style="width:70px; height:70px; object-fit:cover; border-radius:10px; border:1px solid #eee;">
+            <% } else { %>
+                <div style="width:70px; height:70px; background:#f0f0f0; border-radius:10px;
+                     display:flex; align-items:center; justify-content:center;">
+                    <i class="bi bi-image text-muted"></i>
                 </div>
+            <% } %>
+            <div class="flex-grow-1">
+                <p class="mb-0 fw-bold" style="font-size:14px;"><%= wlRs.getString("name") %></p>
+                <p class="mb-0 text-primary fw-bold">₱<%= String.format("%.2f", wlRs.getDouble("price")) %></p>
+                <% if (wlRs.getInt("stock") > 0) { %>
+                    <span class="badge bg-success" style="font-size:10px;">In Stock</span>
+                <% } else { %>
+                    <span class="badge bg-danger" style="font-size:10px;">Out of Stock</span>
+                <% } %>
             </div>
-
+            <div class="d-flex flex-column gap-2">
+                <a href="product.jsp?id=<%= wlRs.getInt("product_id") %>"
+                   class="btn btn-primary btn-sm">
+                    <i class="bi bi-eye"></i> View
+                </a>
+                <form action="WishlistServlet" method="post" style="display:inline;">
+                    <input type="hidden" name="productId" value="<%= wlRs.getInt("product_id") %>">
+                    <input type="hidden" name="action" value="remove">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        <%
+            }
+            wlRs.close(); wlPs.close(); wlConn.close();
+            if (!hasWishlist) {
+        %>
+        <div class="text-center py-4 text-muted">
+            <i class="bi bi-heart fs-1 opacity-25"></i>
+            <p class="mt-2">No items in wishlist yet.</p>
+        </div>
+        <% } } catch (Exception wlEx) { wlEx.printStackTrace(); } %>
+    </div>
+</div>
             <!-- SECURITY TAB -->
             <div id="tab-security" class="tab-content-section">
                 <div class="card-section">

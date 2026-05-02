@@ -647,7 +647,8 @@ try {
 
             String sOrdSql = "SELECT DISTINCT o.order_id, o.status, o.order_date, o.total_amount AS total_price, " +
             	    "o.payment_method, c.name AS buyer_name, c.email AS buyer_email, " +
-            	    "o.shipping_address AS address, NULL AS addr_name, NULL AS phone " +
+            	    		"o.shipping_address AS address, " +
+            	    				"o.shipping_address AS addr_name, NULL AS phone " +
             	    "FROM orders o " +
             	    "JOIN order_items oi ON o.order_id = oi.order_id " +
             	    "JOIN customer c ON o.customer_id = c.customer_id " +
@@ -678,9 +679,12 @@ try {
                 // Fetch items for this order belonging to this seller
                 java.util.List<java.util.Map<String, Object>> itemList = new java.util.ArrayList<>();
                 java.sql.PreparedStatement itemPs = sOrdConn.prepareStatement(
-                		"SELECT oi.quantity, oi.subtotal, p.name AS pname, p.image AS image_url " +
-                    "FROM order_items oi JOIN product p ON oi.product_id = p.product_id " +
-                    "WHERE oi.order_id = ? AND oi.seller_id = ?");
+                	    "SELECT oi.quantity, oi.subtotal, p.name AS pname, p.image AS image_url, " +
+                	    "pv.variation_type, pv.variation_value " +
+                	    "FROM order_items oi " +
+                	    "JOIN product p ON oi.product_id = p.product_id " +
+                	    "LEFT JOIN product_variation pv ON oi.variation_id = pv.variation_id " +
+                	    "WHERE oi.order_id = ? AND oi.seller_id = ?");
                 itemPs.setInt(1, sOrdRs.getInt("order_id"));
                 itemPs.setInt(2, sOrdSellerId);
                 java.sql.ResultSet itemRs = itemPs.executeQuery();
@@ -690,6 +694,8 @@ try {
                     item.put("subtotal", itemRs.getDouble("subtotal"));
                     item.put("pname", itemRs.getString("pname"));
                     item.put("image", itemRs.getString("image_url"));
+                    item.put("variationType", itemRs.getString("variation_type"));
+                    item.put("variationValue", itemRs.getString("variation_value"));
                     itemList.add(item);
                 }
                 itemRs.close(); itemPs.close();
@@ -767,11 +773,10 @@ try {
                         <i class="bi bi-geo-alt me-1"></i>Delivery Address
                     </p>
                     <% if (ord.get("addr_name") != null) { %>
-                        <p class="mb-0" style="font-size:12px;"><%= ord.get("addr_name") %> | <%= ord.get("phone") %></p>
-                        <p class="mb-0 text-muted" style="font-size:12px;"><%= ord.get("address") %></p>
-                    <% } else { %>
-                        <p class="mb-0 text-muted" style="font-size:12px;">No address on file</p>
-                    <% } %>
+    <p class="mb-0 text-muted" style="font-size:12px;"><%= ord.get("addr_name") %></p>
+<% } else { %>
+    <p class="mb-0 text-muted" style="font-size:12px;">No address on file</p>
+<% } %>
                     <hr class="my-2">
                     <p class="mb-0" style="font-size:12px;">
                         <i class="bi bi-wallet2 me-1"></i>
@@ -796,10 +801,15 @@ try {
                              style="width:52px; height:52px; object-fit:cover; border-radius:8px; border:1px solid #e0e0e0;">
                         <div class="flex-grow-1">
                             <p class="mb-0 fw-semibold" style="font-size:13px;"><%= itm.get("pname") %></p>
-                            <p class="mb-0 text-muted" style="font-size:12px;">
-                                Qty: <%= itm.get("qty") %> &nbsp;|&nbsp;
-                                ₱<%= String.format("%.2f", itm.get("subtotal")) %>
-                            </p>
+<% if (itm.get("variationType") != null) { %>
+    <span class="badge bg-light text-dark border mb-1" style="font-size:11px;">
+        <i class="bi bi-tag"></i> <%= itm.get("variationType") %>: <%= itm.get("variationValue") %>
+    </span>
+<% } %>
+<p class="mb-0 text-muted" style="font-size:12px;">
+    Qty: <%= itm.get("qty") %> &nbsp;|&nbsp;
+    ₱<%= String.format("%.2f", itm.get("subtotal")) %>
+</p>
                         </div>
                     </div>
                     <% } %>

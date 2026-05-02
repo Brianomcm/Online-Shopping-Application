@@ -707,7 +707,7 @@
             while (wlRs.next()) {
                 hasWishlist = true;
         %>
-        <div class="d-flex align-items-center gap-3 p-3 mb-3 border rounded-3">
+        <div class="d-flex align-items-center gap-3 p-3 mb-3 border rounded-3" id="wl-<%= wlRs.getInt("product_id") %>">
             <% if (wlRs.getString("image") != null && !wlRs.getString("image").isEmpty()) { %>
                 <img src="<%= wlRs.getString("image") %>"
                      style="width:70px; height:70px; object-fit:cover; border-radius:10px; border:1px solid #eee;">
@@ -731,13 +731,10 @@
                    class="btn btn-primary btn-sm">
                     <i class="bi bi-eye"></i> View
                 </a>
-                <form action="WishlistServlet" method="post" style="display:inline;">
-                    <input type="hidden" name="productId" value="<%= wlRs.getInt("product_id") %>">
-                    <input type="hidden" name="action" value="remove">
-                    <button type="submit" class="btn btn-outline-danger btn-sm">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </form>
+                <button type="button" class="btn btn-outline-danger btn-sm"
+    onclick="removeWishlist(<%= wlRs.getInt("product_id") %>, this)">
+    <i class="bi bi-trash"></i>
+</button>
             </div>
         </div>
         <%
@@ -1140,6 +1137,33 @@ window.addEventListener('load', function() {
     setTimeout(() => location.reload(), 1000);
 })
         .catch(err => alert('Error submitting review: ' + err));
+    }
+    
+    function removeWishlist(productId, btn) {
+        if (!confirm('Remove from wishlist?')) return;
+        fetch('WishlistServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'productId=' + productId + '&action=remove'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const card = document.getElementById('wl-' + productId);
+                if (card) card.remove();
+                showToast('Removed from wishlist! ✅');
+                // Check if no more items
+                const remaining = document.querySelectorAll('[id^="wl-"]');
+                if (remaining.length === 0) {
+                    const wishlistSection = document.querySelector('#tab-wishlist .card-section');
+                    wishlistSection.innerHTML += `
+                        <div class="text-center py-4 text-muted" id="emptyWishlist">
+                            <i class="bi bi-heart fs-1 opacity-25"></i>
+                            <p class="mt-2">No items in wishlist yet.</p>
+                        </div>`;
+                }
+            }
+        });
     }
 </script>
 <!-- REVIEW MODAL -->

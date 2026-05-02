@@ -66,7 +66,7 @@ public class WishlistServlet extends HttpServlet {
                 ps.setInt(2, productId);
                 ps.executeUpdate();
                 ps.close(); conn.close();
-                response.sendRedirect("customer.jsp?tab=wishlist");
+                out.print("{\"success\":true,\"action\":\"removed\"}");
                 return;
             }
 

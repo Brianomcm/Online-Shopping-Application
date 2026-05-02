@@ -98,6 +98,34 @@
 </head>
 <body>
 
+<!-- PAGE LOADER -->
+<div id="pageLoader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); z-index:9999; flex-direction:column; gap:12px;">
+    <div style="width:48px; height:48px; border:5px solid #e0e0e0; border-top-color:#0d6efd; border-radius:50%; animation:spin 0.7s linear infinite;"></div>
+    <span class="text-primary fw-bold">Searching...</span>
+</div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+#pageLoader { display: none; }
+#pageLoader.active {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+<script>
+function showLoader() {
+    
+    var loader = document.getElementById('pageLoader');
+    loader.classList.add('active'); 
+    var btn = document.getElementById('searchBtn');
+    if (btn) btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    setTimeout(() => { 
+        document.getElementById('productSearch').submit(); 
+    }, 500);
+}
+</script>
+
 <!-- TOAST -->
 <div id="cartToast" class="toast-msg">
     <i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒
@@ -111,38 +139,57 @@
             <i class="bi bi-bag-heart-fill"></i> ShopEasy
         </a>
 
-        <!-- SEARCH BAR -->
-        <form class="d-flex flex-grow-1 mx-3" action="index.jsp" method="get">
+       <!-- SEARCH BAR -->
+        <form id="productSearch" class="d-flex flex-grow-1 mx-3" action="index.jsp" method="get" onsubmit="event.preventDefault(); showLoader();">
             <div class="input-group">
                 <input type="text" class="form-control" name="search" placeholder="Search products..." style="border-radius:8px 0 0 8px;">
-                <button class="btn btn-primary" type="submit" style="border-radius:0 8px 8px 0;">
+                <button class="btn btn-primary" type="submit" id="searchBtn" style="border-radius:0 8px 8px 0;">
                     <i class="bi bi-search"></i>
                 </button>
             </div>
         </form>
-
-        <!-- RIGHT SIDE -->
+       <!-- RIGHT SIDE -->
         <div class="d-flex align-items-center gap-2">
-          <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-    <a href="CartServlet" class="btn btn-outline-secondary position-relative">
-        <i class="bi bi-cart3 fs-5"></i>
-        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
-    </a>
-    <div class="avatar-circle">
-        <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
-            <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
-        <% } else { %>
-            <%= loggedUser.substring(0, 1).toUpperCase() %>
-        <% } %>
-    </div>
-<% } else { %>
-    <a href="CartServlet" class="btn btn-outline-secondary position-relative">
-        <i class="bi bi-cart3 fs-5"></i>
-        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
-    </a>
-    <a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal"><i class="bi bi-box-arrow-in-right"></i> Login</a>
-    <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal"><i class="bi bi-person-plus"></i> Register</a>
-<% } %>
+          <% if (loggedUser != null) { %>
+            <% if ("customer".equals(loggedRole)) { %>
+            <a href="CartServlet" class="btn btn-outline-secondary position-relative">
+                <i class="bi bi-cart3 fs-5"></i>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
+            </a>
+            <% } %>
+            <div class="dropdown">
+                <a href="#" class="d-flex align-items-center gap-2 text-decoration-none" data-bs-toggle="dropdown">
+                    <div class="avatar-circle">
+                        <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
+                            <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
+                        <% } else { %>
+                            <%= loggedUser.substring(0, 1).toUpperCase() %>
+                        <% } %>
+                    </div>
+                    <span class="d-none d-md-inline fw-bold text-dark" style="font-size:14px; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><%= loggedUser %></span>
+                    <i class="bi bi-chevron-down text-muted" style="font-size:11px;"></i>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><h6 class="dropdown-header"><%= loggedUser %></h6></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <% if ("customer".equals(loggedRole)) { %>
+                    <li><a class="dropdown-item" href="customer.jsp"><i class="bi bi-person me-2"></i> My Profile</a></li>
+                    <li><a class="dropdown-item" href="customer.jsp?tab=orders"><i class="bi bi-bag me-2"></i> My Orders</a></li>
+                    <% } else if ("seller".equals(loggedRole)) { %>
+                    <li><a class="dropdown-item" href="seller.jsp"><i class="bi bi-shop me-2"></i> Seller Dashboard</a></li>
+                    <% } %>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="LogoutServlet"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
+                </ul>
+            </div>
+          <% } else { %>
+            <a href="CartServlet" class="btn btn-outline-secondary position-relative">
+                <i class="bi bi-cart3 fs-5"></i>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
+            </a>
+            <a href="index.jsp" class="btn btn-outline-primary"><i class="bi bi-box-arrow-in-right"></i> Login</a>
+            <a href="index.jsp" class="btn btn-primary"><i class="bi bi-person-plus"></i> Register</a>
+          <% } %>
         </div>
     </div>
 </nav>

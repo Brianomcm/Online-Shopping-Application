@@ -1,16 +1,28 @@
 <%@ page session="true" %>
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%
+    String searchParam = request.getParameter("search");
     java.util.List<java.util.Map<String, Object>> products = new java.util.ArrayList<>();
     try {
         java.sql.Connection prodConn = com.shopeasy.DBConnection.getConnection();
-       java.sql.PreparedStatement prodPs = prodConn.prepareStatement(
+
+     String catParam = request.getParameter("category");
+      String catFilter = (catParam != null && !catParam.isEmpty() && !catParam.equals("0")) ? "AND p.category_id = " + Integer.parseInt(catParam) + " " : "";
+      String searchFilter = (searchParam != null && !searchParam.trim().isEmpty()) ? "AND (p.name LIKE ? OR p.description LIKE ?) " : "";
+      java.sql.PreparedStatement prodPs = prodConn.prepareStatement(
     "SELECT p.*, s.business_name, " +
     "COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) AS avg_rating, " +
     "COALESCE((SELECT COUNT(*) FROM review r WHERE r.product_id = p.product_id), 0) AS review_count, " +
     "COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold " +
     "FROM product p JOIN seller s ON p.seller_id = s.seller_id " +
-    "WHERE p.status='active' ORDER BY RAND() LIMIT 20");
+    "WHERE p.status='active' " + catFilter + searchFilter + "ORDER BY RAND()");
+      if (searchParam != null && !searchParam.trim().isEmpty()) {
+          String like = "%" + searchParam.trim() + "%";
+          prodPs.setString(1, like);
+          prodPs.setString(2, like);
+      }
+
+
         java.sql.ResultSet prodRs = prodPs.executeQuery();
         while (prodRs.next()) {
             java.util.Map<String, Object> prod = new java.util.HashMap<>();
@@ -21,6 +33,7 @@
             prod.put("stock", prodRs.getInt("stock"));
             prod.put("seller", prodRs.getString("business_name"));
 prod.put("description", prodRs.getString("description"));
+prod.put("categoryId", prodRs.getInt("category_id"));
 prod.put("avgRating", prodRs.getDouble("avg_rating"));
 prod.put("reviewCount", prodRs.getInt("review_count"));
 prod.put("totalSold", prodRs.getInt("total_sold"));
@@ -88,8 +101,17 @@ input::-webkit-contacts-auto-fill-button {
             color: white;
             transform: translateY(-3px);
         }
-        .category-card:hover i,
+       .category-card:hover i,
         .category-card:hover small {
+            color: white !important;
+        }
+        .category-card.active {
+            background-color: #0d6efd !important;
+            border-color: #0d6efd !important;
+            color: white !important;
+        }
+        .category-card.active i,
+        .category-card.active small {
             color: white !important;
         }
         .product-card {
@@ -145,11 +167,37 @@ input::-webkit-contacts-auto-fill-button {
         .product-wrapper { position: relative; }
         footer a { color: #adb5bd; text-decoration: none; }
         footer a:hover { color: white; }
+        #pageLoader {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(255,255,255,0.7);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .spinner-ring {
+            width: 48px; height: 48px;
+            border: 5px solid #e0e0e0;
+            border-top-color: #0d6efd;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<!-- TOP BAR -- >
+<!-- PAGE LOADER -->
+<div id="pageLoader">
+    <div class="spinner-ring"></div>
+    <span class="text-primary fw-bold">Loading...</span>
+</div>
+
+<!-- TOP BAR -->
 <div class="top-bar text-white py-1 text-center">
     🎉 Free shipping on orders over ₱500! Limited time only!
 </div>
@@ -172,14 +220,14 @@ input::-webkit-contacts-auto-fill-button {
         </a>
 
         <!-- Desktop Search Bar -->
-        <div class="d-none d-md-flex mx-3 flex-grow-1">
+        <form id="desktopSearch" class="d-none d-md-flex mx-3 flex-grow-1" action="index.jsp" method="get" onsubmit="return false;">
             <div class="input-group">
-                <input type="text" class="form-control" placeholder="Search products...">
-                <button class="btn btn-primary px-3">
+                <input type="text" class="form-control" name="search" placeholder="Search products..." value="<%= searchParam != null ? searchParam : "" %>">
+                <button class="btn btn-primary px-3" type="submit">
                     <i class="bi bi-search"></i>
                 </button>
             </div>
-        </div>
+        </form>
 
         <!-- Nav Buttons -->
         <div class="d-flex gap-2 align-items-center">
@@ -225,7 +273,7 @@ String navAvatar = "seller".equals(loggedRole2) ?
                     <li><hr class="dropdown-divider"></li>
                     <% if ("customer".equals(loggedRole)) { %>
                     <li><a class="dropdown-item" href="customer.jsp"><i class="bi bi-person me-2"></i> My Profile</a></li>
-                    <li><a class="dropdown-item" href="#"><i class="bi bi-bag me-2"></i> My Orders</a></li>
+                    <li><a class="dropdown-item" href="customer.jsp?tab=orders"><i class="bi bi-bag me-2"></i> My Orders</a></li>
                     <% } else if ("seller".equals(loggedRole)) { %>
                     <li><a class="dropdown-item" href="seller.jsp"><i class="bi bi-shop me-2"></i> Seller Dashboard</a></li>
                     <% } %>
@@ -250,15 +298,15 @@ String navAvatar = "seller".equals(loggedRole2) ?
         </div>
     </div>
 
-    <!-- Mobile Search Bar -->
-    <div class="container-fluid px-3 d-md-none mt-2">
+ <!-- Mobile Search Bar -->
+    <form id="mobileSearch" class="container-fluid px-3 d-md-none mt-2" action="index.jsp" method="get" onsubmit="return false;">
         <div class="input-group">
-            <input type="text" class="form-control" placeholder="Search products...">
-            <button class="btn btn-primary">
+            <input type="text" class="form-control" name="search" placeholder="Search products..." value="<%= searchParam != null ? searchParam : "" %>">
+            <button class="btn btn-primary" type="submit">
                 <i class="bi bi-search"></i>
             </button>
         </div>
-    </div>
+    </form>
 </nav>
 
 <!-- HERO SECTION -->
@@ -273,43 +321,53 @@ String navAvatar = "seller".equals(loggedRole2) ?
 </div>
 
 <!-- CATEGORIES -->
+<%
+String cp = request.getParameter("category");
+boolean isAll = (cp == null || cp.isEmpty() || cp.equals("0"));
+%>
 <div class="container mt-4 mb-2">
-    <h5 class="mb-3 fw-bold">Browse by Category</h5>
-    <div class="row g-2 text-center">
-        <div class="col-4 col-md-2">
-            <div class="card category-card py-3 border h-100">
-                <i class="bi bi-phone fs-3 text-primary"></i>
+<h5 class="mb-3 fw-bold">Browse by Category</h5>
+<div class="row g-2 text-center flex-nowrap overflow-auto">
+        <div class="col" onclick="filterCategory(0)" style="cursor:pointer; min-width:100px;">
+            <div class="card category-card py-3 border h-100 <%= isAll ? "active" : "" %>" id="cat-0">
+                <i class="bi bi-grid-fill fs-3 <%= isAll ? "" : "text-primary" %>"></i>
+                <small class="mt-1 fw-bold">All</small>
+            </div>
+        </div>
+        <div class="col" onclick="filterCategory(1)" style="cursor:pointer; min-width:100px;">
+            <div class="card category-card py-3 border h-100 <%= "1".equals(cp) ? "active" : "" %>" id="cat-1">
+                <i class="bi bi-phone fs-3 <%= "1".equals(cp) ? "" : "text-primary" %>"></i>
                 <small class="mt-1 fw-bold">Electronics</small>
             </div>
         </div>
-        <div class="col-4 col-md-2">
-            <div class="card category-card py-3 border h-100">
-                <i class="bi bi-bag fs-3 text-primary"></i>
+        <div class="col" onclick="filterCategory(2)" style="cursor:pointer; min-width:100px;">
+            <div class="card category-card py-3 border h-100 <%= "2".equals(cp) ? "active" : "" %>" id="cat-2">
+                <i class="bi bi-bag fs-3 <%= "2".equals(cp) ? "" : "text-primary" %>"></i>
                 <small class="mt-1 fw-bold">Fashion</small>
             </div>
         </div>
-        <div class="col-4 col-md-2">
-            <div class="card category-card py-3 border h-100">
-                <i class="bi bi-house fs-3 text-primary"></i>
+        <div class="col" onclick="filterCategory(3)" style="cursor:pointer; min-width:100px;">
+            <div class="card category-card py-3 border h-100 <%= "3".equals(cp) ? "active" : "" %>" id="cat-3">
+                <i class="bi bi-house fs-3 <%= "3".equals(cp) ? "" : "text-primary" %>"></i>
                 <small class="mt-1 fw-bold">Home</small>
             </div>
         </div>
-        <div class="col-4 col-md-2">
-            <div class="card category-card py-3 border h-100">
-                <i class="bi bi-controller fs-3 text-primary"></i>
+        <div class="col" onclick="filterCategory(4)" style="cursor:pointer; min-width:100px;">
+            <div class="card category-card py-3 border h-100 <%= "4".equals(cp) ? "active" : "" %>" id="cat-4">
+                <i class="bi bi-controller fs-3 <%= "4".equals(cp) ? "" : "text-primary" %>"></i>
                 <small class="mt-1 fw-bold">Gaming</small>
             </div>
         </div>
-        <div class="col-4 col-md-2">
-            <div class="card category-card py-3 border h-100">
-                <i class="bi bi-heart-pulse fs-3 text-primary"></i>
+        <div class="col" onclick="filterCategory(5)" style="cursor:pointer; min-width:100px;">
+            <div class="card category-card py-3 border h-100 <%= "5".equals(cp) ? "active" : "" %>" id="cat-5">
+                <i class="bi bi-heart-pulse fs-3 <%= "5".equals(cp) ? "" : "text-primary" %>"></i>
                 <small class="mt-1 fw-bold">Health</small>
             </div>
         </div>
-        <div class="col-4 col-md-2">
-            <div class="card category-card py-3 border h-100">
-                <i class="bi bi-grid fs-3 text-primary"></i>
-                <small class="mt-1 fw-bold">More</small>
+        <div class="col" onclick="filterCategory(6)" style="cursor:pointer; min-width:100px;">
+            <div class="card category-card py-3 border h-100 <%= "6".equals(cp) ? "active" : "" %>" id="cat-6">
+                <i class="bi bi-box fs-3 <%= "6".equals(cp) ? "" : "text-primary" %>"></i>
+                <small class="mt-1 fw-bold">Others</small>
             </div>
         </div>
     </div>
@@ -317,7 +375,17 @@ String navAvatar = "seller".equals(loggedRole2) ?
 
 <!-- FEATURED PRODUCTS -->
 <div class="container mt-4" id="products">
-    <h5 class="mb-3 fw-bold">Featured Products</h5>
+   <%
+String[] catNames = {"Featured Products","Electronics","Fashion","Home","Gaming","Health","Others"};
+String catParamTitle = request.getParameter("category");
+String sectionTitle = (catParamTitle != null && !catParamTitle.isEmpty() && !catParamTitle.equals("0")) ? catNames[Integer.parseInt(catParamTitle)] : "Featured Products";
+String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "Search results for \"" + searchParam + "\"" : sectionTitle;
+%>
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h5 class="fw-bold mb-0"><%= searchTitle %></h5>
+        <span class="text-muted" style="font-size:13px;"><%= products.size() %> product<%= products.size() != 1 ? "s" : "" %> found</span>
+    </div>
+    
     <div class="row g-3">
 <% if (products.isEmpty()) { %>
     <div class="col-12 text-center py-5 text-muted">
@@ -326,8 +394,8 @@ String navAvatar = "seller".equals(loggedRole2) ?
     </div>
 <% } else { %>
     <% for (java.util.Map<String, Object> prod : products) { %>
-    <div class="col-6 col-md-4 col-lg-3">
-    <div class="card h-100 product-card" onclick="window.location.href='product.jsp?id=<%= prod.get("id") %>'" style="cursor:pointer;">    
+   <div class="col-6 col-md-4 col-lg-3 product-item" data-category="<%= prod.get("categoryId") %>">
+<div class="card h-100 product-card" onclick="window.location.href='product.jsp?id=<%= prod.get("id") %>'" style="cursor:pointer;">  
             <div class="product-wrapper">
                 <% if (prod.get("image") != null) { %>
                     <img src="<%= prod.get("image") %>" class="card-img-top" alt="<%= prod.get("name") %>">
@@ -530,11 +598,15 @@ function showProduct(id, name, price, stock, seller, image, description) {
     
     </script>
 
-
+<!-- WELCOME TOAST -->
+<div id="centerToast" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#0d6efd; color:white; padding:14px 32px; border-radius:12px; font-size:15px; font-weight:600; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,0.2); align-items:center; gap:10px;">
+    <i class="bi bi-person-check-fill me-2"></i><span id="centerToastMsg"></span>
+</div>
     <!-- ADD TO CART TOAST -->
     <div id="cartToast" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#198754; color:white; padding:12px 28px; border-radius:12px; font-size:14px; font-weight:600; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,0.2);">
         <i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒
     </div>
+
 
     <script>
     function addToCart(productId) {
@@ -561,13 +633,34 @@ function showProduct(id, name, price, stock, seller, image, description) {
         .catch(err => console.error(err));
     }
     
-    
+    function filterCategory(categoryId) {
+        window.location.href = 'index.jsp?category=' + categoryId;
+    }
+    function showSearchLoader(formId) {
+        var loader = document.getElementById('pageLoader');
+        loader.style.display = 'flex';
+        loader.style.alignItems = 'center';
+        loader.style.justifyContent = 'center';
+        setTimeout(() => { document.getElementById(formId).submit(); }, 500);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        ['desktopSearch', 'mobileSearch'].forEach(function(id) {
+            var form = document.getElementById(id);
+            if (!form) return;
+            form.querySelector('button[type=submit]').addEventListener('click', function() {
+                showSearchLoader(id);
+            });
+            form.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') showSearchLoader(id);
+            });
+        });
+    });
     </script>
     
-    
-    
-    
 
+    
+   
 <%
     String isLoggedInFlag = (loggedUser != null && "customer".equals(loggedRole)) ? "true" : "false";
 %>

@@ -37,6 +37,26 @@
     } catch (Exception e) {
         e.printStackTrace();
     }
+    
+    
+ // Fetch variations for this product
+ java.util.List<java.util.Map<String, Object>> variations = new java.util.ArrayList<>();
+ try {
+     Connection varConn = com.shopeasy.DBConnection.getConnection();
+     PreparedStatement varPs = varConn.prepareStatement(
+         "SELECT variation_id, variation_type, variation_value FROM product_variation WHERE product_id = ? ORDER BY variation_type");
+     varPs.setInt(1, productId);
+     ResultSet varRs = varPs.executeQuery();
+     while (varRs.next()) {
+         java.util.Map<String, Object> v = new java.util.HashMap<>();
+         v.put("id", varRs.getInt("variation_id"));
+         v.put("type", varRs.getString("variation_type"));
+         v.put("value", varRs.getString("variation_value"));
+         variations.add(v);
+     }
+     varRs.close(); varPs.close(); varConn.close();
+ } catch (Exception e) { e.printStackTrace(); }
+ 
 
     String loggedUser = (String) session.getAttribute("userName");
     String loggedRole = (String) session.getAttribute("userRole");
@@ -181,39 +201,258 @@
                     </p>
                 </div>
 
-                <!-- ADD TO CART -->
-                <div class="mt-4">
-                    <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-                        <% if (stock > 0) { %>
-                            <button class="btn btn-primary add-cart-btn w-100 text-white" onclick="addToCart(<%= productId %>)">
-                                <i class="bi bi-cart-plus"></i> Add to Cart
-                            </button>
-                        <% } else { %>
-                            <button class="btn btn-secondary w-100" disabled>
-                                <i class="bi bi-x-circle"></i> Out of Stock
-                            </button>
-                        <% } %>
-                    <% } else { %>
-    <button class="btn btn-primary add-cart-btn w-100 text-white" data-bs-toggle="modal" data-bs-target="#loginModal">
-        <i class="bi bi-box-arrow-in-right"></i> Login to Add to Cart
-    </button>
+               
+                <!-- VARIATIONS -->
+<% if (!variations.isEmpty()) {
+    // Group by type
+    java.util.Map<String, java.util.List<java.util.Map<String, Object>>> grouped = new java.util.LinkedHashMap<>();
+    for (java.util.Map<String, Object> v : variations) {
+        String vtype = (String) v.get("type");
+        grouped.computeIfAbsent(vtype, k -> new java.util.ArrayList<>()).add(v);
+    }
+%>
+<div class="mb-3">
+    <% for (java.util.Map.Entry<String, java.util.List<java.util.Map<String, Object>>> entry : grouped.entrySet()) { %>
+    <div class="mb-3">
+        <label class="form-label fw-bold" style="font-size:13px;"><%= entry.getKey() %></label>
+        <div class="d-flex flex-wrap gap-2" id="varGroup_<%= entry.getKey() %>">
+            <% for (java.util.Map<String, Object> v : entry.getValue()) { %>
+            <button type="button"
+                class="btn btn-outline-secondary btn-sm variation-btn"
+                data-type="<%= entry.getKey() %>"
+                data-id="<%= v.get("id") %>"
+                data-value="<%= v.get("value") %>"
+                onclick="selectVariation(this, '<%= entry.getKey() %>')"
+                style="border-radius:8px; min-width:52px; font-size:13px;">
+                <%= v.get("value") %>
+            </button>
+            <% } %>
+        </div>
+    </div>
+    <% } %>
+</div>
+<!-- Hidden field to carry selected variation -->
+<input type="hidden" id="selectedVariationId" value="">
 <% } %>
-                </div>
+
+<!-- ADD TO CART -->
+<div class="mt-4">
+    <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
+        <% if (stock > 0) { %>
+            <button class="btn btn-primary add-cart-btn w-100 text-white" onclick="addToCart(<%= productId %>, <%= !variations.isEmpty() %>)">
+                <i class="bi bi-cart-plus"></i> Add to Cart
+            </button>
+            <% if (!variations.isEmpty()) { %>
+            <p class="text-muted mt-2 mb-0" style="font-size:11px;"><i class="bi bi-info-circle"></i> Please select your preferred options above.</p>
+            <% } %>
+        <% } else { %>
+            <button class="btn btn-secondary w-100" disabled>
+                <i class="bi bi-x-circle"></i> Out of Stock
+            </button>
+        <% } %>
+    <% } else { %>
+        <button class="btn btn-primary add-cart-btn w-100 text-white" data-bs-toggle="modal" data-bs-target="#loginModal">
+            <i class="bi bi-box-arrow-in-right"></i> Login to Add to Cart
+        </button>
+    <% } %>
+</div>
             </div>
         </div>
     </div>
 </div>
 
 
+</div>
+</div>
+</div>
+
+<!-- REVIEWS SECTION -->
+<div class="container pb-5">
+    <div class="bg-white rounded-4 shadow-sm p-4 mt-2">
+        <h5 class="fw-bold mb-4"><i class="bi bi-star-fill text-warning"></i> Customer Reviews</h5>
+        <%
+        int totalReviews = 0;
+        double avgRating = 0;
+        try {
+            Connection revConn = com.shopeasy.DBConnection.getConnection();
+            PreparedStatement revPs = revConn.prepareStatement(
+                "SELECT r.rating, r.comment, r.review_date, r.photo, c.name AS cname, c.profile_picture AS cavatar " +
+                "FROM review r JOIN customer c ON r.customer_id = c.customer_id " +
+                "WHERE r.product_id = ? ORDER BY r.review_id DESC");
+            revPs.setInt(1, productId);
+            ResultSet revRs = revPs.executeQuery();
+
+            // Get avg rating
+            PreparedStatement avgPs = revConn.prepareStatement(
+                "SELECT COUNT(*), AVG(rating) FROM review WHERE product_id = ?");
+            avgPs.setInt(1, productId);
+            ResultSet avgRs = avgPs.executeQuery();
+            if (avgRs.next()) {
+                totalReviews = avgRs.getInt(1);
+                avgRating = avgRs.getDouble(2);
+            }
+            avgRs.close(); avgPs.close();
+        %>
+
+        <!-- Rating Summary -->
+        <div class="d-flex align-items-center gap-3 mb-4 p-3 bg-light rounded-3">
+            <div class="text-center">
+                <div style="font-size:48px; font-weight:800; color:#ffc107; line-height:1;"><%= String.format("%.1f", avgRating) %></div>
+                <div class="d-flex gap-1 justify-content-center mt-1">
+                    <% for (int s = 1; s <= 5; s++) { %>
+                        <i class="bi bi-star-fill" style="color:<%= s <= Math.round(avgRating) ? "#ffc107" : "#ddd" %>; font-size:14px;"></i>
+                    <% } %>
+                </div>
+                <div class="text-muted mt-1" style="font-size:12px;"><%= totalReviews %> review<%= totalReviews != 1 ? "s" : "" %></div>
+            </div>
+        </div>
+
+        <% if (totalReviews == 0) { %>
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-star fs-1 opacity-25"></i>
+                <p class="mt-2">No reviews yet. Be the first to review!</p>
+            </div>
+        <% } else { while (revRs.next()) { %>
+            <div class="d-flex gap-3 mb-4 pb-4 border-bottom">
+                <!-- Avatar -->
+                <div style="width:42px; height:42px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#0d6efd; display:flex; align-items:center; justify-content:center; color:white; font-weight:700;">
+                    <% String cavatar = revRs.getString("cavatar");
+                       String cname = revRs.getString("cname"); %>
+                    <% if (cavatar != null && !cavatar.isEmpty()) { %>
+                        <img src="<%= cavatar %>" style="width:100%;height:100%;object-fit:cover;">
+                    <% } else { %>
+                        <%= cname != null && !cname.isEmpty() ? String.valueOf(cname.charAt(0)).toUpperCase() : "U" %>
+                    <% } %>
+                </div>
+                <!-- Review Content -->
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <p class="fw-bold mb-0" style="font-size:14px;"><%= cname %></p>
+                        <small class="text-muted"><%= revRs.getString("review_date") != null ? revRs.getString("review_date").toString().substring(0,10) : "" %></small>
+                    </div>
+                    <div class="d-flex gap-1 my-1">
+                        <% for (int s = 1; s <= 5; s++) { %>
+                            <i class="bi bi-star-fill" style="color:<%= s <= revRs.getInt("rating") ? "#ffc107" : "#ddd" %>; font-size:13px;"></i>
+                        <% } %>
+                    </div>
+                    <p class="text-muted mb-2" style="font-size:14px;"><%= revRs.getString("comment") %></p>
+                    <% String rphoto = revRs.getString("photo");
+                       if (rphoto != null && !rphoto.isEmpty()) { %>
+                        <img src="<%= rphoto %>" style="width:90px; height:90px; object-fit:cover; border-radius:10px; border:2px solid #eee;">
+                    <% } %>
+                </div>
+            </div>
+        <% } } %>
+
+        <%
+            revRs.close(); revPs.close(); revConn.close();
+        %>
+
+        <!-- Write a Review (customers only) -->
+        <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
+        <div class="mt-4 pt-2 border-top">
+            <h6 class="fw-bold mb-3"><i class="bi bi-pencil-square text-primary"></i> Write a Review</h6>
+            <form action="ReviewServlet" method="post">
+                <input type="hidden" name="productId" value="<%= productId %>">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Rating</label>
+                    <div class="d-flex gap-2" id="starRating">
+                        <% for (int s = 1; s <= 5; s++) { %>
+                            <i class="bi bi-star-fill star-btn" data-val="<%= s %>" style="font-size:28px; color:#ddd; cursor:pointer;"></i>
+                        <% } %>
+                    </div>
+                    <input type="hidden" name="rating" id="ratingInput" value="0">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Comment</label>
+                    <textarea name="comment" class="form-control" rows="3" placeholder="Share your experience..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary fw-bold px-4">
+                    <i class="bi bi-send"></i> Submit Review
+                </button>
+            </form>
+        </div>
+        <% } else if (loggedUser == null) { %>
+        <div class="mt-4 pt-2 border-top text-center py-3">
+            <p class="text-muted mb-2">Login to write a review</p>
+            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal">
+                <i class="bi bi-box-arrow-in-right"></i> Login
+            </button>
+        </div>
+        <% } %>
+        <% } catch (Exception e) { e.printStackTrace(); } %>
+    </div>
+</div>
 
 <%@ include file="modals.jsp" %>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-function addToCart(productId) {
+document.querySelectorAll('.star-btn').forEach(star => {
+    star.addEventListener('mouseover', function() {
+        const val = parseInt(this.dataset.val);
+        document.querySelectorAll('.star-btn').forEach((s, i) => {
+            s.style.color = i < val ? '#ffc107' : '#ddd';
+        });
+    });
+    star.addEventListener('mouseout', function() {
+        const selected = parseInt(document.getElementById('ratingInput').value);
+        document.querySelectorAll('.star-btn').forEach((s, i) => {
+            s.style.color = i < selected ? '#ffc107' : '#ddd';
+        });
+    });
+    star.addEventListener('click', function() {
+        const val = parseInt(this.dataset.val);
+        document.getElementById('ratingInput').value = val;
+        document.querySelectorAll('.star-btn').forEach((s, i) => {
+            s.style.color = i < val ? '#ffc107' : '#ddd';
+        });
+    });
+});
+
+</script>
+<script>
+function selectVariation(btn, type) {
+    // Deselect all buttons in this group
+    document.querySelectorAll('#varGroup_' + type + ' .variation-btn').forEach(b => {
+        b.classList.remove('btn-dark');
+        b.classList.add('btn-outline-secondary');
+    });
+    // Select clicked
+    btn.classList.remove('btn-outline-secondary');
+    btn.classList.add('btn-dark');
+    // Store the last selected variation id
+    // We store all selected per type, pick last one for single variation products
+    // For multi-type, we just pass the last clicked (you can extend this)
+    document.getElementById('selectedVariationId').value = btn.dataset.id;
+}
+
+function addToCart(productId, hasVariations) {
+    const variationId = document.getElementById('selectedVariationId') 
+                        ? document.getElementById('selectedVariationId').value 
+                        : '';
+
+    if (hasVariations && !variationId) {
+        const toast = document.getElementById('cartToast');
+        toast.style.background = '#dc3545';
+        toast.innerHTML = '<i class="bi bi-exclamation-circle-fill me-2"></i> Please select a variation first!';
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+            toast.style.background = '#198754';
+            toast.innerHTML = '<i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒';
+        }, 2500);
+        return;
+    }
+
+    let body = 'productId=' + productId;
+    if (variationId) body += '&variationId=' + variationId;
+
     fetch('AddToCartServlet', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'productId=' + productId
+        body: body
     })
     .then(res => res.json())
     .then(data => {
@@ -227,7 +466,6 @@ function addToCart(productId) {
     })
     .catch(err => console.error(err));
 }
-
 
 function handleLoginSubmit(e, form) {
     e.preventDefault();

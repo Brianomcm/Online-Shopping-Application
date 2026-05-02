@@ -89,8 +89,16 @@
                     <!-- Product Info -->
                     <div class="flex-grow-1">
                         <h6 class="mb-1 fw-bold"><%= item.get("name") %></h6>
-                        <p class="text-danger fw-bold mb-1">₱<%= String.format("%.2f", item.get("price")) %></p>
-                        <p class="text-muted mb-0" style="font-size:11px;">Stock: <%= item.get("stock") %></p>
+<p class="text-danger fw-bold mb-1">₱<%= String.format("%.2f", item.get("price")) %></p>
+<% if (item.get("variationType") != null) { %>
+<p class="mb-1">
+    <span class="badge bg-light text-dark border" style="font-size:11px;">
+        <i class="bi bi-tag"></i>
+        <%= item.get("variationType") %>: <%= item.get("variationValue") %>
+    </span>
+</p>
+<% } %>
+<p class="text-muted mb-0" style="font-size:11px;">Stock: <%= item.get("stock") %></p>
                     </div>
 
                     <!-- Quantity + Remove -->

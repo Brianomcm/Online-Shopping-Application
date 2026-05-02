@@ -428,9 +428,12 @@
     try {
         java.sql.Connection itemConn = com.shopeasy.DBConnection.getConnection();
         java.sql.PreparedStatement itemPs = itemConn.prepareStatement(
-            "SELECT p.product_id, p.name, p.image, oi.quantity, oi.price " +
-            "FROM order_items oi JOIN product p ON oi.product_id = p.product_id " +
-            "WHERE oi.order_id = ?");
+        	    "SELECT p.product_id, p.name, p.image, oi.quantity, oi.price, " +
+        	    "pv.variation_type, pv.variation_value " +
+        	    "FROM order_items oi " +
+        	    "JOIN product p ON oi.product_id = p.product_id " +
+        	    "LEFT JOIN product_variation pv ON oi.variation_id = pv.variation_id " +
+        	    "WHERE oi.order_id = ?");
         itemPs.setInt(1, (Integer) ord.get("id"));
         java.sql.ResultSet itemRs = itemPs.executeQuery();
         while (itemRs.next()) {
@@ -444,7 +447,14 @@
                                     <% } %>
                                     <div>
                                         <p class="mb-0 fw-bold" style="font-size:12px;"><%= itemRs.getString("name") %></p>
-                                        <p class="mb-0 text-muted" style="font-size:11px;">Qty: <%= itemRs.getInt("quantity") %> &nbsp;|&nbsp; ₱<%= String.format("%.2f", itemRs.getDouble("price")) %></p>
+<% if (itemRs.getString("variation_type") != null) { %>
+<p class="mb-0" style="font-size:11px;">
+    <span class="badge bg-light text-dark border" style="font-size:10px;">
+        <i class="bi bi-tag"></i> <%= itemRs.getString("variation_type") %>: <%= itemRs.getString("variation_value") %>
+    </span>
+</p>
+<% } %>
+<p class="mb-0 text-muted" style="font-size:11px;">Qty: <%= itemRs.getInt("quantity") %> &nbsp;|&nbsp; ₱<%= String.format("%.2f", itemRs.getDouble("price")) %></p>
                                     </div>
                                 </div>
                                 <%

@@ -534,6 +534,25 @@ try {
                         <label class="form-label fw-bold" style="font-size:13px;">Description</label>
                         <textarea name="description" class="form-control" rows="3" placeholder="Describe your product..."></textarea>
                     </div>
+                    
+                    <!-- PRODUCT VARIATIONS -->
+<div class="col-12">
+    <label class="form-label fw-bold" style="font-size:13px;">
+        Product Variations 
+        <span class="text-muted fw-normal" style="font-size:11px;">(optional — size, color, kilos)</span>
+    </label>
+    <div id="variationsContainer" class="d-flex flex-column gap-2 mb-2">
+        <!-- rows added dynamically -->
+    </div>
+    <button type="button" class="btn btn-outline-success btn-sm" onclick="addVariationRow()">
+        <i class="bi bi-plus"></i> Add Variation
+    </button>
+    <p class="text-muted mt-1" style="font-size:11px;">
+        Each row is one option. Example: Size → XL, Color → Red, Kilos → 5kg
+    </p>
+</div>
+
+                    
                     <div class="col-12">
     <label class="form-label fw-bold" style="font-size:13px;">Product Image</label>
     <input type="file" id="productImageInput" class="form-control" accept="image/*" onchange="openProductCropModal(this)">
@@ -1453,6 +1472,28 @@ window.addEventListener('load', function() {
         document.getElementById('addProductForm').style.display = 'block';
         document.getElementById('noProductsMsg').style.display = 'none';
     }
+    
+    function addVariationRow() {
+        const container = document.getElementById('variationsContainer');
+        const idx = container.children.length;
+        const row = document.createElement('div');
+        row.className = 'd-flex gap-2 align-items-center';
+        row.innerHTML = `
+            <select name="variationType[]" class="form-select form-select-sm" style="width:130px; flex-shrink:0;">
+                <option value="Size">Size</option>
+                <option value="Color">Color</option>
+                <option value="Kilos">Kilos</option>
+            </select>
+            <input type="text" name="variationValue[]" class="form-control form-control-sm"
+                   placeholder="e.g. XL, Red, 5kg" required>
+            <button type="button" class="btn btn-outline-danger btn-sm px-2"
+                    onclick="this.parentElement.remove()">
+                <i class="bi bi-x"></i>
+            </button>
+        `;
+        container.appendChild(row);
+    }
+    
     function hideAddProduct() {
         document.getElementById('addProductForm').style.display = 'none';
         document.getElementById('noProductsMsg').style.display = 'block';

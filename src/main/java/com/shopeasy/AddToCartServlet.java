@@ -25,19 +25,26 @@ public class AddToCartServlet extends HttpServlet {
             response.getWriter().print("{\"success\":false,\"message\":\"Not logged in\"}");
             return;
         }
-        String productIdParam = request.getParameter("productId");
-        if (productIdParam == null || productIdParam.trim().isEmpty() || productIdParam.trim().equals("undefined")) {
+
+        String productIdParam  = request.getParameter("productId");
+        String variationIdParam = request.getParameter("variationId");
+
+        if (productIdParam == null || productIdParam.trim().isEmpty()) {
             response.setContentType("application/json");
             response.getWriter().print("{\"success\":false,\"message\":\"Invalid product\"}");
             return;
         }
+
         int productId = Integer.parseInt(productIdParam.trim());
-        int quantity = 1;
+        Integer variationId = null;
+        if (variationIdParam != null && !variationIdParam.trim().isEmpty()) {
+            variationId = Integer.parseInt(variationIdParam.trim());
+        }
 
         try {
             Connection conn = DBConnection.getConnection();
 
-            // Get or create cart for this customer
+            // Get or create cart
             int cartId = -1;
             PreparedStatement ps = conn.prepareStatement(
                 "SELECT cart_id FROM cart WHERE customer_id=?");
@@ -55,15 +62,19 @@ public class AddToCartServlet extends HttpServlet {
                 if (keys.next()) cartId = keys.getInt(1);
                 ins.close();
             }
-            rs.close();
-            ps.close();
+            rs.close(); ps.close();
 
-            // Check if product already in cart
-            ps = conn.prepareStatement(
-                "SELECT cartitem_id, quantity FROM cartitem WHERE cart_id=? AND product_id=?");
+            // Check if same product + same variation already in cart
+            String checkSql = variationId != null
+                ? "SELECT cartitem_id, quantity FROM cartitem WHERE cart_id=? AND product_id=? AND variation_id=?"
+                : "SELECT cartitem_id, quantity FROM cartitem WHERE cart_id=? AND product_id=? AND variation_id IS NULL";
+
+            ps = conn.prepareStatement(checkSql);
             ps.setInt(1, cartId);
             ps.setInt(2, productId);
+            if (variationId != null) ps.setInt(3, variationId);
             rs = ps.executeQuery();
+
             if (rs.next()) {
                 // Update quantity
                 int newQty = rs.getInt("quantity") + 1;
@@ -78,18 +89,19 @@ public class AddToCartServlet extends HttpServlet {
                 // Insert new cart item
                 ps.close();
                 ps = conn.prepareStatement(
-                    "INSERT INTO cartitem (cart_id, product_id, quantity) VALUES (?,?,?)");
+                    "INSERT INTO cartitem (cart_id, product_id, quantity, variation_id) VALUES (?,?,?,?)");
                 ps.setInt(1, cartId);
                 ps.setInt(2, productId);
-                ps.setInt(3, quantity);
+                ps.setInt(3, 1);
+                if (variationId != null) ps.setInt(4, variationId);
+                else ps.setNull(4, java.sql.Types.INTEGER);
                 ps.executeUpdate();
             }
-            rs.close();
-            ps.close();
-            conn.close(); 
+            rs.close(); ps.close(); conn.close();
 
             response.setContentType("application/json");
             response.getWriter().print("{\"success\":true}");
+
         } catch (Exception e) {
             e.printStackTrace();
             response.setContentType("application/json");

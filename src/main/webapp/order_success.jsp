@@ -30,9 +30,9 @@
         <p class="text-muted mb-1">Your order has been received.</p>
         <p class="fw-bold mb-4">Order ID: <span class="text-primary">#SE-<%= orderId %></span></p>
         <div class="d-flex gap-2 justify-content-center flex-wrap">
-            <a href="ProfileServlet" class="btn btn-outline-primary">
-                <i class="bi bi-bag"></i> View My Orders
-            </a>
+            <a href="customer.jsp?tab=orders" class="btn btn-outline-primary">
+    <i class="bi bi-bag"></i> View My Orders
+</a>
             <a href="index.jsp" class="btn btn-primary">
                 <i class="bi bi-shop"></i> Continue Shopping
             </a>

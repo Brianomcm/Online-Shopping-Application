@@ -566,13 +566,80 @@
 
 
 
-    <div id="tab-orders" class="tab-content-section" style="display:none;">
+   <div id="tab-orders" class="tab-content-section" style="display:none;">
         <div class="card-section">
             <p class="section-title"><i class="bi bi-bag-fill text-success"></i> Orders Received</p>
-            <div class="text-center text-muted py-4">
-                <i class="bi bi-inbox fs-1 opacity-50"></i>
-                <p class="mt-2" style="font-size:13px;">No orders received yet.</p>
-            </div>
+            <%
+                java.util.List<java.util.Map<String, Object>> sellerOrders = new java.util.ArrayList<>();
+                try {
+                    int sellerId2 = (int) session.getAttribute("userId");
+                    java.sql.Connection sordConn = com.shopeasy.DBConnection.getConnection();
+                    java.sql.PreparedStatement sordPs = sordConn.prepareStatement(
+                    		"SELECT DISTINCT o.order_id, o.total_amount, o.status, o.payment_method, o.shipping_address, o.order_date, " +
+                        "c.name AS customer_name, c.email AS customer_email " +
+                        "FROM orders o " +
+                        "JOIN order_items oi ON o.order_id = oi.order_id " +
+                        "JOIN customer c ON o.customer_id = c.customer_id " +
+                        "WHERE oi.seller_id=? ORDER BY o.order_id DESC");
+                    sordPs.setInt(1, sellerId2);
+                    java.sql.ResultSet sordRs = sordPs.executeQuery();
+                    while (sordRs.next()) {
+                        java.util.Map<String, Object> ord = new java.util.HashMap<>();
+                        ord.put("id", sordRs.getInt("order_id"));
+                        ord.put("total", sordRs.getDouble("total_amount"));
+                        ord.put("status", sordRs.getString("status"));
+                        ord.put("payment", sordRs.getString("payment_method"));
+                        ord.put("address", sordRs.getString("shipping_address"));
+                        ord.put("date", sordRs.getString("order_date"));
+                        ord.put("customerName", sordRs.getString("customer_name"));
+                        ord.put("customerEmail", sordRs.getString("customer_email"));
+                        sellerOrders.add(ord);
+                    }
+                    sordRs.close(); sordPs.close(); sordConn.close();
+                } catch (Exception ex) { ex.printStackTrace(); }
+            %>
+            <% if (sellerOrders.isEmpty()) { %>
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-inbox fs-1 opacity-50"></i>
+                    <p class="mt-2" style="font-size:13px;">No orders received yet.</p>
+                </div>
+            <% } else { %>
+                <% for (java.util.Map<String, Object> ord : sellerOrders) { %>
+                <div class="product-row">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <p class="mb-0 fw-bold" style="font-size:14px;">Order #SE-<%= ord.get("id") %></p>
+                            <p class="mb-0 text-muted" style="font-size:12px;"><%= ord.get("date") %></p>
+                        </div>
+                        <%
+                            String sStatus = (String) ord.get("status");
+                            String sBadge = "bg-warning text-dark";
+                            if ("Completed".equals(sStatus)) sBadge = "bg-success";
+                            else if ("Cancelled".equals(sStatus)) sBadge = "bg-danger";
+                            else if ("Shipped".equals(sStatus)) sBadge = "bg-info";
+                            else if ("Processing".equals(sStatus)) sBadge = "bg-primary";
+                        %>
+                        <span class="badge <%= sBadge %> stock-badge"><%= sStatus %></span>
+                    </div>
+                    <p class="mb-1" style="font-size:13px;"><i class="bi bi-person"></i> <strong><%= ord.get("customerName") %></strong> &nbsp; <%= ord.get("customerEmail") %></p>
+                    <p class="mb-1 text-muted" style="font-size:12px;"><i class="bi bi-geo-alt"></i> <%= ord.get("address") %></p>
+                    <p class="mb-1 text-muted" style="font-size:12px;"><i class="bi bi-credit-card"></i> <%= ord.get("payment") %></p>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <p class="mb-0 fw-bold text-success">Total: ₱<%= String.format("%.2f", ord.get("total")) %></p>
+                        <form action="UpdateOrderServlet" method="post" style="display:inline;">
+                            <input type="hidden" name="orderId" value="<%= ord.get("id") %>">
+                            <select name="status" class="form-select form-select-sm" style="width:140px; display:inline-block;" onchange="this.form.submit()">
+                                <option <%= "Pending".equals(sStatus) ? "selected" : "" %>>Pending</option>
+                                <option <%= "Processing".equals(sStatus) ? "selected" : "" %>>Processing</option>
+                                <option <%= "Shipped".equals(sStatus) ? "selected" : "" %>>Shipped</option>
+                                <option <%= "Completed".equals(sStatus) ? "selected" : "" %>>Completed</option>
+                                <option <%= "Cancelled".equals(sStatus) ? "selected" : "" %>>Cancelled</option>
+                            </select>
+                        </form>
+                    </div>
+                </div>
+                <% } %>
+            <% } %>
         </div>
     </div>
 

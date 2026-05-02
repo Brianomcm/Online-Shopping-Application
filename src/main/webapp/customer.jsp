@@ -312,25 +312,81 @@
     </div>
 </div>
 
-            <!-- MY ORDERS TAB -->
+           <!-- MY ORDERS TAB -->
             <div id="tab-orders" class="tab-content-section">
                 <div class="card-section">
                     <p class="section-title"><i class="bi bi-bag-fill text-primary"></i> My Orders</p>
-                    <div class="text-center py-4 text-muted">
-                        <i class="bi bi-bag fs-1 opacity-25"></i>
-                        <p class="mt-2">No orders yet.</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- MY REVIEWS TAB -->
-            <div id="tab-reviews" class="tab-content-section">
-                <div class="card-section">
-                    <p class="section-title"><i class="bi bi-star-fill text-primary"></i> My Reviews</p>
-                    <div class="text-center py-4 text-muted">
-                        <i class="bi bi-star fs-1 opacity-25"></i>
-                        <p class="mt-2">No reviews yet.</p>
-                    </div>
+                    <%
+                        java.util.List<java.util.Map<String, Object>> myOrders = new java.util.ArrayList<>();
+                        try {
+                            int custId2 = (int) session.getAttribute("userId");
+                            java.sql.Connection ordConn = com.shopeasy.DBConnection.getConnection();
+                            java.sql.PreparedStatement ordPs = ordConn.prepareStatement(
+                                    "SELECT order_id, total_amount, status, payment_method, shipping_address, order_date " +
+                                    "FROM orders WHERE customer_id=? ORDER BY order_id DESC");
+                            ordPs.setInt(1, custId2);
+                            java.sql.ResultSet ordRs = ordPs.executeQuery();
+                            while (ordRs.next()) {
+                                java.util.Map<String, Object> ord = new java.util.HashMap<>();
+                                ord.put("id", ordRs.getInt("order_id"));
+                                ord.put("total", ordRs.getDouble("total_amount"));
+                                ord.put("status", ordRs.getString("status"));
+                                ord.put("payment", ordRs.getString("payment_method"));
+                                ord.put("address", ordRs.getString("shipping_address"));
+                                ord.put("date", ordRs.getString("order_date"));
+                                myOrders.add(ord);
+                            }
+                            ordRs.close(); ordPs.close(); ordConn.close();
+                        } catch (Exception ex) { ex.printStackTrace(); }
+                    %>
+                    <!-- STATUS TABS -->
+                    <ul class="nav nav-tabs mb-3" id="orderTabs" style="flex-wrap:nowrap; overflow-x:auto;">
+                        <li class="nav-item"><a class="nav-link active" href="#" onclick="filterOrders('All', this)">All</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Pending', this)">To Pay</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Processing', this)">To Ship</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Shipped', this)">To Receive</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Completed', this)">Completed</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancelled', this)">Cancelled</a></li>
+                    </ul>
+                    <% if (myOrders.isEmpty()) { %>
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-bag fs-1 opacity-25"></i>
+                            <p class="mt-2">No orders yet.</p>
+                        </div>
+                    <% } else { %>
+                        <% for (java.util.Map<String, Object> ord : myOrders) { %>
+                        <div class="order-item order-card" data-status="<%= ord.get("status") %>">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <p class="mb-0 fw-bold" style="font-size:14px;">Order #SE-<%= ord.get("id") %></p>
+                                    <p class="mb-0 text-muted" style="font-size:12px;"><%= ord.get("date") %></p>
+                                </div>
+                               <%
+                                    String ordStatus = (String) ord.get("status");
+                                    String badgeColor = "bg-warning text-dark";
+                                    if ("Completed".equals(ordStatus)) badgeColor = "bg-success";
+                                    else if ("Cancelled".equals(ordStatus)) badgeColor = "bg-danger";
+                                    else if ("Shipped".equals(ordStatus)) badgeColor = "bg-info text-dark";
+                                    else if ("Processing".equals(ordStatus)) badgeColor = "bg-primary";
+                                %>
+                                <span class="badge <%= badgeColor %> order-badge"><%= ordStatus %></span>
+                            </div>
+                            <p class="mb-1 text-muted" style="font-size:12px;">
+                                <i class="bi bi-geo-alt"></i> <%= ord.get("address") %>
+                            </p>
+                            <p class="mb-1 text-muted" style="font-size:12px;">
+                                <i class="bi bi-credit-card"></i> <%= ord.get("payment") %>
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <p class="mb-0 fw-bold text-primary">Total: ₱<%= String.format("%.2f", ord.get("total")) %></p>
+                            </div>
+                        </div>
+                        <div class="text-center py-4 text-muted" id="emptyFilter" style="display:none;">
+                            <i class="bi bi-inbox fs-1 opacity-25"></i>
+                            <p class="mt-2">No orders in this category.</p>
+                        </div>
+                        <% } %>
+                    <% } %>
                 </div>
             </div>
 
@@ -569,6 +625,12 @@ window.addEventListener('load', function() {
         setTimeout(() => { bar.style.display = 'none'; }, 3000);
         window.history.replaceState({}, '', 'customer.jsp');
     }
+    if (tabParam === 'orders') {
+        document.querySelectorAll('.tab-content-section').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+        document.getElementById('tab-orders').classList.add('active');
+        document.querySelector('.sidebar-nav a[onclick*="orders"]').classList.add('active');
+    }
     
     if (tabParam === 'address') {
         document.querySelectorAll('.tab-content-section').forEach(t => t.classList.remove('active'));
@@ -757,6 +819,24 @@ window.addEventListener('load', function() {
             document.getElementById('logoutOverlay').style.display = 'flex';
             setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
         }
+    }
+    
+    function filterOrders(status, el) {
+        event.preventDefault();
+        document.querySelectorAll('#orderTabs .nav-link').forEach(a => a.classList.remove('active'));
+        el.classList.add('active');
+        const cards = document.querySelectorAll('.order-card');
+        let visible = 0;
+        cards.forEach(card => {
+            if (status === 'All' || card.dataset.status === status) {
+                card.style.display = 'block';
+                visible++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        const ef = document.getElementById('emptyFilter');
+        if (ef) ef.style.display = visible === 0 ? 'block' : 'none';
     }
 </script>
 <!-- CROP MODAL FOR CUSTOMER AVATAR -->

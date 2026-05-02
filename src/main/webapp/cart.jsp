@@ -162,7 +162,7 @@
     function changeQty(itemId, delta, stock) {
         const qtyEl = document.getElementById('qty_' + itemId);
         let qty = parseInt(qtyEl.innerText) + delta;
-        if (qty < 1) { removeItem(itemId); return; }
+        if (qty < 0) return;
         if (qty > stock) { showToast('Not enough stock!', '#dc3545'); return; }
         qtyEl.innerText = qty;
 
@@ -170,6 +170,16 @@
         const sub = prices[itemId] * qty;
         document.getElementById('sub_' + itemId).innerText = '₱' + sub.toFixed(2);
         updateTotal();
+
+        // Grey out if zero
+        const card = document.getElementById('cartItem_' + itemId);
+        if (qty === 0) {
+            card.style.opacity = '0.4';
+            card.style.filter = 'grayscale(1)';
+        } else {
+            card.style.opacity = '1';
+            card.style.filter = 'none';
+        }
 
         // Save to server
         fetch('UpdateCartServlet', {
@@ -203,6 +213,15 @@
     }
 
     function checkout() {
+        // Check if all items are zero
+        let hasItems = false;
+        document.querySelectorAll('[id^="qty_"]').forEach(el => {
+            if (parseInt(el.innerText) > 0) hasItems = true;
+        });
+        if (!hasItems) {
+            showToast('Please add at least 1 item to checkout!', '#dc3545');
+            return;
+        }
         fetch('PrepareCheckoutServlet', {
             method: 'POST'
         }).then(res => res.json())

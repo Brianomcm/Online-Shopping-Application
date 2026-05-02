@@ -41,9 +41,88 @@ public class LoginServlet extends HttpServlet {
                 session.setAttribute("userBirthday", rs.getString("birthday"));
                 session.setAttribute("userGender", rs.getString("gender"));
                 session.setAttribute("userRole", "customer");
-                conn.close();
-                response.sendRedirect("index.jsp?loggedin=true");
-                return;
+
+             // Transfer guest cart items to database
+             String guestCartJson = request.getParameter("guestCart");
+             if (guestCartJson != null && !guestCartJson.equals("[]") && !guestCartJson.isEmpty()) {
+                 try {
+                     int custId = rs.getInt("customer_id");
+                     Connection cartConn = DBConnection.getConnection();
+                     
+                     // Get cart_id
+                     PreparedStatement cartPs = cartConn.prepareStatement(
+                         "SELECT cart_id FROM cart WHERE customer_id = ?");
+                     cartPs.setInt(1, custId);
+                     ResultSet cartRs = cartPs.executeQuery();
+                     int cartId;
+                     if (cartRs.next()) {
+                         cartId = cartRs.getInt("cart_id");
+                     } else {
+                         PreparedStatement createCart = cartConn.prepareStatement(
+                             "INSERT INTO cart (customer_id) VALUES (?)", 
+                             PreparedStatement.RETURN_GENERATED_KEYS);
+                         createCart.setInt(1, custId);
+                         createCart.executeUpdate();
+                         ResultSet keys = createCart.getGeneratedKeys();
+                         keys.next();
+                         cartId = keys.getInt(1);
+                         createCart.close();
+                     }
+                     cartRs.close();
+                     cartPs.close();
+
+                     guestCartJson = guestCartJson.trim();
+                     guestCartJson = guestCartJson.substring(1, guestCartJson.length() - 1);
+                     if (!guestCartJson.isEmpty()) {
+                         String[] items = guestCartJson.split("\\},\\{");
+                         for (String item : items) {
+                             item = item.replace("{", "").replace("}", "");
+                             int productId = 0;
+                             int qty = 1;
+                             for (String part : item.split(",")) {
+                                 if (part.contains("\"id\"")) {
+                                     productId = Integer.parseInt(part.split(":")[1].trim());
+                                 }
+                                 if (part.contains("\"qty\"")) {
+                                     qty = Integer.parseInt(part.split(":")[1].trim());
+                                 }
+                             }
+                             if (productId > 0) {
+                                 PreparedStatement checkPs = cartConn.prepareStatement(
+                                     "SELECT cartitem_id FROM cartitem WHERE cart_id=? AND product_id=?");
+                                 checkPs.setInt(1, cartId);
+                                 checkPs.setInt(2, productId);
+                                 ResultSet checkRs = checkPs.executeQuery();
+                                 if (checkRs.next()) {
+                                     PreparedStatement updatePs = cartConn.prepareStatement(
+                                         "UPDATE cartitem SET quantity=quantity+? WHERE cartitem_id=?");
+                                     updatePs.setInt(1, qty);
+                                     updatePs.setInt(2, checkRs.getInt("cartitem_id"));
+                                     updatePs.executeUpdate();
+                                     updatePs.close();
+                                 } else {
+                                     PreparedStatement insertPs = cartConn.prepareStatement(
+                                         "INSERT INTO cartitem (cart_id, product_id, quantity) VALUES (?,?,?)");
+                                     insertPs.setInt(1, cartId);
+                                     insertPs.setInt(2, productId);
+                                     insertPs.setInt(3, qty);
+                                     insertPs.executeUpdate();
+                                     insertPs.close();
+                                 }
+                                 checkRs.close();
+                                 checkPs.close();
+                             }
+                         }
+                     }
+                     cartConn.close();
+                 } catch (Exception ex) {
+                     ex.printStackTrace();
+                 }
+             }
+
+             conn.close();
+             response.sendRedirect("index.jsp?loggedin=true");
+             return;
             }
 
             // Check seller table

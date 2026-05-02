@@ -180,6 +180,13 @@ input::-webkit-contacts-auto-fill-button {
             String loggedRole = (String) session.getAttribute("userRole");
             if (loggedUser != null) {
         %>
+        <% if ("customer".equals(loggedRole)) { %>
+<a href="CartServlet" class="btn btn-outline-secondary position-relative">
+    <i class="bi bi-cart3 fs-5"></i>
+    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
+</a>
+<% } %>
+<div class="dropdown">
             <div class="dropdown">
                 <a href="#" class="d-flex align-items-center gap-2 text-decoration-none" data-bs-toggle="dropdown">
                     <%
@@ -219,19 +226,19 @@ String navAvatar = "seller".equals(loggedRole2) ?
                 </ul>
             </div>
         <% } else { %>
-            <a href="#" class="btn btn-outline-secondary position-relative" data-bs-toggle="modal" data-bs-target="#loginModal">
-    <i class="bi bi-cart3 fs-5"></i>
-    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
-</a>
-<a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal">
-    <i class="bi bi-person"></i>
-    <span class="d-none d-md-inline"> Login</span>
-</a>
-<a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal">
-    <i class="bi bi-person-plus"></i>
-    <span class="d-none d-md-inline"> Register</span>
-</a>
-        <% } %>
+    <a href="#" class="btn btn-outline-secondary position-relative" data-bs-toggle="modal" data-bs-target="#loginModal">
+        <i class="bi bi-cart3 fs-5"></i>
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
+    </a>
+    <a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal">
+        <i class="bi bi-person"></i>
+        <span class="d-none d-md-inline"> Login</span>
+    </a>
+    <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal">
+        <i class="bi bi-person-plus"></i>
+        <span class="d-none d-md-inline"> Register</span>
+    </a>
+<% } %>
         </div>
     </div>
 
@@ -330,11 +337,11 @@ String navAvatar = "seller".equals(loggedRole2) ?
                         <button type="button" class="btn btn-primary btn-sm w-100" onclick="addToCart(<%= prod.get("id") %>)">
     <i class="bi bi-cart-plus"></i> Add to Cart
 </button>
-                    <% } else { %>
-                        <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            <i class="bi bi-cart-plus"></i> Add to Cart
-                        </button>
-                    <% } %>
+                   <% } else { %>
+    <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
+        <i class="bi bi-cart-plus"></i> Add to Cart
+    </button>
+<% } %>
                 </div>
             </div>
         </div>
@@ -537,15 +544,12 @@ function showProduct(id, name, price, stock, seller, image, description) {
         .catch(err => console.error(err));
     }
     
+    
     </script>
     
     
     
     
-    
-
-
-
 
 <%
     String isLoggedInFlag = (loggedUser != null && "customer".equals(loggedRole)) ? "true" : "false";

@@ -300,6 +300,18 @@ function selectTypeWithMessage(type, message) {
 
 function handleLoginSubmit(e, form) {
     e.preventDefault();
+    // Save guest cart to hidden field before submitting
+    const guestCart = localStorage.getItem('guestCart') || '[]';
+    let cartInput = document.getElementById('guestCartInput');
+    if (!cartInput) {
+        cartInput = document.createElement('input');
+        cartInput.type = 'hidden';
+        cartInput.name = 'guestCart';
+        cartInput.id = 'guestCartInput';
+        form.appendChild(cartInput);
+    }
+    cartInput.value = guestCart;
+
     var modal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
     if (modal) modal.hide();
     setTimeout(() => {

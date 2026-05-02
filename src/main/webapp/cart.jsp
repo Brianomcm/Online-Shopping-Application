@@ -76,7 +76,8 @@
         <!-- Cart Items -->
         <div class="col-lg-8">
             <% for (Map<String, Object> item : cartItems) { %>
-            <div class="cart-card" id="cartItem_<%= item.get("cartitemId") %>">
+            <div class="cart-card" id="cartItem_<%= item.get("cartitemId") %>" 
+                 style="<%= (int)item.get("quantity") == 0 ? "opacity:0.4; filter:grayscale(1);" : "" %>">
                 <div class="d-flex gap-3 align-items-center">
                     <!-- Product Image -->
                     <% if (item.get("image") != null) { %>

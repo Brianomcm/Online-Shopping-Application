@@ -61,7 +61,9 @@ public class PrepareCheckoutServlet extends HttpServlet {
                 item.put("quantity", rs.getInt("quantity"));
                 item.put("stock", rs.getInt("stock"));
                 item.put("image", rs.getString("image"));
-                double subtotal = rs.getDouble("price") * rs.getInt("quantity");
+                int qty = rs.getInt("quantity");
+                if (qty <= 0) continue; // Skip zero quantity items
+                double subtotal = rs.getDouble("price") * qty;
                 item.put("subtotal", subtotal);
                 total += subtotal;
                 items.add(item);

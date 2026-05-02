@@ -14,6 +14,26 @@
     if (cartItems == null) { response.sendRedirect("CartServlet"); return; }
     if (cartTotal == null) cartTotal = 0.0;
     if (userAddress == null) userAddress = "";
+ // Load saved addresses from database
+    java.util.List<java.util.Map<String, Object>> savedAddresses = new java.util.ArrayList<>();
+    try {
+        int custId = (int) session.getAttribute("userId");
+        java.sql.Connection addrConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement addrPs = addrConn.prepareStatement(
+            "SELECT * FROM customer_address WHERE customer_id=? ORDER BY is_default DESC");
+        addrPs.setInt(1, custId);
+        java.sql.ResultSet addrRs = addrPs.executeQuery();
+        while (addrRs.next()) {
+            java.util.Map<String, Object> addr = new java.util.HashMap<>();
+            addr.put("id", addrRs.getInt("address_id"));
+            addr.put("fullname", addrRs.getString("full_name"));
+            addr.put("phone", addrRs.getString("phone"));
+            addr.put("address", addrRs.getString("address"));
+            addr.put("isDefault", addrRs.getInt("is_default") == 1);
+            savedAddresses.add(addr);
+        }
+        addrRs.close(); addrPs.close(); addrConn.close();
+    } catch (Exception ex) { ex.printStackTrace(); }
 %>
 <!DOCTYPE html>
 <html>
@@ -62,10 +82,35 @@
     <div class="row g-4">
         <div class="col-lg-8">
 
-            <!-- SHIPPING ADDRESS -->
+           <!-- SHIPPING ADDRESS -->
             <div class="card-section">
                 <p class="section-title"><span class="step-badge">1</span> Shipping Address</p>
-                <div class="row g-3">
+
+                <% if (!savedAddresses.isEmpty()) { %>
+                <!-- SAVED ADDRESSES -->
+                <p class="fw-bold mb-2" style="font-size:13px;">Select a saved address:</p>
+                <% for (java.util.Map<String, Object> addr : savedAddresses) { %>
+                <div class="border rounded-3 p-3 mb-2 saved-addr-card" 
+                     style="cursor:pointer; <%= (boolean)addr.get("isDefault") ? "border-color:#0d6efd !important; background:#f0f4ff;" : "" %>"
+                     onclick="selectAddress('<%= addr.get("fullname") %>', '<%= addr.get("phone") %>', '<%= ((String)addr.get("address")).replace("'", "\\'") %>', this)">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="mb-0 fw-bold" style="font-size:13px;"><%= addr.get("fullname") %> &nbsp; <span class="text-muted">+63 <%= addr.get("phone") %></span></p>
+                            <p class="mb-0 text-muted" style="font-size:12px;"><%= addr.get("address") %></p>
+                        </div>
+                        <% if ((boolean)addr.get("isDefault")) { %>
+                            <span class="badge bg-primary ms-2" style="font-size:10px;">Default</span>
+                        <% } %>
+                    </div>
+                </div>
+                <% } %>
+               <hr>
+                <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="toggleNewAddress()">
+                    <i class="bi bi-plus-circle"></i> Use a Different Address
+                </button>
+                <% } %>
+
+                <div class="row g-3" id="newAddressForm" style="<%= savedAddresses.isEmpty() ? "" : "display:none;" %>">
                     <div class="col-12">
                         <label class="form-label fw-bold" style="font-size:13px;">Full Name</label>
                         <input type="text" class="form-control" id="shipName" value="<%= userName != null ? userName : "" %>">
@@ -217,6 +262,56 @@
                   btn.innerHTML = '<i class="bi bi-bag-check"></i> Place Order';
               }
           });
+    }
+    
+    function selectAddress(name, phone, address, el) {
+        usingNewAddress = false;
+        document.getElementById('newAddressForm').style.display = 'none';
+        document.querySelector('[onclick*="toggleNewAddress"]').innerHTML = '<i class="bi bi-plus-circle"></i> Use a Different Address';
+        document.querySelectorAll('.saved-addr-card').forEach(c => {
+            c.style.borderColor = '';
+            c.style.background = '';
+        });
+        el.style.borderColor = '#0d6efd';
+        el.style.background = '#f0f4ff';
+        document.getElementById('shipName').value = name;
+        document.getElementById('shipPhone').value = phone;
+        document.getElementById('shipAddress').value = address;
+    }
+
+    // Auto-select default address on load
+    window.addEventListener('load', function() {
+        const defaultCard = document.querySelector('.saved-addr-card');
+        if (defaultCard) defaultCard.click();
+    });
+    
+    let usingNewAddress = <%= savedAddresses.isEmpty() ? "true" : "false" %>;
+
+    function toggleNewAddress() {
+        const form = document.getElementById('newAddressForm');
+        usingNewAddress = !usingNewAddress;
+        if (usingNewAddress) {
+            form.style.display = 'flex';
+            form.style.flexWrap = 'wrap';
+            form.style.gap = '12px';
+            // Deselect all saved address cards
+            document.querySelectorAll('.saved-addr-card').forEach(c => {
+                c.style.borderColor = '';
+                c.style.background = '';
+            });
+            // Clear fields for fresh input
+            document.getElementById('shipName').value = '';
+            document.getElementById('shipAddress').value = '';
+            document.getElementById('shipPhone').value = '';
+            document.querySelector('[onclick*="toggleNewAddress"]').innerHTML = '<i class="bi bi-x-circle"></i> Cancel';
+        } else {
+            form.style.display = 'none';
+            usingNewAddress = false;
+            document.querySelector('[onclick*="toggleNewAddress"]').innerHTML = '<i class="bi bi-plus-circle"></i> Use a Different Address';
+            // Re-select default saved address
+            const defaultCard = document.querySelector('.saved-addr-card');
+            if (defaultCard) defaultCard.click();
+        }
     }
 </script>
 </body>

@@ -38,7 +38,7 @@ public class PrepareCheckoutServlet extends HttpServlet {
         try {
             Connection conn = DBConnection.getConnection();
 
-            String sql = "SELECT ci.cartitem_id, ci.quantity, p.product_id, p.seller_id, p.name, p.price, p.stock, p.image " +
+            String sql = "SELECT ci.cartitem_id, ci.quantity, ci.variation_id, p.product_id, p.seller_id, p.name, p.price, p.stock, p.image " +
                     "FROM cartitem ci " +
                     "JOIN cart c ON ci.cart_id = c.cart_id " +
                     "JOIN product p ON ci.product_id = p.product_id " +
@@ -61,6 +61,10 @@ public class PrepareCheckoutServlet extends HttpServlet {
                 item.put("quantity", rs.getInt("quantity"));
                 item.put("stock", rs.getInt("stock"));
                 item.put("image", rs.getString("image"));
+                int varId = rs.getInt("variation_id");
+                if (!rs.wasNull()) {
+                    item.put("variationId", varId);
+                }
                 int qty = rs.getInt("quantity");
                 if (qty <= 0) continue; // Skip zero quantity items
                 double subtotal = rs.getDouble("price") * qty;

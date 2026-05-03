@@ -98,6 +98,34 @@
 </head>
 <body>
 
+<!-- PAGE LOADER -->
+<div id="pageLoader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); z-index:9999; flex-direction:column; gap:12px;">
+    <div style="width:48px; height:48px; border:5px solid #e0e0e0; border-top-color:#0d6efd; border-radius:50%; animation:spin 0.7s linear infinite;"></div>
+    <span class="text-primary fw-bold">Searching...</span>
+</div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+#pageLoader { display: none; }
+#pageLoader.active {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+<script>
+function showLoader() {
+    
+    var loader = document.getElementById('pageLoader');
+    loader.classList.add('active'); 
+    var btn = document.getElementById('searchBtn');
+    if (btn) btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    setTimeout(() => { 
+        document.getElementById('productSearch').submit(); 
+    }, 500);
+}
+</script>
+
 <!-- TOAST -->
 <div id="cartToast" class="toast-msg">
     <i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒
@@ -111,38 +139,60 @@
             <i class="bi bi-bag-heart-fill"></i> ShopEasy
         </a>
 
-        <!-- SEARCH BAR -->
-        <form class="d-flex flex-grow-1 mx-3" action="index.jsp" method="get">
+       <!-- SEARCH BAR -->
+        <form id="productSearch" class="d-flex flex-grow-1 mx-3" action="index.jsp" method="get" onsubmit="event.preventDefault(); showLoader();">
             <div class="input-group">
                 <input type="text" class="form-control" name="search" placeholder="Search products..." style="border-radius:8px 0 0 8px;">
-                <button class="btn btn-primary" type="submit" style="border-radius:0 8px 8px 0;">
+                <button class="btn btn-primary" type="submit" id="searchBtn" style="border-radius:0 8px 8px 0;">
                     <i class="bi bi-search"></i>
                 </button>
             </div>
         </form>
-
-        <!-- RIGHT SIDE -->
+        
+        
+       <!-- RIGHT SIDE -->
         <div class="d-flex align-items-center gap-2">
-          <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-    <a href="CartServlet" class="btn btn-outline-secondary position-relative">
-        <i class="bi bi-cart3 fs-5"></i>
-        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
-    </a>
-    <div class="avatar-circle">
-        <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
-            <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
-        <% } else { %>
-            <%= loggedUser.substring(0, 1).toUpperCase() %>
-        <% } %>
-    </div>
-<% } else { %>
-    <a href="CartServlet" class="btn btn-outline-secondary position-relative">
-        <i class="bi bi-cart3 fs-5"></i>
-        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
-    </a>
-    <a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal"><i class="bi bi-box-arrow-in-right"></i> Login</a>
-    <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal"><i class="bi bi-person-plus"></i> Register</a>
-<% } %>
+          <% if (loggedUser != null) { %>
+            <% if ("customer".equals(loggedRole)) { %>
+            <a href="CartServlet" class="btn btn-outline-secondary position-relative">
+                <i class="bi bi-cart3 fs-5"></i>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
+            </a>
+            <% } %>
+            <div class="dropdown">
+                <a href="#" class="d-flex align-items-center gap-2 text-decoration-none" data-bs-toggle="dropdown">
+                    <div class="avatar-circle">
+                        <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
+                            <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
+                        <% } else { %>
+                            <%= loggedUser.substring(0, 1).toUpperCase() %>
+                        <% } %>
+                    </div>
+                    <span class="d-none d-md-inline fw-bold text-dark" style="font-size:14px; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><%= loggedUser %></span>
+                    <i class="bi bi-chevron-down text-muted" style="font-size:11px;"></i>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><h6 class="dropdown-header"><%= loggedUser %></h6></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <% if ("customer".equals(loggedRole)) { %>
+                    <li><a class="dropdown-item" href="customer.jsp"><i class="bi bi-person me-2"></i> My Profile</a></li>
+                    <li><a class="dropdown-item" href="customer.jsp?tab=orders"><i class="bi bi-bag me-2"></i> My Orders</a></li>
+                    <% } else if ("seller".equals(loggedRole)) { %>
+                    <li><a class="dropdown-item" href="seller.jsp"><i class="bi bi-shop me-2"></i> Seller Dashboard</a></li>
+                    <% } %>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="LogoutServlet"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
+                </ul>
+            </div>
+           
+          <% } else { %>
+            <a href="CartServlet" class="btn btn-outline-secondary position-relative">
+                <i class="bi bi-cart3 fs-5"></i>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
+            </a>
+            <a href="index.jsp" class="btn btn-outline-primary"><i class="bi bi-box-arrow-in-right"></i> Login</a>
+            <a href="index.jsp" class="btn btn-primary"><i class="bi bi-person-plus"></i> Register</a>
+          <% } %>
         </div>
     </div>
 </nav>
@@ -179,7 +229,50 @@
         <div class="col-md-7">
             <div class="product-card">
                 <h2 class="fw-bold mb-2"><%= name %></h2>
-                <div class="price-tag mb-2">₱<%= String.format("%.2f", price) %></div>
+<%
+double topAvgRating = 0;
+int topTotalReviews = 0;
+try {
+    Connection topRatConn = com.shopeasy.DBConnection.getConnection();
+    PreparedStatement topRatPs = topRatConn.prepareStatement(
+        "SELECT COUNT(*), AVG(rating) FROM review WHERE product_id = ?");
+    topRatPs.setInt(1, productId);
+    ResultSet topRatRs = topRatPs.executeQuery();
+    if (topRatRs.next()) {
+        topTotalReviews = topRatRs.getInt(1);
+        topAvgRating = topRatRs.getDouble(2);
+    }
+    topRatRs.close(); topRatPs.close(); topRatConn.close();
+} catch (Exception e) { e.printStackTrace(); }
+%>
+<%
+int totalSold = 0;
+try {
+    Connection soldConn = com.shopeasy.DBConnection.getConnection();
+    PreparedStatement soldPs = soldConn.prepareStatement(
+        "SELECT SUM(oi.quantity) FROM order_items oi " +
+        "JOIN orders o ON oi.order_id = o.order_id " +
+        "WHERE oi.product_id = ? AND o.status = 'Completed'");
+    soldPs.setInt(1, productId);
+    ResultSet soldRs = soldPs.executeQuery();
+    if (soldRs.next()) totalSold = soldRs.getInt(1);
+    soldRs.close(); soldPs.close(); soldConn.close();
+} catch (Exception e) { e.printStackTrace(); }
+%>
+<div class="d-flex align-items-center gap-2 mb-2">
+    <% for (int s = 1; s <= 5; s++) { %>
+        <i class="bi bi-star-fill" style="color:<%= s <= Math.round(topAvgRating) ? "#ffc107" : "#ddd" %>; font-size:14px;"></i>
+    <% } %>
+    <% if (topTotalReviews > 0) { %>
+        <span class="text-muted" style="font-size:13px;"><%= String.format("%.1f", topAvgRating) %> (<%= topTotalReviews %> review<%= topTotalReviews != 1 ? "s" : "" %>)</span>
+    <% } else { %>
+        <span class="text-muted" style="font-size:13px;">No reviews yet</span>
+    <% } %>
+    <span class="text-muted" style="font-size:13px;">|</span>
+    <span class="text-muted" style="font-size:13px;"><i class="bi bi-bag-check"></i> <%= totalSold %> sold</span>
+</div>
+
+<div class="price-tag mb-2">₱<%= String.format("%.2f", price) %></div>
 
                 <% if (stock > 10) { %>
                     <span class="badge bg-success stock-badge mb-3"><i class="bi bi-check-circle"></i> In Stock (<%= stock %> available)</span>
@@ -242,6 +335,10 @@
             <button class="btn btn-primary add-cart-btn w-100 text-white" onclick="addToCart(<%= productId %>, <%= !variations.isEmpty() %>)">
                 <i class="bi bi-cart-plus"></i> Add to Cart
             </button>
+            <button class="btn btn-outline-danger w-100 mt-2" id="wishlistBtn" onclick="toggleWishlist(<%= productId %>)">
+                <i class="bi bi-heart" id="wishlistIcon"></i> <span id="wishlistText">Add to Wishlist</span>
+            </button>
+            
             <% if (!variations.isEmpty()) { %>
             <p class="text-muted mt-2 mb-0" style="font-size:11px;"><i class="bi bi-info-circle"></i> Please select your preferred options above.</p>
             <% } %>
@@ -348,38 +445,7 @@
             revRs.close(); revPs.close(); revConn.close();
         %>
 
-        <!-- Write a Review (customers only) -->
-        <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-        <div class="mt-4 pt-2 border-top">
-            <h6 class="fw-bold mb-3"><i class="bi bi-pencil-square text-primary"></i> Write a Review</h6>
-            <form action="ReviewServlet" method="post">
-                <input type="hidden" name="productId" value="<%= productId %>">
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Rating</label>
-                    <div class="d-flex gap-2" id="starRating">
-                        <% for (int s = 1; s <= 5; s++) { %>
-                            <i class="bi bi-star-fill star-btn" data-val="<%= s %>" style="font-size:28px; color:#ddd; cursor:pointer;"></i>
-                        <% } %>
-                    </div>
-                    <input type="hidden" name="rating" id="ratingInput" value="0">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Comment</label>
-                    <textarea name="comment" class="form-control" rows="3" placeholder="Share your experience..." required></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary fw-bold px-4">
-                    <i class="bi bi-send"></i> Submit Review
-                </button>
-            </form>
-        </div>
-        <% } else if (loggedUser == null) { %>
-        <div class="mt-4 pt-2 border-top text-center py-3">
-            <p class="text-muted mb-2">Login to write a review</p>
-            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal">
-                <i class="bi bi-box-arrow-in-right"></i> Login
-            </button>
-        </div>
-        <% } %>
+        
         <% } catch (Exception e) { e.printStackTrace(); } %>
     </div>
 </div>
@@ -477,6 +543,46 @@ function handleLoginSubmit(e, form) {
     }, 300);
     return false;
 }
+//WISHLIST
+function toggleWishlist(productId) {
+    fetch('WishlistServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'productId=' + productId
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const icon = document.getElementById('wishlistIcon');
+            const text = document.getElementById('wishlistText');
+            if (data.action === 'added') {
+                icon.className = 'bi bi-heart-fill';
+                text.textContent = 'Wishlisted';
+                document.getElementById('wishlistBtn').classList.add('btn-danger');
+                document.getElementById('wishlistBtn').classList.remove('btn-outline-danger');
+            } else {
+                icon.className = 'bi bi-heart';
+                text.textContent = 'Add to Wishlist';
+                document.getElementById('wishlistBtn').classList.remove('btn-danger');
+                document.getElementById('wishlistBtn').classList.add('btn-outline-danger');
+            }
+        }
+    });
+}
+
+// Check if already wishlisted on load
+window.addEventListener('load', function() {
+    fetch('WishlistServlet?check=<%= productId %>')
+    .then(res => res.json())
+    .then(data => {
+        if (data.wishlisted) {
+            document.getElementById('wishlistIcon').className = 'bi bi-heart-fill';
+            document.getElementById('wishlistText').textContent = 'Wishlisted';
+            document.getElementById('wishlistBtn').classList.add('btn-danger');
+            document.getElementById('wishlistBtn').classList.remove('btn-outline-danger');
+        }
+    });
+});
 </script>
 </body>
 </html>

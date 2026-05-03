@@ -67,7 +67,7 @@ public class CheckoutServlet extends HttpServlet {
             orderPs.close();
 
             // Insert order items
-            String itemSql = "INSERT INTO order_items (order_id, product_id, seller_id, quantity, price, subtotal) VALUES (?, ?, ?, ?, ?, ?)";
+            String itemSql = "INSERT INTO order_items (order_id, product_id, seller_id, quantity, price, subtotal, variation_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement itemPs = conn.prepareStatement(itemSql);
 
             for (Map<String, Object> item : cartItems) {
@@ -77,6 +77,12 @@ public class CheckoutServlet extends HttpServlet {
                 itemPs.setInt(4, (Integer) item.get("quantity"));
                 itemPs.setDouble(5, (Double) item.get("price"));
                 itemPs.setDouble(6, (Double) item.get("subtotal"));
+                Object varId = item.get("variationId");
+                if (varId != null) {
+                    itemPs.setInt(7, (Integer) varId);
+                } else {
+                    itemPs.setNull(7, java.sql.Types.INTEGER);
+                }
                 itemPs.addBatch();
 
                 // Reduce stock

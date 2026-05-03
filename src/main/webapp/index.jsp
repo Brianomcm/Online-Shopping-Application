@@ -150,7 +150,14 @@ input::-webkit-contacts-auto-fill-button {
         }
         .navbar-brand {
             font-size: 1.5rem;
+            
         }
+        
+        .navbar.sticky-top {
+  		  top: 0;
+   		z-index: 1030;
+		}
+
         @media (max-width: 576px) {
             .navbar-brand { font-size: 1.2rem; }
         }
@@ -211,7 +218,7 @@ input::-webkit-contacts-auto-fill-button {
     <i class="bi bi-x-circle-fill"></i> <span id="errorText">Account not found. Please check your email or password.</span>
 </div>
 <!-- NAVIGATION BAR -->
-<nav class="navbar navbar-light bg-white shadow-sm py-3">
+<nav class="navbar navbar-light bg-white shadow-sm py-3 sticky-top">
     <div class="container-fluid px-4">
         
         <!-- Logo -->

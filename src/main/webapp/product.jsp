@@ -148,6 +148,8 @@ function showLoader() {
                 </button>
             </div>
         </form>
+        
+        
        <!-- RIGHT SIDE -->
         <div class="d-flex align-items-center gap-2">
           <% if (loggedUser != null) { %>
@@ -182,6 +184,7 @@ function showLoader() {
                     <li><a class="dropdown-item text-danger" href="LogoutServlet"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
                 </ul>
             </div>
+           
           <% } else { %>
             <a href="CartServlet" class="btn btn-outline-secondary position-relative">
                 <i class="bi bi-cart3 fs-5"></i>

@@ -425,7 +425,8 @@
                     <ul class="nav nav-tabs mb-3" id="orderTabs" style="flex-wrap:nowrap; overflow-x:auto;">
                         <li class="nav-item"><a class="nav-link active" href="#" onclick="filterOrders('All', this)">All</a></li>
                         <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Pending', this)">To Pay</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Processing', this)">To Ship</a></li>
+                       <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Processing', this)">To Ship</a></li>
+						<li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancellation Requested', this)">Cancel Requests</a></li>
                         <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Shipped', this)">To Receive</a></li>
                         <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Completed', this)">Completed</a></li>
                         <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancelled', this)">Cancelled</a></li>
@@ -511,15 +512,17 @@
                             <div class="d-flex justify-content-between align-items-center mt-2">
     <p class="mb-0 fw-bold text-primary">Total: ₱<%= String.format("%.2f", ord.get("total")) %></p>
     <div class="d-flex gap-2 flex-wrap">
-    <% if ("Pending".equals(ord.get("status"))) { %>
-        <form action="CancelOrderServlet" method="post" style="display:inline;">
-            <input type="hidden" name="orderId" value="<%= ord.get("id") %>">
-            <button type="submit" class="btn btn-outline-danger btn-sm"
-                onclick="return confirm('Cancel this order?')">
-                <i class="bi bi-x-circle"></i> Cancel Order
-            </button>
-        </form>
-    <% } %>
+    <% if ("Processing".equals(ord.get("status"))) { %>
+    <button class="btn btn-outline-danger btn-sm"
+        onclick="openCancelModal(<%= ord.get("id") %>)">
+        <i class="bi bi-x-circle"></i> Cancel Order
+    </button>
+<% } %>
+<% if ("Cancellation Requested".equals(ord.get("status"))) { %>
+    <span class="badge bg-warning text-dark px-3 py-2" style="font-size:12px;">
+        <i class="bi bi-hourglass-split"></i> Cancellation Pending
+    </span>
+<% } %>
     <% if ("Completed".equals(ord.get("status"))) { %>
         <%
             // Check if already reviewed
@@ -527,12 +530,13 @@
             try {
                 java.sql.Connection rvChkConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement rvChkPs = rvChkConn.prepareStatement(
-                	    "SELECT review_id FROM review WHERE customer_id=? AND product_id IN " +
-                	    "(SELECT product_id FROM order_items WHERE order_id=?)");
+                	    "SELECT COUNT(*) FROM review r " +
+                	    "JOIN order_items oi ON r.product_id = oi.product_id AND r.customer_id = ? " +
+                	    "WHERE oi.order_id = ?");
                 	rvChkPs.setInt(1, (int) session.getAttribute("userId"));
                 	rvChkPs.setInt(2, (Integer) ord.get("id"));
-                java.sql.ResultSet rvChkRs = rvChkPs.executeQuery();
-                if (rvChkRs.next()) hasReview = true;
+                	java.sql.ResultSet rvChkRs = rvChkPs.executeQuery();
+                	if (rvChkRs.next() && rvChkRs.getInt(1) > 0) hasReview = true;
                 rvChkRs.close(); rvChkPs.close(); rvChkConn.close();
             } catch (Exception rvEx) { rvEx.printStackTrace(); }
         %>
@@ -567,35 +571,55 @@
                 int rvCustId = (int) session.getAttribute("userId");
                 java.sql.Connection rvConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement rvPs = rvConn.prepareStatement(
-                		"SELECT r.rating, r.comment, r.photo, p.name AS pname, p.image AS pimage " +
-                				"FROM review r JOIN product p ON r.product_id = p.product_id " +
-                				"WHERE r.customer_id = ? ORDER BY r.review_id DESC");
+                	    "SELECT r.review_id, r.product_id, r.rating, r.comment, r.photo, " +
+                	    "p.name AS pname, p.image AS pimage " +
+                	    "FROM review r JOIN product p ON r.product_id = p.product_id " +
+                	    "WHERE r.customer_id = ? ORDER BY r.review_id DESC");
                 rvPs.setInt(1, rvCustId);
                 java.sql.ResultSet rvRs = rvPs.executeQuery();
                 boolean hasReviews = false;
                 while (rvRs.next()) {
                     hasReviews = true;
         %>
-        <div class="d-flex gap-3 p-3 mb-3 border rounded-3">
-            <% if (rvRs.getString("pimage") != null && !rvRs.getString("pimage").isEmpty()) { %>
-                <img src="<%= rvRs.getString("pimage") %>" style="width:60px; height:60px; object-fit:cover; border-radius:8px;">
-            <% } else { %>
-                <div style="width:60px; height:60px; background:#f0f0f0; border-radius:8px; display:flex; align-items:center; justify-content:center;"><i class="bi bi-image text-muted"></i></div>
-            <% } %>
-            <div class="flex-grow-1">
-                <p class="mb-1 fw-bold" style="font-size:14px;"><%= rvRs.getString("pname") %></p>
-                <div class="mb-1">
-                    <% for (int s = 1; s <= 5; s++) { %>
-                        <i class="bi bi-star-fill" style="color:<%= s <= rvRs.getInt("rating") ? "#ffc107" : "#ddd" %>; font-size:13px;"></i>
-                    <% } %>
-                </div>
-                <p class="mb-0 text-muted" style="font-size:13px;"><%= rvRs.getString("comment") %></p>
-               <% if (rvRs.getString("photo") != null && !rvRs.getString("photo").isEmpty()) { %>
-    <img src="<%= rvRs.getString("photo") %>" 
-         style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid #eee; margin-top:6px;">
-<% } %>
-            </div>
+        <%
+    int rvId = rvRs.getInt("review_id");
+    int rvProdId = rvRs.getInt("product_id");
+    int rvRating = rvRs.getInt("rating");
+    String rvComment = rvRs.getString("comment");
+    String rvPhoto = rvRs.getString("photo");
+    String rvPname = rvRs.getString("pname");
+    String rvPimage = rvRs.getString("pimage");
+%>
+<div class="d-flex gap-3 p-3 mb-3 border rounded-3" id="review-<%= rvId %>">
+    <% if (rvPimage != null && !rvPimage.isEmpty()) { %>
+        <img src="<%= rvPimage %>" style="width:60px; height:60px; object-fit:cover; border-radius:8px; flex-shrink:0;">
+    <% } else { %>
+        <div style="width:60px; height:60px; background:#f0f0f0; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i class="bi bi-image text-muted"></i>
         </div>
+    <% } %>
+    <div class="flex-grow-1">
+        <div class="d-flex justify-content-between align-items-start">
+            <p class="mb-1 fw-bold" style="font-size:14px;"><%= rvPname %></p>
+            <button class="btn btn-outline-primary btn-sm"
+                onclick="openEditReviewModal(<%= rvId %>, <%= rvProdId %>, <%= rvRating %>, '<%= rvComment != null ? rvComment.replace("'", "\\'").replace("\n", "\\n") : "" %>', '<%= rvPhoto != null ? rvPhoto : "" %>')">
+                <i class="bi bi-pencil"></i> Edit
+            </button>
+        </div>
+        <div class="mb-1" id="rvStars-<%= rvId %>">
+            <% for (int s = 1; s <= 5; s++) { %>
+                <i class="bi bi-star-fill" style="color:<%= s <= rvRating ? "#ffc107" : "#ddd" %>; font-size:13px;"></i>
+            <% } %>
+        </div>
+        <p class="mb-0 text-muted" style="font-size:13px;" id="rvComment-<%= rvId %>"><%= rvComment %></p>
+        <% if (rvPhoto != null && !rvPhoto.isEmpty()) { %>
+            <img src="<%= rvPhoto %>" id="rvPhoto-<%= rvId %>"
+                 style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid #eee; margin-top:6px;">
+        <% } else { %>
+            <img src="" id="rvPhoto-<%= rvId %>" style="display:none; width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid #eee; margin-top:6px;">
+        <% } %>
+    </div>
+</div>
         <%
                 }
                 rvRs.close(); rvPs.close(); rvConn.close();
@@ -1279,11 +1303,21 @@ window.addEventListener('load', function() {
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: formData.toString()
         })
-        .then(res => res.text())
+       .then(res => res.text())
 .then(data => {
-    closeReviewModal();
-    document.getElementById('savingOverlay').style.display = 'flex';
-    setTimeout(() => location.reload(), 1000);
+    if (data.trim() === 'already_reviewed') {
+        closeReviewModal();
+        alert('You have already reviewed this order.');
+        location.reload();
+        return;
+    }
+    if (data.trim() === 'ok') {
+        closeReviewModal();
+        document.getElementById('savingOverlay').style.display = 'flex';
+        setTimeout(() => location.reload(), 1000);
+    } else {
+        alert('Something went wrong. Please try again.');
+    }
 })
         .catch(err => alert('Error submitting review: ' + err));
     }
@@ -1389,8 +1423,153 @@ window.addEventListener('load', function() {
             }
         });
     }
+    
+    function openCancelModal(orderId) {
+        document.getElementById('cancelOrderId').value = orderId;
+        document.querySelectorAll('input[name="cancelReason"]').forEach(r => r.checked = false);
+        document.getElementById('otherReasonText').value = '';
+        document.getElementById('otherReasonBox').style.display = 'none';
+        document.getElementById('cancelError').style.display = 'none';
+        document.getElementById('cancelOrderModal').style.display = 'block';
+
+        document.getElementById('reasonOther').addEventListener('change', function() {
+            document.getElementById('otherReasonBox').style.display = this.checked ? 'block' : 'none';
+        });
+        document.querySelectorAll('input[name="cancelReason"]').forEach(r => {
+            r.addEventListener('change', function() {
+                document.getElementById('otherReasonBox').style.display =
+                    this.value === 'other' ? 'block' : 'none';
+            });
+        });
+    }
+
+    function closeCancelModal() {
+        document.getElementById('cancelOrderModal').style.display = 'none';
+    }
+
+    function submitCancelOrder() {
+        const orderId = document.getElementById('cancelOrderId').value;
+        const selected = document.querySelector('input[name="cancelReason"]:checked');
+        document.getElementById('cancelError').style.display = 'none';
+
+        if (!selected) {
+            document.getElementById('cancelError').style.display = 'block';
+            return;
+        }
+
+        let reason = selected.value;
+        if (reason === 'other') {
+            reason = document.getElementById('otherReasonText').value.trim();
+            if (!reason) {
+                document.getElementById('cancelError').style.display = 'block';
+                document.getElementById('cancelError').textContent = 'Please type your reason.';
+                return;
+            }
+        }
+
+        fetch('CancelOrderServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'orderId=' + orderId + '&reason=' + encodeURIComponent(reason)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                closeCancelModal();
+                document.getElementById('savingOverlay').style.display = 'flex';
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                document.getElementById('cancelError').style.display = 'block';
+                document.getElementById('cancelError').textContent = data.message || 'Error submitting request.';
+            }
+        });
+    }
+    
+ // EDIT REVIEW
+    let editCurrentRating = 0;
+
+    function openEditReviewModal(reviewId, productId, rating, comment, photoUrl) {
+        document.getElementById('editReviewId').value = reviewId;
+        document.getElementById('editReviewProductId').value = productId;
+        document.getElementById('editReviewComment').value = comment.replace(/\\n/g, '\n');
+        document.getElementById('editReviewPhotoData').value = '';
+        document.getElementById('editReviewPhotoInput').value = '';
+        document.getElementById('editReviewPhotoPreview').style.display = 'none';
+        document.getElementById('editReviewError').style.display = 'none';
+
+        // Show current photo if exists
+        if (photoUrl && photoUrl.trim() !== '') {
+            document.getElementById('editCurrentPhotoImg').src = photoUrl;
+            document.getElementById('editCurrentPhoto').style.display = 'block';
+        } else {
+            document.getElementById('editCurrentPhoto').style.display = 'none';
+        }
+
+        setEditRating(rating);
+        document.getElementById('editReviewModal').style.display = 'block';
+    }
+
+    function closeEditReviewModal() {
+        document.getElementById('editReviewModal').style.display = 'none';
+    }
+
+    function setEditRating(val) {
+        editCurrentRating = val;
+        document.getElementById('editSelectedRating').value = val;
+        for (let i = 1; i <= 5; i++) {
+            document.getElementById('editStar' + i).style.color = i <= val ? '#ffc107' : '#ccc';
+        }
+    }
+
+    function previewEditPhoto(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('editReviewPhotoImg').src = e.target.result;
+                document.getElementById('editReviewPhotoPreview').style.display = 'block';
+                document.getElementById('editReviewPhotoData').value = e.target.result;
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function submitEditReview() {
+        const reviewId = document.getElementById('editReviewId').value;
+        const rating   = parseInt(document.getElementById('editSelectedRating').value);
+        const comment  = document.getElementById('editReviewComment').value.trim();
+        const newPhoto = document.getElementById('editReviewPhotoData').value;
+
+        document.getElementById('editReviewError').style.display = 'none';
+
+        if (rating === 0 || comment === '') {
+            document.getElementById('editReviewError').style.display = 'block';
+            return;
+        }
+
+        fetch('EditReviewServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'reviewId=' + reviewId +
+                  '&rating=' + rating +
+                  '&comment=' + encodeURIComponent(comment) +
+                  '&newPhoto=' + encodeURIComponent(newPhoto)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                closeEditReviewModal();
+                document.getElementById('savingOverlay').style.display = 'flex';
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                document.getElementById('editReviewError').textContent = data.message || 'Error saving review.';
+                document.getElementById('editReviewError').style.display = 'block';
+            }
+        })
+        .catch(err => alert('Error: ' + err));
+    }
+    
 </script>
-<!-- REVIEW MODAL -->
+<!-- RE	VIEW MODAL -->
 <div id="reviewModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000;">
     <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:480px; max-height:90vh; overflow-y:auto;">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -1470,6 +1649,103 @@ window.addEventListener('load', function() {
     <p class="fw-bold text-primary fs-5">Logging out...</p>
 </div>
 <%@ include file="modals.jsp" %>
+
+<!-- EDIT REVIEW MODAL -->
+<div id="editReviewModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10002;">
+    <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:480px; max-height:90vh; overflow-y:auto; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <p class="fw-bold mb-0" style="font-size:16px;"><i class="bi bi-pencil-fill text-primary me-2"></i>Edit Review</p>
+            <button class="btn btn-sm btn-outline-secondary" onclick="closeEditReviewModal()"><i class="bi bi-x"></i></button>
+        </div>
+
+        <input type="hidden" id="editReviewId">
+        <input type="hidden" id="editReviewProductId">
+
+        <p class="fw-semibold mb-2" style="font-size:13px;">Rating</p>
+        <div class="d-flex gap-2 mb-3" id="editStarRating">
+            <i class="bi bi-star-fill" id="editStar1" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setEditRating(1)"></i>
+            <i class="bi bi-star-fill" id="editStar2" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setEditRating(2)"></i>
+            <i class="bi bi-star-fill" id="editStar3" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setEditRating(3)"></i>
+            <i class="bi bi-star-fill" id="editStar4" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setEditRating(4)"></i>
+            <i class="bi bi-star-fill" id="editStar5" style="font-size:2rem; color:#ccc; cursor:pointer;" onclick="setEditRating(5)"></i>
+        </div>
+        <input type="hidden" id="editSelectedRating" value="0">
+
+        <p class="fw-semibold mb-2" style="font-size:13px;">Comment</p>
+        <textarea id="editReviewComment" class="form-control mb-3" rows="3"
+            placeholder="Share your experience..."></textarea>
+
+        <p class="fw-semibold mb-2" style="font-size:13px;">Photo <span class="text-muted fw-normal">(optional — leave blank to keep existing)</span></p>
+        <div id="editCurrentPhoto" class="mb-2" style="display:none;">
+            <p class="text-muted mb-1" style="font-size:12px;">Current photo:</p>
+            <img id="editCurrentPhotoImg" src="" style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid #eee;">
+        </div>
+        <input type="file" id="editReviewPhotoInput" class="form-control mb-1" accept="image/*"
+            onchange="previewEditPhoto(this)">
+        <div id="editReviewPhotoPreview" style="display:none;" class="mb-3">
+            <p class="text-muted mb-1" style="font-size:12px;">New photo:</p>
+            <img id="editReviewPhotoImg" src="" style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid #0d6efd;">
+        </div>
+        <input type="hidden" id="editReviewPhotoData">
+
+        <div id="editReviewError" class="alert alert-danger py-2 mb-2" style="display:none; font-size:13px;">
+            Please select a rating and write a comment.
+        </div>
+
+        <div class="d-flex gap-2 justify-content-end mt-3">
+            <button class="btn btn-outline-secondary" onclick="closeEditReviewModal()">Cancel</button>
+            <button class="btn btn-primary px-4" onclick="submitEditReview()">
+                <i class="bi bi-check2"></i> Save Changes
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- CANCEL ORDER MODAL -->
+<div id="cancelOrderModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10001;">
+    <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:460px; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <p class="fw-bold mb-0" style="font-size:16px;"><i class="bi bi-x-circle-fill text-danger me-2"></i>Cancel Order</p>
+            <button class="btn btn-sm btn-outline-secondary" onclick="closeCancelModal()"><i class="bi bi-x"></i></button>
+        </div>
+        <p class="text-muted mb-3" style="font-size:13px;">Please select a reason for cancellation:</p>
+        <input type="hidden" id="cancelOrderId">
+
+        <div class="d-flex flex-column gap-2 mb-3" id="cancelReasons">
+            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
+                <input type="radio" name="cancelReason" value="Changed my mind"> Changed my mind
+            </label>
+            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
+                <input type="radio" name="cancelReason" value="Found a better price elsewhere"> Found a better price elsewhere
+            </label>
+            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
+                <input type="radio" name="cancelReason" value="Ordered by mistake"> Ordered by mistake
+            </label>
+            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
+                <input type="radio" name="cancelReason" value="Shipping takes too long"> Shipping takes too long
+            </label>
+            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
+                <input type="radio" name="cancelReason" value="other" id="reasonOther"> Other (please specify)
+            </label>
+        </div>
+
+        <div id="otherReasonBox" style="display:none;" class="mb-3">
+            <textarea id="otherReasonText" class="form-control" rows="2"
+                placeholder="Type your reason here..." maxlength="300"></textarea>
+        </div>
+
+        <div id="cancelError" class="alert alert-danger py-2 mb-2" style="display:none; font-size:13px;">
+            Please select or enter a reason.
+        </div>
+
+        <div class="d-flex gap-2 justify-content-end">
+            <button class="btn btn-outline-secondary" onclick="closeCancelModal()">Back</button>
+            <button class="btn btn-danger px-4" onclick="submitCancelOrder()">
+                <i class="bi bi-x-circle"></i> Confirm Cancel
+            </button>
+        </div>
+    </div>
+</div>
 </body>
 </body>
 </html>

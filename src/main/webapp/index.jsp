@@ -512,8 +512,17 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
     </div>
 <% } %>
 <% } %>
+<!-- LOAD MORE -->
+<div class="col-12 text-center mt-4" id="loadMoreSection" style="display:none;">
+    <button class="btn btn-outline-primary px-5 py-2 fw-bold" onclick="loadMore()" id="loadMoreBtn">
+        <i class="bi bi-arrow-down-circle"></i> Load More Products
+    </button>
+    <p class="text-muted mt-2" style="font-size:12px;" id="loadMoreCount"></p>
 </div>
 </div>
+</div>
+
+<!-- PRODUCT DETAILS MODAL -->
 
 <!-- PRODUCT DETAILS MODAL -->
 <div class="modal fade" id="productModal" tabindex="-1">
@@ -648,6 +657,7 @@ function showProduct(id, name, price, stock, seller, image, description) {
     });
 
     window.addEventListener('load', function() {
+        initProducts();
         const urlParams = new URLSearchParams(window.location.search);
 
         if (urlParams.get('registered') === 'true') {
@@ -710,6 +720,47 @@ function showProduct(id, name, price, stock, seller, image, description) {
             }
         })
         .catch(err => console.error(err));
+    }
+    
+    const pageSize = 20;
+    let shown = 0;
+    let allCards = [];
+
+    function initProducts() {
+        allCards = Array.from(document.querySelectorAll('.product-item'));
+        if (allCards.length === 0) return;
+        allCards.forEach(c => c.style.display = 'none');
+        shown = 0;
+        showNextBatch();
+    }
+
+    function showNextBatch() {
+        const next = allCards.slice(shown, shown + pageSize);
+        next.forEach(c => c.style.display = 'block');
+        shown += next.length;
+        updateLoadMore();
+    }
+
+    function loadMore() {
+        showNextBatch();
+    }
+
+    function updateLoadMore() {
+        const total = allCards.length;
+        const section = document.getElementById('loadMoreSection');
+        const countEl = document.getElementById('loadMoreCount');
+        if (total <= pageSize) {
+            section.style.display = 'none';
+            return;
+        }
+        section.style.display = 'block';
+        if (shown >= total) {
+            document.getElementById('loadMoreBtn').style.display = 'none';
+            countEl.textContent = 'Showing all ' + total + ' products';
+        } else {
+            document.getElementById('loadMoreBtn').style.display = 'inline-block';
+            countEl.textContent = 'Showing ' + shown + ' of ' + total + ' products';
+        }
     }
     
     function filterCategory(categoryId) {

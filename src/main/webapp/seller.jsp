@@ -744,7 +744,7 @@ try {
 
     <%-- Status Filter Tabs --%>
     <ul class="nav nav-tabs mb-4" id="orderStatusTabs">
-        <% String[] sOrderStatuses = {"All","Pending","Processing","Shipped","Completed","Cancelled"};
+        <% String[] sOrderStatuses = {"All","Pending","Processing","Shipped","Completed","Cancelled","Cancellation Requested"};
            for (String st : sOrderStatuses) { %>
             <li class="nav-item">
                 <a class="nav-link <%= st.equals(orderTabFilter) ? "active fw-semibold" : "" %>"
@@ -770,6 +770,7 @@ try {
             else if ("Shipped".equals(sStatus)) badgeClass = "info text-dark";
             else if ("Completed".equals(sStatus)) badgeClass = "success";
             else if ("Cancelled".equals(sStatus)) badgeClass = "danger";
+            else if ("Cancellation Requested".equals(sStatus)) badgeClass = "danger";
             @SuppressWarnings("unchecked")
             java.util.List<java.util.Map<String, Object>> ordItems =
                 (java.util.List<java.util.Map<String, Object>>) ord.get("items");
@@ -846,37 +847,60 @@ try {
                     <% } %>
 
                     <%-- Total + Actions --%>
-                    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-                        <span class="fw-bold text-success" style="font-size:15px;">
-                            Total: ₱<%= String.format("%.2f", ord.get("total")) %>
-                        </span>
-                        <div class="d-flex gap-2 flex-wrap" id="actions_<%= ord.get("id") %>">
-                            <% if ("Pending".equals(sStatus)) { %>
-                                <button class="btn btn-primary btn-sm"
-                                    onclick="updateOrderStatus(<%= ord.get("id") %>, 'Processing')">
-                                    <i class="bi bi-check-circle"></i> Confirm Order
-                                </button>
-                                <button class="btn btn-outline-danger btn-sm"
-                                    onclick="updateOrderStatus(<%= ord.get("id") %>, 'Cancelled')">
-                                    <i class="bi bi-x-circle"></i> Cancel
-                                </button>
-                            <% } else if ("Processing".equals(sStatus)) { %>
-                                <button class="btn btn-info btn-sm text-white"
-                                    onclick="updateOrderStatus(<%= ord.get("id") %>, 'Shipped')">
-                                    <i class="bi bi-truck"></i> Ship Order
-                                </button>
-                            <% } else if ("Shipped".equals(sStatus)) { %>
-                                <button class="btn btn-success btn-sm"
-                                    onclick="updateOrderStatus(<%= ord.get("id") %>, 'Completed')">
-                                    <i class="bi bi-bag-check"></i> Mark Completed
-                                </button>
-                            <% } else { %>
-                                <span class="text-muted" style="font-size:12px;">
-                                    <i class="bi bi-check2-all"></i> <%= sStatus %>
-                                </span>
-                            <% } %>
-                        </div>
-                    </div>
+                   <div class="d-flex gap-2 flex-wrap" id="actions_<%= ord.get("id") %>">
+    <% if ("Pending".equals(sStatus)) { %>
+        <button class="btn btn-primary btn-sm"
+            onclick="updateOrderStatus(<%= ord.get("id") %>, 'Processing')">
+            <i class="bi bi-check-circle"></i> Confirm Order
+        </button>
+        <button class="btn btn-outline-danger btn-sm"
+            onclick="updateOrderStatus(<%= ord.get("id") %>, 'Cancelled')">
+            <i class="bi bi-x-circle"></i> Cancel
+        </button>
+    <% } else if ("Processing".equals(sStatus)) { %>
+        <button class="btn btn-info btn-sm text-white"
+            onclick="updateOrderStatus(<%= ord.get("id") %>, 'Shipped')">
+            <i class="bi bi-truck"></i> Ship Order
+        </button>
+    <% } else if ("Shipped".equals(sStatus)) { %>
+        <button class="btn btn-success btn-sm"
+            onclick="updateOrderStatus(<%= ord.get("id") %>, 'Completed')">
+            <i class="bi bi-bag-check"></i> Mark Completed
+        </button>
+    <% } else if ("Cancellation Requested".equals(sStatus)) { %>
+        <%-- Show cancel reason --%>
+        <%
+            String cancelReason = "";
+            try {
+                java.sql.Connection crConn = com.shopeasy.DBConnection.getConnection();
+                java.sql.PreparedStatement crPs = crConn.prepareStatement(
+                    "SELECT cancel_reason FROM orders WHERE order_id=?");
+                crPs.setInt(1, (int) ord.get("id"));
+                java.sql.ResultSet crRs = crPs.executeQuery();
+                if (crRs.next() && crRs.getString("cancel_reason") != null)
+                    cancelReason = crRs.getString("cancel_reason");
+                crRs.close(); crPs.close(); crConn.close();
+            } catch (Exception crEx) { crEx.printStackTrace(); }
+        %>
+        <div class="w-100 mb-2 p-2 rounded-3"
+             style="background:#fff3cd; border:1px solid #ffc107; font-size:12px;">
+            <i class="bi bi-chat-left-text text-warning me-1"></i>
+            <strong>Cancel Reason:</strong> <%= cancelReason.isEmpty() ? "No reason provided" : cancelReason %>
+        </div>
+        <button class="btn btn-success btn-sm"
+            onclick="approveCancel(<%= ord.get("id") %>, 'approve')">
+            <i class="bi bi-check-circle"></i> Approve Cancel
+        </button>
+        <button class="btn btn-outline-danger btn-sm"
+            onclick="approveCancel(<%= ord.get("id") %>, 'decline')">
+            <i class="bi bi-x-circle"></i> Decline
+        </button>
+    <% } else { %>
+        <span class="text-muted" style="font-size:12px;">
+            <i class="bi bi-check2-all"></i> <%= sStatus %>
+        </span>
+    <% } %>
+</div>
                 </div>
             </div>
         </div>
@@ -1892,6 +1916,36 @@ window.addEventListener('load', function() {
             }, 1500);
         })
         .catch(err => alert('Error updating order: ' + err));
+    }
+    
+    function approveCancel(orderId, action) {
+        const label = action === 'approve'
+            ? 'Approve cancellation? Stock will be restored.'
+            : 'Decline this cancellation request? Order will return to Processing.';
+        if (!confirm(label)) return;
+
+        fetch('ApproveCancelServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'orderId=' + orderId + '&action=' + action
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('successBarMsg').textContent =
+                    action === 'approve'
+                        ? 'Cancellation approved. Order cancelled. ✅'
+                        : 'Cancellation declined. Order returned to Processing. ✅';
+                document.getElementById('successBar').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('successBar').style.display = 'none';
+                    location.reload();
+                }, 1500);
+            } else {
+                alert('Error: ' + (data.message || 'Something went wrong.'));
+            }
+        })
+        .catch(err => alert('Error: ' + err));
     }
 </script>
 

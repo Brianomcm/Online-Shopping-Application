@@ -23,6 +23,31 @@
     if(sellerBusinessType == null) sellerBusinessType = "";
     if(sellerBanner == null) sellerBanner = "";
 %>
+
+ <%
+    int sellerUnreadCount = 0;
+    java.text.SimpleDateFormat sellerNotifSdf = new java.text.SimpleDateFormat("MMM d, yyyy h:mm a");
+    sellerNotifSdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Manila"));
+    java.util.List<java.util.Map<String, Object>> sellerNotifList = new java.util.ArrayList<>();
+    try {
+        int sellerNotifId = (int) session.getAttribute("userId");
+        java.sql.Connection sellerNotifConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement sellerNotifPs = sellerNotifConn.prepareStatement(
+            "SELECT * FROM notifications WHERE user_id=? AND user_type='seller' ORDER BY created_at DESC LIMIT 50");
+        sellerNotifPs.setInt(1, sellerNotifId);
+        java.sql.ResultSet sellerNotifRs = sellerNotifPs.executeQuery();
+        while (sellerNotifRs.next()) {
+            java.util.Map<String, Object> n = new java.util.HashMap<>();
+            n.put("id", sellerNotifRs.getInt("notif_id"));
+            n.put("message", sellerNotifRs.getString("message"));
+            n.put("isRead", sellerNotifRs.getInt("is_read") == 1);
+            n.put("createdAt", sellerNotifSdf.format(sellerNotifRs.getTimestamp("created_at")));
+            sellerNotifList.add(n);
+            if (sellerNotifRs.getInt("is_read") == 0) sellerUnreadCount++;
+        }
+        sellerNotifRs.close(); sellerNotifPs.close(); sellerNotifConn.close();
+    } catch (Exception ex) { ex.printStackTrace(); }
+    %>
 <!DOCTYPE html>
 <html>
 <head>
@@ -271,6 +296,9 @@
                     </a>
                     <a href="#" onclick="showTab('notifications', this)">
                         <i class="bi bi-bell"></i> Notifications
+                        <% if (sellerUnreadCount > 0) { %>
+                        <span class="badge bg-danger ms-auto" style="font-size:10px;"><%= sellerUnreadCount %></span>
+                        <% } %>
                     </a>
                 </div>
             </div>
@@ -640,6 +668,8 @@ try {
         String orderTabFilter = request.getParameter("orderTab");
         if (orderTabFilter == null) orderTabFilter = "All";
 
+        java.text.SimpleDateFormat sOrdSdf = new java.text.SimpleDateFormat("MMM d, yyyy h:mm a");
+        sOrdSdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Manila"));
         java.util.List<java.util.Map<String, Object>> sellerOrders = new java.util.ArrayList<>();
         try {
             int sOrdSellerId = (int) session.getAttribute("userId");
@@ -667,7 +697,8 @@ try {
                 java.util.Map<String, Object> ord = new java.util.HashMap<>();
                 ord.put("id", sOrdRs.getInt("order_id"));
                 ord.put("status", sOrdRs.getString("status"));
-                ord.put("date", sOrdRs.getString("order_date"));
+                java.sql.Timestamp sOrdTs = sOrdRs.getTimestamp("order_date");
+                ord.put("date", sOrdTs != null ? sOrdSdf.format(sOrdTs) : "Date not available");
                 ord.put("total", sOrdRs.getDouble("total_price"));
                 ord.put("payment", sOrdRs.getString("payment_method"));
                 ord.put("buyer_name", sOrdRs.getString("buyer_name"));
@@ -856,10 +887,160 @@ try {
     <div id="tab-sales" class="tab-content-section" style="display:none;">
         <div class="card-section">
             <p class="section-title"><i class="bi bi-graph-up-arrow text-success"></i> Sales & Analytics</p>
-            <div class="text-center text-muted py-4">
-                <i class="bi bi-bar-chart fs-1 opacity-50"></i>
-                <p class="mt-2" style="font-size:13px;">No sales data yet.</p>
+            <%
+            try {
+                java.sql.Connection saConn = com.shopeasy.DBConnection.getConnection();
+                int sellerId = (int) session.getAttribute("userId");
+
+                // Total Revenue
+                java.sql.PreparedStatement revPs = saConn.prepareStatement(
+                    "SELECT COALESCE(SUM(oi.quantity * oi.price),0) as total_revenue, " +
+                    "COUNT(DISTINCT o.order_id) as total_orders, " +
+                    "SUM(oi.quantity) as total_items " +
+                    "FROM order_items oi " +
+                    "JOIN orders o ON oi.order_id = o.order_id " +
+                    "JOIN product p ON oi.product_id = p.product_id " +
+                    "WHERE p.seller_id = ? AND o.status = 'Completed'");
+                revPs.setInt(1, sellerId);
+                java.sql.ResultSet revRs = revPs.executeQuery();
+                double totalRevenue = 0; int totalOrders = 0; int totalItems = 0;
+                if (revRs.next()) {
+                    totalRevenue = revRs.getDouble("total_revenue");
+                    totalOrders = revRs.getInt("total_orders");
+                    totalItems = revRs.getInt("total_items");
+                }
+
+                // Top 5 Products
+                java.sql.PreparedStatement topPs = saConn.prepareStatement(
+                    "SELECT p.name, SUM(oi.quantity) as sold, SUM(oi.quantity * oi.price) as revenue " +
+                    "FROM order_items oi " +
+                    "JOIN orders o ON oi.order_id = o.order_id " +
+                    "JOIN product p ON oi.product_id = p.product_id " +
+                    "WHERE p.seller_id = ? AND o.status = 'Completed' " +
+                    "GROUP BY p.product_id, p.name ORDER BY sold DESC LIMIT 5");
+                topPs.setInt(1, sellerId);
+                java.sql.ResultSet topRs = topPs.executeQuery();
+
+                // Monthly Sales (last 6 months)
+                java.sql.PreparedStatement monthPs = saConn.prepareStatement(
+                    "SELECT DATE_FORMAT(o.order_date, '%b %Y') as month, " +
+                    "SUM(oi.quantity * oi.price) as revenue " +
+                    "FROM order_items oi " +
+                    "JOIN orders o ON oi.order_id = o.order_id " +
+                    "JOIN product p ON oi.product_id = p.product_id " +
+                    "WHERE p.seller_id = ? AND o.status = 'Completed' " +
+                    "AND o.order_date IS NOT NULL " +
+                    "GROUP BY DATE_FORMAT(o.order_date, '%b %Y'), YEAR(o.order_date), MONTH(o.order_date) " +
+                    "ORDER BY YEAR(o.order_date), MONTH(o.order_date)");
+                monthPs.setInt(1, sellerId);
+                java.sql.ResultSet monthRs = monthPs.executeQuery();
+
+                StringBuilder monthLabels = new StringBuilder("[");
+                StringBuilder monthData = new StringBuilder("[");
+                boolean firstMonth = true;
+                while (monthRs.next()) {
+                    if (!firstMonth) { monthLabels.append(","); monthData.append(","); }
+                    monthLabels.append("'").append(monthRs.getString("month")).append("'");
+                    monthData.append(monthRs.getDouble("revenue"));
+                    firstMonth = false;
+                }
+                monthLabels.append("]"); monthData.append("]");
+
+                // Store top products in a list before closing connection
+                java.util.List<String> topNames = new java.util.ArrayList<>();
+                java.util.List<Integer> topSold = new java.util.ArrayList<>();
+                java.util.List<Double> topRevenue = new java.util.ArrayList<>();
+                while (topRs.next()) {
+                    topNames.add(topRs.getString("name"));
+                    topSold.add(topRs.getInt("sold"));
+                    topRevenue.add(topRs.getDouble("revenue"));
+                }
+                saConn.close();
+            %>
+
+            <!-- Summary Cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="p-3 rounded-3 text-center" style="background:#f0fdf4; border:1px solid #bbf7d0;">
+                        <p class="mb-0 text-muted" style="font-size:12px;">Total Revenue</p>
+                        <h4 class="fw-bold text-success mb-0">₱<%= String.format("%.2f", totalRevenue) %></h4>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded-3 text-center" style="background:#eff6ff; border:1px solid #bfdbfe;">
+                        <p class="mb-0 text-muted" style="font-size:12px;">Completed Orders</p>
+                        <h4 class="fw-bold text-primary mb-0"><%= totalOrders %></h4>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded-3 text-center" style="background:#fefce8; border:1px solid #fde68a;">
+                        <p class="mb-0 text-muted" style="font-size:12px;">Items Sold</p>
+                        <h4 class="fw-bold text-warning mb-0"><%= totalItems %></h4>
+                    </div>
+                </div>
             </div>
+
+            <!-- Monthly Revenue Chart -->
+            <p class="fw-bold mb-2" style="font-size:14px;"><i class="bi bi-graph-up text-success me-1"></i> Monthly Revenue (Last 6 Months)</p>
+            <div style="height:250px;" class="mb-4">
+                <canvas id="revenueChart"></canvas>
+            </div>
+
+            <!-- Top Products -->
+            <p class="fw-bold mb-2" style="font-size:14px;"><i class="bi bi-trophy text-warning me-1"></i> Top Products</p>
+            <div class="table-responsive">
+                <table class="table table-hover" style="font-size:13px;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Product</th>
+                            <th>Units Sold</th>
+                            <th>Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                       <% for (int rank = 1; rank <= topNames.size(); rank++) { %>
+                        <tr>
+                            <td><span class="badge <%= rank == 1 ? "bg-warning" : rank == 2 ? "bg-secondary" : "bg-light text-dark" %>"><%= rank %></span></td>
+                            <td class="fw-bold"><%= topNames.get(rank-1) %></td>
+                            <td><%= topSold.get(rank-1) %> units</td>
+                            <td class="text-success fw-bold">₱<%= String.format("%.2f", topRevenue.get(rank-1)) %></td>
+                        </tr>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const ctx = document.getElementById('revenueChart');
+                if (ctx) {
+                    new Chart(ctx, {
+                    	type: 'line',
+                        data: {
+                            labels: <%= monthLabels %>,
+                            datasets: [{
+                                label: 'Revenue (₱)',
+                                data: <%= monthData %>,
+                                backgroundColor: 'rgba(34,197,94,0.2)',
+                                borderColor: 'rgba(34,197,94,1)',
+                                borderWidth: 2,
+                                borderRadius: 6
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true, ticks: { callback: v => '₱' + v } } }
+                        }
+                    });
+                }
+            });
+            </script>
+
+            <% } catch (Exception saEx) { saEx.printStackTrace(); } %>
         </div>
     </div>
 
@@ -928,12 +1109,20 @@ try {
     <div id="tab-security" class="tab-content-section" style="display:none;">
         <div class="card-section">
             <p class="section-title"><i class="bi bi-shield-lock-fill text-success"></i> Security Settings</p>
+
+            <div id="securitySuccess" class="alert alert-success py-2 mb-3" style="display:none; font-size:13px;">
+                <i class="bi bi-check-circle-fill"></i> <span id="securitySuccessText">Password updated successfully!</span>
+            </div>
+            <div id="securityError" class="alert alert-danger py-2 mb-3" style="display:none; font-size:13px;">
+                <i class="bi bi-x-circle-fill"></i> <span id="securityErrorText">Error updating password.</span>
+            </div>
+
             <div class="row g-3">
                 <div class="col-12">
                     <label class="form-label fw-bold" style="font-size:13px;">Current Password</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" id="currentPw" class="form-control" placeholder="Enter current password">
+                        <input type="password" id="currentPw" class="form-control" placeholder="Enter current password" autocomplete="new-password">
                         <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('currentPw', this)"><i class="bi bi-eye"></i></button>
                     </div>
                 </div>
@@ -941,7 +1130,7 @@ try {
                     <label class="form-label fw-bold" style="font-size:13px;">New Password</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" id="newPw" class="form-control" placeholder="Enter new password" oninput="checkStrength(this.value)">
+                        <input type="password" id="newPw" class="form-control" placeholder="Enter new password" autocomplete="new-password" oninput="checkStrength(this.value)">
                         <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('newPw', this)"><i class="bi bi-eye"></i></button>
                     </div>
                     <div id="strengthBar" class="password-strength bg-secondary" style="width:0%"></div>
@@ -951,41 +1140,72 @@ try {
                     <label class="form-label fw-bold" style="font-size:13px;">Confirm New Password</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" id="confirmPw" class="form-control" placeholder="Confirm new password">
-                        <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('confirmPw', this)"><i class="bi bi-eye"></i></button>
+                       <input type="password" id="confirmPw" class="form-control" placeholder="Confirm new password" autocomplete="new-password">
                     </div>
                 </div>
-                <div class="col-12">
-                    <button type="button" class="btn btn-success px-4">
+                <div class="col-12 d-flex gap-2 align-items-center flex-wrap">
+                    <button class="btn btn-success px-4" id="updatePwBtn" onclick="updatePassword()">
                         <i class="bi bi-shield-check"></i> Update Password
                     </button>
+                    <a href="#" class="text-success" style="font-size:13px;" onclick="openForgotFromSecurity()">
+                        <i class="bi bi-question-circle"></i> Forgot current password?
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 
+   
     <div id="tab-notifications" class="tab-content-section" style="display:none;">
         <div class="card-section">
-            <p class="section-title"><i class="bi bi-bell-fill text-success"></i> Notification Settings</p>
-            <div class="d-flex flex-column gap-3">
-                <div class="d-flex justify-content-between align-items-center p-3 border rounded-3">
-                    <div>
-                        <p class="mb-0 fw-bold" style="font-size:14px;">New Orders</p>
-                        <p class="mb-0 text-muted" style="font-size:12px;">Get notified when you receive a new order</p>
-                    </div>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input" type="checkbox" checked style="width:40px; height:20px;">
-                    </div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p class="section-title mb-0">
+                    <i class="bi bi-bell-fill text-success"></i> Notifications
+                    <% if (sellerUnreadCount > 0) { %>
+                    <span class="badge bg-danger ms-2" style="font-size:11px;"><%= sellerUnreadCount %> new</span>
+                    <% } %>
+                </p>
+                <% if (!sellerNotifList.isEmpty()) { %>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="sellerMarkAllRead()">
+                        <i class="bi bi-check2-all"></i> Mark all read
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="sellerClearAll()">
+                        <i class="bi bi-trash"></i> Clear all
+                    </button>
                 </div>
-                <div class="d-flex justify-content-between align-items-center p-3 border rounded-3">
-                    <div>
-                        <p class="mb-0 fw-bold" style="font-size:14px;">New Reviews</p>
-                        <p class="mb-0 text-muted" style="font-size:12px;">Get notified when a customer leaves a review</p>
-                    </div>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input" type="checkbox" checked style="width:40px; height:20px;">
-                    </div>
+                <% } %>
+            </div>
+
+            <div id="sellerNotifList">
+            <% if (sellerNotifList.isEmpty()) { %>
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-bell-slash fs-1 opacity-25"></i>
+                    <p class="mt-2">No notifications yet.</p>
                 </div>
+            <% } else { %>
+                <% for (java.util.Map<String, Object> n : sellerNotifList) { %>
+                <div class="d-flex align-items-start gap-3 p-3 mb-2 rounded-3 seller-notif-item"
+                     id="snotif-<%= n.get("id") %>"
+                     style="background:<%= (boolean)n.get("isRead") ? "#f8f9fa" : "#edfaf1" %>; border:1px solid <%= (boolean)n.get("isRead") ? "#eee" : "#a3d9b1" %>; cursor:pointer;"
+                     onclick="sellerMarkOneRead(<%= n.get("id") %>, this)">
+                    <div style="width:36px; height:36px; border-radius:50%; background:<%= (boolean)n.get("isRead") ? "#dee2e6" : "#198754" %>; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <i class="bi bi-bell-fill" style="color:white; font-size:14px;"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <p class="mb-0" style="font-size:13px; font-weight:<%= (boolean)n.get("isRead") ? "400" : "600" %>;">
+                            <%= n.get("message") %>
+                        </p>
+                        <p class="mb-0 text-muted" style="font-size:11px;">
+                            <i class="bi bi-clock"></i> <%= n.get("createdAt") %>
+                        </p>
+                    </div>
+                    <% if (!(boolean)n.get("isRead")) { %>
+                    <span class="badge bg-success" style="font-size:9px;">New</span>
+                    <% } %>
+                </div>
+                <% } %>
+            <% } %>
             </div>
         </div>
     </div>
@@ -1796,5 +2016,150 @@ window.addEventListener('load', function() {
     </div>
 </div>
 
+<%@ include file="modals.jsp" %>
+<script>
+function openForgotFromSecurity() {
+    var modal = new bootstrap.Modal(document.getElementById('forgotPasswordModal'));
+    modal.show();
+}
+
+function updatePassword() {
+    const current = document.getElementById('currentPw').value.trim();
+    const newPw = document.getElementById('newPw').value.trim();
+    const confirm = document.getElementById('confirmPw').value.trim();
+
+    document.getElementById('securitySuccess').style.display = 'none';
+    document.getElementById('securityError').style.display = 'none';
+
+    if (!current || !newPw || !confirm) {
+        document.getElementById('securityErrorText').textContent = 'Please fill in all fields.';
+        document.getElementById('securityError').style.display = 'block';
+        return;
+    }
+    if (newPw !== confirm) {
+        document.getElementById('securityErrorText').textContent = 'New passwords do not match.';
+        document.getElementById('securityError').style.display = 'block';
+        return;
+    }
+    if (newPw.length < 6) {
+        document.getElementById('securityErrorText').textContent = 'Password must be at least 6 characters.';
+        document.getElementById('securityError').style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('updatePwBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Updating...';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'pwOverlay';
+    overlay.style.cssText = 'display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center; gap:12px;';
+    overlay.innerHTML = '<div class="spinner-border text-success" style="width:3rem; height:3rem;"></div><p class="fw-bold text-success fs-5">Updating password...</p><p class="text-muted" style="font-size:13px;">Please wait a moment</p>';
+    document.body.appendChild(overlay);
+    setTimeout(() => { document.getElementById('pwOverlay')?.remove(); }, 5000);
+
+    fetch('UpdatePasswordServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'currentPassword=' + encodeURIComponent(current) + '&newPassword=' + encodeURIComponent(newPw)
+    })
+    .then(r => r.json())
+    .then(data => new Promise(resolve => setTimeout(() => resolve(data), 1500)))
+    .then(data => {
+        document.getElementById('pwOverlay')?.remove();
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-shield-check"></i> Update Password';
+        if (data.success) {
+            document.getElementById('currentPw').value = '';
+            document.getElementById('newPw').value = '';
+            document.getElementById('confirmPw').value = '';
+            document.getElementById('securitySuccessText').textContent = 'Password updated successfully!';
+            document.getElementById('securitySuccess').style.display = 'block';
+        } else {
+            document.getElementById('securityErrorText').textContent = data.message || 'Current password is incorrect.';
+            document.getElementById('securityError').style.display = 'block';
+        }
+    })
+    .catch(() => {
+        document.getElementById('pwOverlay')?.remove();
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-shield-check"></i> Update Password';
+        document.getElementById('securityErrorText').textContent = 'Server error. Please try again.';
+        document.getElementById('securityError').style.display = 'block';
+    });
+}
+function sellerMarkAllRead() {
+    fetch('NotificationServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'action=markAllRead&userType=seller'
+    }).then(() => {
+        document.querySelectorAll('.seller-notif-item').forEach(el => {
+            el.style.background = '#f8f9fa';
+            el.style.border = '1px solid #eee';
+            const icon = el.querySelector('div[style*="border-radius:50%"]');
+            if (icon) icon.style.background = '#dee2e6';
+            const badge = el.querySelector('.badge.bg-success');
+            if (badge) badge.remove();
+            const msg = el.querySelector('p[style*="font-weight"]');
+            if (msg) msg.style.fontWeight = '400';
+        });
+        document.querySelectorAll('.badge.bg-danger').forEach(b => b.remove());
+        showToast('All notifications marked as read!');
+    });
+}
+
+function sellerMarkOneRead(notifId, el) {
+    const isUnread = el.style.background === 'rgb(237, 250, 241)' || el.getAttribute('data-read') !== '1';
+    if (isUnread) {
+        fetch('NotificationServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=markRead&notifId=' + notifId + '&userType=seller'
+        }).then(() => {
+            el.style.background = '#f8f9fa';
+            el.style.border = '1px solid #eee';
+            el.setAttribute('data-read', '1');
+            const icon = el.querySelector('div[style*="border-radius:50%"]');
+            if (icon) icon.style.background = '#dee2e6';
+            const badge = el.querySelector('.badge.bg-success');
+            if (badge) badge.remove();
+            const msg = el.querySelector('p[style*="font-weight"]');
+            if (msg) msg.style.fontWeight = '400';
+         // Update sidebar badge
+            const sidebarBadge = document.querySelector('.sidebar-nav .badge.bg-danger');
+            if (sidebarBadge) {
+                const count = parseInt(sidebarBadge.textContent) - 1;
+                if (count <= 0) sidebarBadge.remove();
+                else sidebarBadge.textContent = count;
+            }
+            // Update header badge
+            const headerBadge = document.querySelector('#tab-notifications .badge.bg-danger');
+            if (headerBadge) {
+                const count = parseInt(headerBadge.textContent) - 1;
+                if (count <= 0) headerBadge.remove();
+                else headerBadge.textContent = count;
+            }
+        });
+    }
+}
+
+function sellerClearAll() {
+    if (!confirm('Clear all notifications?')) return;
+    fetch('NotificationServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'action=clearAll&userType=seller'
+    }).then(() => {
+        document.getElementById('sellerNotifList').innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-bell-slash fs-1 opacity-25"></i>
+                <p class="mt-2">No notifications yet.</p>
+            </div>`;
+        document.querySelectorAll('.badge.bg-danger').forEach(b => b.remove());
+        showToast('All notifications cleared!');
+    });
+}
+</script>
 </body>
 </html>

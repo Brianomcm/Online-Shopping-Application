@@ -17,10 +17,15 @@ public class UpdateCartServlet extends HttpServlet {
             int cartitemId = Integer.parseInt(request.getParameter("cartitemId"));
             int quantity = Integer.parseInt(request.getParameter("quantity"));
             Connection conn = DBConnection.getConnection();
-            PreparedStatement ps = conn.prepareStatement(
-                "UPDATE cartitem SET quantity=? WHERE cartitem_id=?");
-            ps.setInt(1, quantity);
-            ps.setInt(2, cartitemId);
+            PreparedStatement ps;
+            if (quantity <= 0) {
+                ps = conn.prepareStatement("DELETE FROM cartitem WHERE cartitem_id=?");
+                ps.setInt(1, cartitemId);
+            } else {
+                ps = conn.prepareStatement("UPDATE cartitem SET quantity=? WHERE cartitem_id=?");
+                ps.setInt(1, quantity);
+                ps.setInt(2, cartitemId);
+            }
             ps.executeUpdate();
             ps.close();
             conn.close();

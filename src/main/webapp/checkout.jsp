@@ -6,14 +6,28 @@
         response.sendRedirect("index.jsp");
         return;
     }
-    String userName = (String) session.getAttribute("userName");
-    String userAvatar = (String) session.getAttribute("userAvatar");
-    String userAddress = (String) session.getAttribute("userAddress");
-    List<Map<String, Object>> cartItems = (List<Map<String, Object>>) session.getAttribute("checkoutItems");
-    Double cartTotal = (Double) session.getAttribute("checkoutTotal");
-    if (cartItems == null) { response.sendRedirect("CartServlet"); return; }
-    if (cartTotal == null) cartTotal = 0.0;
-    if (userAddress == null) userAddress = "";
+String userName = (String) session.getAttribute("userName");
+String userAvatar = (String) session.getAttribute("userAvatar");
+String userAddress = (String) session.getAttribute("userAddress");
+if (userAddress == null) userAddress = "";
+
+// Check if Buy Now or Cart checkout
+boolean isBuyNow = "true".equals(request.getParameter("buyNow")) || 
+                   session.getAttribute("buyNowItems") != null && "true".equals(request.getParameter("buyNow"));
+
+List<Map<String, Object>> cartItems;
+Double cartTotal;
+
+if (isBuyNow) {
+    cartItems = (List<Map<String, Object>>) session.getAttribute("buyNowItems");
+    cartTotal = (Double) session.getAttribute("buyNowTotal");
+} else {
+    cartItems = (List<Map<String, Object>>) session.getAttribute("checkoutItems");
+    cartTotal = (Double) session.getAttribute("checkoutTotal");
+}
+
+if (cartItems == null) { response.sendRedirect("CartServlet"); return; }
+if (cartTotal == null) cartTotal = 0.0;
  // Load saved addresses from database
     java.util.List<java.util.Map<String, Object>> savedAddresses = new java.util.ArrayList<>();
     try {
@@ -34,6 +48,19 @@
         }
         addrRs.close(); addrPs.close(); addrConn.close();
     } catch (Exception ex) { ex.printStackTrace(); }
+    
+ // Track breadcrumb
+    String prevCrumb2 = (String) session.getAttribute("breadcrumb");
+    String checkoutCrumb;
+    if (isBuyNow) {
+        checkoutCrumb = "product-checkout";
+    } else if ("product-cart".equals(prevCrumb2)) {
+        checkoutCrumb = "product-cart-checkout";
+    } else {
+        checkoutCrumb = "cart-checkout";
+    }
+    session.setAttribute("breadcrumb", checkoutCrumb);
+    
 %>
 <!DOCTYPE html>
 <html>
@@ -65,16 +92,50 @@
 <nav class="navbar navbar-light bg-white shadow-sm sticky-top px-3">
     <a class="navbar-brand" href="index.jsp"><i class="bi bi-bag-heart-fill text-primary"></i> ShopEasy</a>
     <div class="d-flex align-items-center gap-3">
-        <a href="CartServlet" class="btn btn-outline-primary btn-sm"><i class="bi bi-cart3"></i> Back to Cart</a>
-        <div class="avatar-circle">
+        <% if (isBuyNow) { %>
+            <a href="javascript:history.back()" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left"></i> Back to Product</a>
+        <% } else { %>
+            <a href="CartServlet" class="btn btn-outline-primary btn-sm"><i class="bi bi-cart3"></i> Back to Cart</a>
+        <% } %>
+        <a href="customer.jsp" class="avatar-circle" style="text-decoration:none; color:white;">
             <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
                 <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
             <% } else { %>
                 <%= userName != null ? String.valueOf(userName.charAt(0)).toUpperCase() : "U" %>
             <% } %>
-        </div>
+        </a>
     </div>
 </nav>
+<!-- BREADCRUMB -->
+<div class="bg-white border-bottom px-4 py-2">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0" style="font-size:13px;">
+            <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none text-primary">Home</a></li>
+            <%
+                String ckCrumb = (String) session.getAttribute("breadcrumb");
+                Integer lpId2 = (Integer) session.getAttribute("lastProductId");
+                String lpName2 = (String) session.getAttribute("lastProduct");
+                if ("product-cart-checkout".equals(ckCrumb)) {
+            %>
+                <li class="breadcrumb-item">
+                    <a href="product.jsp?id=<%= lpId2 %>" class="text-decoration-none text-primary"><%= lpName2 %></a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a href="CartServlet" class="text-decoration-none text-primary">Cart</a>
+                </li>
+            <% } else if ("product-checkout".equals(ckCrumb)) { %>
+                <li class="breadcrumb-item">
+                    <a href="product.jsp?id=<%= lpId2 %>" class="text-decoration-none text-primary"><%= lpName2 %></a>
+                </li>
+            <% } else { %>
+                <li class="breadcrumb-item">
+                    <a href="CartServlet" class="text-decoration-none text-primary">Cart</a>
+                </li>
+            <% } %>
+            <li class="breadcrumb-item active text-muted">Checkout</li>
+        </ol>
+    </nav>
+</div>
 
 <div class="container py-4">
     <h5 class="fw-bold mb-4"><i class="bi bi-bag-check text-primary"></i> Checkout</h5>
@@ -206,9 +267,15 @@
                 <button class="btn btn-primary place-order-btn w-100 text-white" onclick="placeOrder()">
                     <i class="bi bi-bag-check"></i> Place Order
                 </button>
-                <a href="CartServlet" class="btn btn-outline-secondary w-100 mt-2">
-                    <i class="bi bi-arrow-left"></i> Back to Cart
-                </a>
+                <% if (isBuyNow) { %>
+                    <a href="javascript:history.back()" class="btn btn-outline-secondary w-100 mt-2">
+                        <i class="bi bi-arrow-left"></i> Back to Product
+                    </a>
+                <% } else { %>
+                    <a href="CartServlet" class="btn btn-outline-secondary w-100 mt-2">
+                        <i class="bi bi-arrow-left"></i> Back to Cart
+                    </a>
+                <% } %>
             </div>
         </div>
     </div>
@@ -251,7 +318,8 @@
             body: 'shipName=' + encodeURIComponent(name) +
                   '&shipAddress=' + encodeURIComponent(address) +
                   '&shipPhone=' + encodeURIComponent(phone) +
-                  '&paymentMethod=' + encodeURIComponent(selectedPayment)
+                  '&paymentMethod=' + encodeURIComponent(selectedPayment) +
+                  '&isBuyNow=<%= isBuyNow ? "true" : "false" %>'
         }).then(res => res.json())
           .then(data => {
               if (data.success) {

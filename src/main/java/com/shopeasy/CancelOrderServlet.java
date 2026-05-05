@@ -28,8 +28,27 @@ public class CancelOrderServlet extends HttpServlet {
                 "UPDATE orders SET status='Cancelled' WHERE order_id=? AND customer_id=? AND status='Pending'");
             ps.setInt(1, orderId);
             ps.setInt(2, customerId);
-            ps.executeUpdate();
+            int rowsAffected = ps.executeUpdate();
             ps.close();
+
+            // Notify seller if successfully cancelled
+            if (rowsAffected > 0) {
+                PreparedStatement sellerPs = conn.prepareStatement(
+                    "SELECT DISTINCT oi.seller_id FROM order_items oi WHERE oi.order_id=?");
+                sellerPs.setInt(1, orderId);
+                java.sql.ResultSet sellerRs = sellerPs.executeQuery();
+                while (sellerRs.next()) {
+                    int sellerId = sellerRs.getInt("seller_id");
+                    PreparedStatement notifPs = conn.prepareStatement(
+                        "INSERT INTO notifications (user_id, user_type, message) VALUES (?, 'seller', ?)");
+                    notifPs.setInt(1, sellerId);
+                    notifPs.setString(2, "Order #" + orderId + " has been cancelled by the customer.");
+                    notifPs.executeUpdate();
+                    notifPs.close();
+                }
+                sellerRs.close();
+                sellerPs.close();
+            }
             conn.close();
         } catch (Exception e) {
             e.printStackTrace();

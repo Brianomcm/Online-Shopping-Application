@@ -37,9 +37,19 @@ public class CheckoutServlet extends HttpServlet {
         String shipPhone = request.getParameter("shipPhone");
         String paymentMethod = request.getParameter("paymentMethod");
 
-        List<Map<String, Object>> cartItems =
-            (List<Map<String, Object>>) session.getAttribute("checkoutItems");
-        Double cartTotal = (Double) session.getAttribute("checkoutTotal");
+        String isBuyNowParam = request.getParameter("isBuyNow");
+        boolean isBuyNow = "true".equals(isBuyNowParam);
+
+        List<Map<String, Object>> cartItems;
+        Double cartTotal;
+
+        if (isBuyNow) {
+            cartItems = (List<Map<String, Object>>) session.getAttribute("buyNowItems");
+            cartTotal = (Double) session.getAttribute("buyNowTotal");
+        } else {
+            cartItems = (List<Map<String, Object>>) session.getAttribute("checkoutItems");
+            cartTotal = (Double) session.getAttribute("checkoutTotal");
+        }
 
         if (cartItems == null || cartItems.isEmpty()) {
             out.print("{\"success\":false,\"message\":\"Cart is empty\"}");
@@ -96,19 +106,47 @@ public class CheckoutServlet extends HttpServlet {
             itemPs.executeBatch();
             itemPs.close();
 
-            // Clear cart from database
-            String clearSql = "DELETE FROM cartitem WHERE cart_id IN (SELECT cart_id FROM cart WHERE customer_id = ?)";
-            PreparedStatement clearPs = conn.prepareStatement(clearSql);
-            clearPs.setInt(1, customerId);
-            clearPs.executeUpdate();
-            clearPs.close();
+            // Notify customer
+            PreparedStatement custNotifPs = conn.prepareStatement(
+                "INSERT INTO notifications (user_id, user_type, message) VALUES (?, 'customer', ?)");
+            custNotifPs.setInt(1, customerId);
+            custNotifPs.setString(2, "Your order #" + orderId + " has been placed successfully! Total: ₱" + String.format("%.2f", cartTotal));
+            custNotifPs.executeUpdate();
+            custNotifPs.close();
+
+            // Notify each seller
+            java.util.Set<Integer> notifiedSellers = new java.util.HashSet<>();
+            for (Map<String, Object> item : cartItems) {
+                int sellerId = (Integer) item.get("sellerId");
+                if (notifiedSellers.add(sellerId)) {
+                    PreparedStatement sellerNotifPs = conn.prepareStatement(
+                        "INSERT INTO notifications (user_id, user_type, message) VALUES (?, 'seller', ?)");
+                    sellerNotifPs.setInt(1, sellerId);
+                    sellerNotifPs.setString(2, "You have a new order #" + orderId + " from a customer!");
+                    sellerNotifPs.executeUpdate();
+                    sellerNotifPs.close();
+                }
+            }
+
+            if (isBuyNow) {
+                // Buy Now — clear only buyNow session, NOT the cart
+                session.removeAttribute("buyNowItems");
+                session.removeAttribute("buyNowTotal");
+            } else {
+                // Cart checkout — clear cart from database
+                String clearSql = "DELETE FROM cartitem WHERE cart_id IN (SELECT cart_id FROM cart WHERE customer_id = ?)";
+                PreparedStatement clearPs = conn.prepareStatement(clearSql);
+                clearPs.setInt(1, customerId);
+                clearPs.executeUpdate();
+                clearPs.close();
+
+                // Clear session cart
+                session.removeAttribute("checkoutItems");
+                session.removeAttribute("checkoutTotal");
+                session.setAttribute("cartCount", 0);
+            }
 
             conn.close();
-
-            // Clear session cart
-            session.removeAttribute("checkoutItems");
-            session.removeAttribute("checkoutTotal");
-            session.setAttribute("cartCount", 0);
 
             out.print("{\"success\":true,\"orderId\":" + orderId + "}");
 

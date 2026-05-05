@@ -10,8 +10,16 @@
     String userAvatar = (String) session.getAttribute("userAvatar");
     List<Map<String, Object>> cartItems = (List<Map<String, Object>>) request.getAttribute("cartItems");
     Double cartTotal = (Double) request.getAttribute("cartTotal");
-    if (cartItems == null) cartItems = new ArrayList<>();
+    if (cartItems == null) { response.sendRedirect("CartServlet"); return; }
     if (cartTotal == null) cartTotal = 0.0;
+    
+ // Track breadcrumb
+    String prevCrumb = (String) session.getAttribute("breadcrumb");
+    if ("product".equals(prevCrumb)) {
+        session.setAttribute("breadcrumb", "product-cart");
+    } else {
+        session.setAttribute("breadcrumb", "cart");
+    }
 %>
 <!DOCTYPE html>
 <html>
@@ -60,10 +68,37 @@
     </div>
 </nav>
 
+<!-- BREADCRUMB -->
+<div class="bg-white border-bottom px-4 py-2">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0" style="font-size:13px;">
+            <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none text-primary">Home</a></li>
+            <%
+                String cartCrumb = (String) session.getAttribute("breadcrumb");
+                if ("product-cart".equals(cartCrumb)) {
+                    Integer lpId = (Integer) session.getAttribute("lastProductId");
+                    String lpName = (String) session.getAttribute("lastProduct");
+                    if (lpId != null && lpName != null) {
+            %>
+                <li class="breadcrumb-item">
+                    <a href="product.jsp?id=<%= lpId %>" class="text-decoration-none text-primary"><%= lpName %></a>
+                </li>
+            <%  } } %>
+            <li class="breadcrumb-item active text-muted">Cart</li>
+        </ol>
+    </nav>
+</div>
 <div class="container py-4">
-    <h5 class="fw-bold mb-4"><i class="bi bi-cart3 text-primary"></i> My Cart
+    <h5 class="fw-bold mb-4 d-flex align-items-center gap-2">
+    <span><i class="bi bi-cart3 text-primary"></i> My Cart
         <span class="badge bg-primary ms-2"><%= cartItems.size() %></span>
-    </h5>
+    </span>
+    <% if (!cartItems.isEmpty()) { %>
+    <button class="btn btn-outline-danger btn-sm ms-auto" onclick="removeAll()">
+        <i class="bi bi-trash3"></i> Remove All
+    </button>
+    <% } %>
+</h5>
 
     <% if (cartItems.isEmpty()) { %>
     <div class="empty-cart">
@@ -183,8 +218,10 @@
         // Grey out if zero
         const card = document.getElementById('cartItem_' + itemId);
         if (qty === 0) {
-            card.style.opacity = '0.4';
-            card.style.filter = 'grayscale(1)';
+            card.remove();
+            delete prices[itemId];
+            updateTotal();
+            return;
         } else {
             card.style.opacity = '1';
             card.style.filter = 'none';
@@ -200,15 +237,21 @@
 
     function removeItem(itemId) {
         if (!confirm('Remove this item from cart?')) return;
+        
         fetch('RemoveCartServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: 'cartitemId=' + itemId
-        }).then(() => {
-            document.getElementById('cartItem_' + itemId).remove();
-            delete prices[itemId];
-            updateTotal();
-            showToast('Item removed from cart');
+        }).then(response => {
+            if (response.ok) {
+             
+                window.location.reload(); 
+            } else {
+                showToast('Failed to remove item', '#dc3545');
+            }
+        }).catch(err => {
+            console.error(err);
+            showToast('Error connecting to server', '#dc3545');
         });
     }
 
@@ -241,6 +284,15 @@
                   showToast(data.message, '#dc3545');
               }
           });
+    }
+    function removeAll() {
+        if (!confirm('Remove all items from cart? This cannot be undone.')) return;
+        fetch('RemoveAllCartServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+        }).then(() => {
+            location.reload();
+        });
     }
 </script>
 </body>

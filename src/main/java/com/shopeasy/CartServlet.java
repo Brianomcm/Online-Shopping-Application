@@ -42,7 +42,7 @@ public class CartServlet extends HttpServlet {
                 "JOIN cartitem ci ON c.cart_id = ci.cart_id " +
                 "JOIN product p ON ci.product_id = p.product_id " +
                 "LEFT JOIN product_variation pv ON ci.variation_id = pv.variation_id " +
-                "WHERE c.customer_id = ?");
+            		"WHERE c.customer_id = ? AND ci.quantity > 0");
             ps.setInt(1, userId);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {

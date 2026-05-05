@@ -9,16 +9,16 @@
     }
 
     int productId = Integer.parseInt(productIdParam.trim());
-    String name = "", description = "", image = "", sellerName = "";
+    String name = "", description = "", image = "", sellerName = "", sellerPfp = "";
     double price = 0;
     int stock = 0, sellerId = 0;
 
     try {
         Connection conn = com.shopeasy.DBConnection.getConnection();
         PreparedStatement ps = conn.prepareStatement(
-            "SELECT p.*, s.business_name, s.seller_id FROM product p " +
-            "JOIN seller s ON p.seller_id = s.seller_id " +
-            "WHERE p.product_id = ? AND p.status = 'active'");
+        	    "SELECT p.*, s.business_name, s.seller_id, s.profile_picture FROM product p " +
+        	    "JOIN seller s ON p.seller_id = s.seller_id " +
+        	    "WHERE p.product_id = ? AND p.status = 'active'");
         ps.setInt(1, productId);
         ResultSet rs = ps.executeQuery();
         if (rs.next()) {
@@ -29,6 +29,7 @@
             stock = rs.getInt("stock");
             sellerName = rs.getString("business_name");
             sellerId = rs.getInt("seller_id");
+            sellerPfp = rs.getString("profile_picture");
         } else {
             response.sendRedirect("index.jsp");
             return;
@@ -74,6 +75,12 @@
             cartRs.close(); cartPs.close(); cartConn.close();
         }
     } catch (Exception e) { e.printStackTrace(); }
+    
+ // Track breadcrumb
+    session.setAttribute("lastProduct", name);
+    session.setAttribute("lastProductId", productId);
+    session.setAttribute("breadcrumb", "product");
+    
 %>
 <!DOCTYPE html>
 <html>
@@ -154,9 +161,9 @@ function showLoader() {
         <div class="d-flex align-items-center gap-2">
           <% if (loggedUser != null) { %>
             <% if ("customer".equals(loggedRole)) { %>
-            <a href="CartServlet" class="btn btn-outline-secondary position-relative">
+            <a href="CartServlet" class="btn btn-outline-secondary position-relative" id="cartNavBtn">
                 <i class="bi bi-cart3 fs-5"></i>
-                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="cartBadge" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
             </a>
             <% } %>
             <div class="dropdown">
@@ -197,21 +204,19 @@ function showLoader() {
     </div>
 </nav>
 
-<!-- BACK TO SHOP -->
+<!-- BREADCRUMB -->
 <div class="bg-white border-bottom px-4 py-2">
-    <a href="index.jsp" class="text-decoration-none text-muted" style="font-size:13px;">
-        <i class="bi bi-arrow-left"></i> Back to Shop
-    </a>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0" style="font-size:13px;">
+            <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none text-primary">Home</a></li>
+            <li class="breadcrumb-item active text-muted"><%= name %></li>
+        </ol>
+    </nav>
 </div>
 
 <div class="container py-4">
     <!-- BREADCRUMB -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none">Home</a></li>
-            <li class="breadcrumb-item active"><%= name %></li>
-        </ol>
-    </nav>
+  
 
     <div class="row g-4">
         <!-- PRODUCT IMAGE -->
@@ -288,11 +293,20 @@ try {
 
                 <!-- SELLER INFO -->
                 <div class="seller-card">
-                    <p class="mb-0" style="font-size:13px;">
-                        <i class="bi bi-shop text-primary"></i>
-                        <strong> Sold by:</strong> <%= sellerName %>
-                    </p>
-                </div>
+    <a href="SellerPageServlet?id=<%= sellerId %>" class="text-decoration-none d-flex align-items-center gap-2">
+        <% if (sellerPfp != null && !sellerPfp.isEmpty()) { %>
+            <img src="<%= sellerPfp %>" style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid #0d6efd;">
+        <% } else { %>
+            <div style="width:36px; height:36px; border-radius:50%; background:#0d6efd; color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;">
+                <%= sellerName.substring(0,1).toUpperCase() %>
+            </div>
+        <% } %>
+        <div>
+            <p class="mb-0 fw-bold text-primary" style="font-size:13px;"><%= sellerName %></p>
+            <p class="mb-0 text-muted" style="font-size:11px;">View Shop →</p>
+        </div>
+    </a>
+</div>
 
                
                 <!-- VARIATIONS -->
@@ -332,8 +346,27 @@ try {
 <div class="mt-4">
     <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
         <% if (stock > 0) { %>
-            <button class="btn btn-primary add-cart-btn w-100 text-white" onclick="addToCart(<%= productId %>, <%= !variations.isEmpty() %>)">
+            <!-- QUANTITY SELECTOR -->
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <label class="fw-bold mb-0" style="font-size:13px;">Quantity:</label>
+                <div class="d-flex align-items-center border rounded-3 overflow-hidden">
+                    <button type="button" class="btn btn-light px-3 py-2" onclick="changeQty(-1)" style="border-radius:0; border:none;">
+                        <i class="bi bi-dash-lg"></i>
+                    </button>
+                    <input type="number" id="qtyInput" value="1" min="1" max="<%= stock %>"
+                        class="form-control text-center border-0 fw-bold"
+                        style="width:60px; border-radius:0; box-shadow:none;">
+                    <button type="button" class="btn btn-light px-3 py-2" onclick="changeQty(1)" style="border-radius:0; border:none;">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+                <span class="text-muted" style="font-size:12px;">/ <%= stock %> available</span>
+            </div>
+            <button class="btn btn-primary add-cart-btn w-100 text-white" onclick="addToCart(<%= productId %>, <%= !variations.isEmpty() %>)"> 
                 <i class="bi bi-cart-plus"></i> Add to Cart
+            </button>
+            <button class="btn btn-success w-100 mt-2 fw-bold" onclick="buyNow(<%= productId %>, <%= !variations.isEmpty() %>)">
+                <i class="bi bi-lightning-fill"></i> Buy Now
             </button>
             <button class="btn btn-outline-danger w-100 mt-2" id="wishlistBtn" onclick="toggleWishlist(<%= productId %>)">
                 <i class="bi bi-heart" id="wishlistIcon"></i> <span id="wishlistText">Add to Wishlist</span>
@@ -358,10 +391,6 @@ try {
     </div>
 </div>
 
-
-</div>
-</div>
-</div>
 
 <!-- REVIEWS SECTION -->
 <div class="container pb-5">
@@ -494,12 +523,49 @@ function selectVariation(btn, type) {
     document.getElementById('selectedVariationId').value = btn.dataset.id;
 }
 
-function addToCart(productId, hasVariations) {
+function changeQty(delta) {
+    const input = document.getElementById('qtyInput');
+    const max = parseInt(input.max);
+    let val = parseInt(input.value) + delta;
+    if (val < 1) val = 1;
+    if (val > max) val = max;
+    input.value = val;
+}
+
+function buyNow(productId, hasVariation) {
+    if (hasVariation) {
+        const selectedId = document.getElementById('selectedVariationId').value;
+        if (!selectedId) {
+            alert('Please select your preferred options first!');
+            return;
+        }
+    }
+    const varId = hasVariation ? document.getElementById('selectedVariationId').value : '';
+    const qty = document.getElementById('qtyInput') ? document.getElementById('qtyInput').value : '1';
+    
+    // First remove existing buyNow item if any, then add fresh
+    fetch('BuyNowServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'productId=' + productId + (varId ? '&variationId=' + varId : '') + '&quantity=' + qty
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = 'checkout.jsp?buyNow=true';
+        } else {
+            alert(data.message || 'Could not process Buy Now.');
+        }
+    })
+    .catch(err => console.error(err));
+}
+
+function addToCart(productId, hasVariation) {
     const variationId = document.getElementById('selectedVariationId') 
                         ? document.getElementById('selectedVariationId').value 
                         : '';
 
-    if (hasVariations && !variationId) {
+    if (hasVariation && !variationId) {
         const toast = document.getElementById('cartToast');
         toast.style.background = '#dc3545';
         toast.innerHTML = '<i class="bi bi-exclamation-circle-fill me-2"></i> Please select a variation first!';
@@ -512,7 +578,8 @@ function addToCart(productId, hasVariations) {
         return;
     }
 
-    let body = 'productId=' + productId;
+    const qty = document.getElementById('qtyInput') ? document.getElementById('qtyInput').value : '1';
+    let body = 'productId=' + productId + '&quantity=' + qty;
     if (variationId) body += '&variationId=' + variationId;
 
     fetch('AddToCartServlet', {
@@ -522,12 +589,18 @@ function addToCart(productId, hasVariations) {
     })
     .then(res => res.json())
     .then(data => {
-        if (data.success) {
+    	if (data.success) {
             const toast = document.getElementById('cartToast');
             toast.style.display = 'block';
             setTimeout(() => toast.style.display = 'none', 2500);
-            const badge = document.querySelector('.badge.bg-danger');
-            if (badge) badge.textContent = parseInt(badge.textContent || 0) + 1;
+            
+            // Gamitin ang newCount na galing sa database
+            const badge = document.getElementById('cartBadge');
+            if (badge) {
+                badge.textContent = data.newCount;
+            }
+        } else {
+            alert(data.message || 'Error adding to cart');
         }
     })
     .catch(err => console.error(err));
@@ -582,6 +655,14 @@ window.addEventListener('load', function() {
             document.getElementById('wishlistBtn').classList.remove('btn-outline-danger');
         }
     });
+});
+
+window.addEventListener('pageshow', function(e) {
+    if (e.persisted) {
+        // Page was loaded from cache (back button)
+        const qtyInput = document.getElementById('qtyInput');
+        if (qtyInput) qtyInput.value = 1;
+    }
 });
 </script>
 </body>

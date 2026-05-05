@@ -6,21 +6,37 @@
     try {
         java.sql.Connection prodConn = com.shopeasy.DBConnection.getConnection();
 
-     String catParam = request.getParameter("category");
-      String catFilter = (catParam != null && !catParam.isEmpty() && !catParam.equals("0")) ? "AND p.category_id = " + Integer.parseInt(catParam) + " " : "";
-      String searchFilter = (searchParam != null && !searchParam.trim().isEmpty()) ? "AND (p.name LIKE ? OR p.description LIKE ?) " : "";
-      java.sql.PreparedStatement prodPs = prodConn.prepareStatement(
-    "SELECT p.*, s.business_name, " +
-    "COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) AS avg_rating, " +
-    "COALESCE((SELECT COUNT(*) FROM review r WHERE r.product_id = p.product_id), 0) AS review_count, " +
-    "COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold " +
-    "FROM product p JOIN seller s ON p.seller_id = s.seller_id " +
-    "WHERE p.status='active' " + catFilter + searchFilter + "ORDER BY RAND()");
-      if (searchParam != null && !searchParam.trim().isEmpty()) {
-          String like = "%" + searchParam.trim() + "%";
-          prodPs.setString(1, like);
-          prodPs.setString(2, like);
-      }
+        String catParam = request.getParameter("category");
+        String minPriceParam = request.getParameter("minPrice");
+        String maxPriceParam = request.getParameter("maxPrice");
+        String minRatingParam = request.getParameter("minRating");
+        String sortParam = request.getParameter("sort");
+
+        String catFilter = (catParam != null && !catParam.isEmpty() && !catParam.equals("0")) ? "AND p.category_id = " + Integer.parseInt(catParam) + " " : "";
+        String searchFilter = (searchParam != null && !searchParam.trim().isEmpty()) ? "AND (p.name LIKE ? OR p.description LIKE ?) " : "";
+        String minPriceFilter = (minPriceParam != null && !minPriceParam.isEmpty()) ? "AND p.price >= " + Double.parseDouble(minPriceParam) + " " : "";
+        String maxPriceFilter = (maxPriceParam != null && !maxPriceParam.isEmpty()) ? "AND p.price <= " + Double.parseDouble(maxPriceParam) + " " : "";
+        String ratingFilter = (minRatingParam != null && !minRatingParam.isEmpty() && !minRatingParam.equals("0")) ? "HAVING avg_rating >= " + Double.parseDouble(minRatingParam) + " " : "";
+
+        String orderBy = "ORDER BY RAND()";
+        if ("price_asc".equals(sortParam)) orderBy = "ORDER BY p.price ASC";
+        else if ("price_desc".equals(sortParam)) orderBy = "ORDER BY p.price DESC";
+        else if ("rating".equals(sortParam)) orderBy = "ORDER BY avg_rating DESC";
+        else if ("newest".equals(sortParam)) orderBy = "ORDER BY p.product_id DESC";
+        else if ("best_seller".equals(sortParam)) orderBy = "ORDER BY total_sold DESC";
+
+        java.sql.PreparedStatement prodPs = prodConn.prepareStatement(
+        "SELECT p.*, s.business_name, " +
+        "COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) AS avg_rating, " +
+        "COALESCE((SELECT COUNT(*) FROM review r WHERE r.product_id = p.product_id), 0) AS review_count, " +
+        "COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold " +
+        "FROM product p JOIN seller s ON p.seller_id = s.seller_id " +
+        "WHERE p.status='active' " + catFilter + searchFilter + minPriceFilter + maxPriceFilter + ratingFilter + orderBy);
+        if (searchParam != null && !searchParam.trim().isEmpty()) {
+            String like = "%" + searchParam.trim() + "%";
+            prodPs.setString(1, like);
+            prodPs.setString(2, like);
+        }
 
 
         java.sql.ResultSet prodRs = prodPs.executeQuery();
@@ -392,6 +408,62 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
         <h5 class="fw-bold mb-0"><%= searchTitle %></h5>
         <span class="text-muted" style="font-size:13px;"><%= products.size() %> product<%= products.size() != 1 ? "s" : "" %> found</span>
     </div>
+
+    <!-- FILTER BAR -->
+    <%
+    String fMin = request.getParameter("minPrice") != null ? request.getParameter("minPrice") : "";
+    String fMax = request.getParameter("maxPrice") != null ? request.getParameter("maxPrice") : "";
+    String fRating = request.getParameter("minRating") != null ? request.getParameter("minRating") : "0";
+    String fSort = request.getParameter("sort") != null ? request.getParameter("sort") : "";
+    String fCat = request.getParameter("category") != null ? request.getParameter("category") : "0";
+    String fSearch = request.getParameter("search") != null ? request.getParameter("search") : "";
+    %>
+    <form id="filterForm" action="index.jsp" method="get" class="mb-3">
+        <input type="hidden" name="category" value="<%= fCat %>">
+        <input type="hidden" name="search" value="<%= fSearch %>">
+        <div class="card border-0 shadow-sm p-3 mb-3" style="border-radius:12px;">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="form-label mb-1 fw-bold" style="font-size:12px;">Min Price (₱)</label>
+                    <input type="number" name="minPrice" class="form-control form-control-sm" placeholder="0" value="<%= fMin %>" min="0">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label mb-1 fw-bold" style="font-size:12px;">Max Price (₱)</label>
+                    <input type="number" name="maxPrice" class="form-control form-control-sm" placeholder="Any" value="<%= fMax %>" min="0">
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label mb-1 fw-bold" style="font-size:12px;">Min Rating</label>
+                    <select name="minRating" class="form-select form-select-sm">
+                        <option value="0" <%= "0".equals(fRating) ? "selected" : "" %>>Any Rating</option>
+                        <option value="1" <%= "1".equals(fRating) ? "selected" : "" %>>⭐ 1 & up</option>
+                        <option value="2" <%= "2".equals(fRating) ? "selected" : "" %>>⭐⭐ 2 & up</option>
+                        <option value="3" <%= "3".equals(fRating) ? "selected" : "" %>>⭐⭐⭐ 3 & up</option>
+                        <option value="4" <%= "4".equals(fRating) ? "selected" : "" %>>⭐⭐⭐⭐ 4 & up</option>
+                        <option value="5" <%= "5".equals(fRating) ? "selected" : "" %>>⭐⭐⭐⭐⭐ 5 only</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label mb-1 fw-bold" style="font-size:12px;">Sort By</label>
+                    <select name="sort" class="form-select form-select-sm">
+                        <option value="" <%= "".equals(fSort) ? "selected" : "" %>>Default</option>
+                        <option value="price_asc" <%= "price_asc".equals(fSort) ? "selected" : "" %>>Price: Low to High</option>
+                        <option value="price_desc" <%= "price_desc".equals(fSort) ? "selected" : "" %>>Price: High to Low</option>
+                        <option value="rating" <%= "rating".equals(fSort) ? "selected" : "" %>>Highest Rated</option>
+                        <option value="newest" <%= "newest".equals(fSort) ? "selected" : "" %>>Newest</option>
+                        <option value="best_seller" <%= "best_seller".equals(fSort) ? "selected" : "" %>>Best Seller</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-funnel-fill"></i> Filter
+                    </button>
+                    <a href="index.jsp?category=<%= fCat %>&search=<%= fSearch %>" class="btn btn-outline-secondary btn-sm w-100">
+                        <i class="bi bi-x-lg"></i> Clear
+                    </a>
+                </div>
+            </div>
+        </div>
+    </form>
     
     <div class="row g-3">
 <% if (products.isEmpty()) { %>

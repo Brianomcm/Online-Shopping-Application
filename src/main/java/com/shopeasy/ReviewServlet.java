@@ -57,11 +57,32 @@ public class ReviewServlet extends HttpServlet {
             	} else {
             	    ps.setNull(5, java.sql.Types.VARCHAR);
             	}
-            ps.executeUpdate();
-            ps.close();
-            conn.close();
+            	ps.executeUpdate();
+                ps.close();
 
-            response.setContentType("text/plain");
+                // Notify seller
+                PreparedStatement sellerPs = conn.prepareStatement(
+                    "SELECT s.seller_id, c.name AS cname FROM product p " +
+                    "JOIN seller s ON p.seller_id = s.seller_id " +
+                    "JOIN customer c ON c.customer_id = ? " +
+                    "WHERE p.product_id = ?");
+                sellerPs.setInt(1, customerId);
+                sellerPs.setInt(2, productId);
+                ResultSet sellerRs = sellerPs.executeQuery();
+                if (sellerRs.next()) {
+                    int sellerId = sellerRs.getInt("seller_id");
+                    String cname = sellerRs.getString("cname");
+                    PreparedStatement notifPs = conn.prepareStatement(
+                        "INSERT INTO notifications (user_id, user_type, message) VALUES (?, 'seller', ?)");
+                    notifPs.setInt(1, sellerId);
+                    notifPs.setString(2, cname + " left a " + rating + "-star review on your product!");
+                    notifPs.executeUpdate();
+                    notifPs.close();
+                }
+                sellerRs.close(); sellerPs.close();
+                conn.close();
+
+                response.setContentType("text/plain");
             response.getWriter().print("ok");
         } catch (Exception e) {
             e.printStackTrace();

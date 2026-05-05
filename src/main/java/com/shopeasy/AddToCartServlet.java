@@ -28,6 +28,8 @@ public class AddToCartServlet extends HttpServlet {
 
         String productIdParam  = request.getParameter("productId");
         String variationIdParam = request.getParameter("variationId");
+        String quantityParam = request.getParameter("quantity");
+        int quantity = (quantityParam != null && !quantityParam.trim().isEmpty()) ? Integer.parseInt(quantityParam.trim()) : 1;
 
         if (productIdParam == null || productIdParam.trim().isEmpty()) {
             response.setContentType("application/json");
@@ -76,13 +78,12 @@ public class AddToCartServlet extends HttpServlet {
             rs = ps.executeQuery();
 
             if (rs.next()) {
-                // Update quantity
-                int newQty = rs.getInt("quantity") + 1;
+                // Update quantity — set directly, not add
                 int itemId = rs.getInt("cartitem_id");
                 ps.close();
                 ps = conn.prepareStatement(
-                    "UPDATE cartitem SET quantity=? WHERE cartitem_id=?");
-                ps.setInt(1, newQty);
+                    "UPDATE cartitem SET quantity=quantity+? WHERE cartitem_id=?");
+                ps.setInt(1, quantity);
                 ps.setInt(2, itemId);
                 ps.executeUpdate();
             } else {
@@ -92,15 +93,29 @@ public class AddToCartServlet extends HttpServlet {
                     "INSERT INTO cartitem (cart_id, product_id, quantity, variation_id) VALUES (?,?,?,?)");
                 ps.setInt(1, cartId);
                 ps.setInt(2, productId);
-                ps.setInt(3, 1);
+                ps.setInt(3, quantity);
                 if (variationId != null) ps.setInt(4, variationId);
                 else ps.setNull(4, java.sql.Types.INTEGER);
                 ps.executeUpdate();
             }
-            rs.close(); ps.close(); conn.close();
+            rs.close(); ps.close();
 
+            // Kunin ang bagong total count ng items sa cart
+            int totalCount = 0;
+            PreparedStatement psCount = conn.prepareStatement(
+                "SELECT SUM(quantity) FROM cartitem WHERE cart_id=?");
+            psCount.setInt(1, cartId);
+            ResultSet rsCount = psCount.executeQuery();
+            if(rsCount.next()) {
+                totalCount = rsCount.getInt(1);
+            }
+            rsCount.close(); 
+            psCount.close(); 
+            conn.close(); // Dito na natin isasara ang connection
+
+            // Ipadala ang bagong count pabalik sa browser
             response.setContentType("application/json");
-            response.getWriter().print("{\"success\":true}");
+            response.getWriter().print("{\"success\":true, \"newCount\":" + totalCount + "}");
 
         } catch (Exception e) {
             e.printStackTrace();

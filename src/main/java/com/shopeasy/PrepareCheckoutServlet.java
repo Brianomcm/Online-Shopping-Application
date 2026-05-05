@@ -19,6 +19,65 @@ import javax.servlet.http.HttpSession;
 @WebServlet("/PrepareCheckoutServlet")
 public class PrepareCheckoutServlet extends HttpServlet {
 
+	protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        HttpSession session = request.getSession();
+        if (session.getAttribute("userId") == null) {
+            response.sendRedirect("index.jsp");
+            return;
+        }
+
+        int customerId = (int) session.getAttribute("userId");
+        String productIdParam = request.getParameter("productId");
+        if (productIdParam == null) { response.sendRedirect("index.jsp"); return; }
+        int productId = Integer.parseInt(productIdParam);
+
+        try {
+            Connection conn = DBConnection.getConnection();
+            PreparedStatement ps = conn.prepareStatement(
+                "SELECT ci.cartitem_id, ci.quantity, ci.variation_id, p.product_id, p.seller_id, p.name, p.price, p.stock, p.image " +
+                "FROM cartitem ci " +
+                "JOIN cart c ON ci.cart_id = c.cart_id " +
+                "JOIN product p ON ci.product_id = p.product_id " +
+                "WHERE c.customer_id = ? AND p.product_id = ? " +
+                "ORDER BY ci.cartitem_id DESC LIMIT 1");
+            ps.setInt(1, customerId);
+            ps.setInt(2, productId);
+            ResultSet rs = ps.executeQuery();
+
+            List<Map<String, Object>> items = new ArrayList<>();
+            double total = 0;
+
+            if (rs.next()) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("cartitemId", rs.getInt("cartitem_id"));
+                item.put("productId", rs.getInt("product_id"));
+                item.put("sellerId", rs.getInt("seller_id"));
+                item.put("name", rs.getString("name"));
+                item.put("price", rs.getDouble("price"));
+                item.put("quantity", rs.getInt("quantity"));
+                item.put("stock", rs.getInt("stock"));
+                item.put("image", rs.getString("image"));
+                int varId = rs.getInt("variation_id");
+                if (!rs.wasNull()) item.put("variationId", varId);
+                double subtotal = rs.getDouble("price") * rs.getInt("quantity");
+                item.put("subtotal", subtotal);
+                total += subtotal;
+                items.add(item);
+            }
+            rs.close(); ps.close(); conn.close();
+
+            session.setAttribute("checkoutItems", items);
+            session.setAttribute("checkoutTotal", total);
+            response.sendRedirect("checkout.jsp");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.sendRedirect("index.jsp");
+        }
+    }
+
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 

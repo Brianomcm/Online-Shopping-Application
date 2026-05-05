@@ -66,7 +66,7 @@
                             <input class="form-check-input" type="checkbox" id="rememberMe">
                             <label class="form-check-label" style="font-size:13px;" for="rememberMe">Remember me</label>
                         </div>
-                        <a href="#" class="text-primary" style="font-size:13px;">Forgot password?</a>
+                       <a href="#" class="text-primary" style="font-size:13px;" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal">Forgot password?</a>
                     </div>
                     <div id="loginError" class="alert alert-danger py-2 mb-3" style="display:none; font-size:13px;">
                         <i class="bi bi-x-circle-fill"></i> <span id="loginErrorText">Invalid email or password.</span>
@@ -197,9 +197,9 @@
 
                 <div class="mt-3">
                     <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="agreeTerms" required>
+                        <input class="form-check-input" type="checkbox" id="agreeTerms" required disabled>
                         <label class="form-check-label" for="agreeTerms" style="font-size:13px;">
-                            I agree to the <a href="#" class="text-primary">Terms and Conditions</a> and <a href="#" class="text-primary">Privacy Policy</a>
+I agree to the <a href="#" class="text-primary" data-bs-toggle="modal" data-bs-target="#termsPrivacyModal">Terms and Conditions & Privacy Policy</a>
                         </label>
                     </div>
                     <input type="hidden" name="accountType" id="accountTypeInput" value="customer">
@@ -253,6 +253,250 @@
     <p class="fw-bold text-primary fs-5">Logging out...</p>
 </div>
 
+
+<!-- FORGOT PASSWORD MODAL -->
+<div class="modal fade" id="forgotPasswordModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+        <div class="modal-content rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-shield-lock-fill text-primary"></i> Reset Password
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-4 pb-4">
+
+                <!-- STEP 1: Verify Identity -->
+                <div id="forgotStep1">
+                    <p class="text-muted mb-3" style="font-size:13px;">Enter your email and username to verify your identity.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-envelope"></i></span>
+                          <input type="email" id="forgotEmail" class="form-control" placeholder="Enter your email" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
+                          <input type="text" id="forgotUsername" class="form-control" placeholder="Enter your username" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div id="forgotError" class="alert alert-danger py-2 mb-3" style="display:none; font-size:13px;">
+                        <i class="bi bi-x-circle-fill"></i> <span id="forgotErrorText">Email or username not found.</span>
+                    </div>
+                    <button class="btn btn-primary w-100 fw-bold py-2" id="verifyBtn" onclick="verifyForgotIdentity()">
+                        <i class="bi bi-search"></i> Verify Identity
+                    </button>
+                </div>
+
+                <!-- STEP 2: Set New Password -->
+                <div id="forgotStep2" style="display:none;">
+                    <div class="alert alert-success py-2 mb-3" style="font-size:13px;">
+                        <i class="bi bi-check-circle-fill"></i> Identity verified! Set your new password.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
+                            <input type="password" id="forgotNewPass" class="form-control" placeholder="Enter new password">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('forgotNewPass', this)"><i class="bi bi-eye"></i></button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Confirm New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
+                            <input type="password" id="forgotConfirmPass" class="form-control" placeholder="Confirm new password">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('forgotConfirmPass', this)"><i class="bi bi-eye"></i></button>
+                        </div>
+                    </div>
+                    <div id="forgotPassError" class="alert alert-danger py-2 mb-3" style="display:none; font-size:13px;">
+                        <i class="bi bi-x-circle-fill"></i> <span id="forgotPassErrorText">Passwords do not match.</span>
+                    </div>
+                    <button class="btn btn-success w-100 fw-bold py-2" onclick="submitForgotPassword()">
+                        <i class="bi bi-shield-check"></i> Update Password
+                    </button>
+                </div>
+
+                <!-- STEP 3: Success -->
+                <div id="forgotStep3" style="display:none;">
+                    <div class="text-center py-3">
+                        <i class="bi bi-check-circle-fill text-success" style="font-size:3rem;"></i>
+                        <h5 class="fw-bold mt-3">Password Updated!</h5>
+                        <p class="text-muted" style="font-size:13px;">Your password has been successfully reset.</p>
+                        <button class="btn btn-primary w-100 fw-bold" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#loginModal">
+                            <i class="bi bi-box-arrow-in-right"></i> Back to Login
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TERMS & PRIVACY COMBINED MODAL -->
+<div class="modal fade" id="termsPrivacyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-file-text-fill text-primary"></i> Terms & Privacy Policy</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-4">
+                <!-- TABS -->
+                <ul class="nav nav-tabs mb-3" id="termsPrivacyTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active fw-bold" id="terms-tab" data-bs-toggle="tab" data-bs-target="#termsContent">
+                            <i class="bi bi-file-text me-1"></i> Terms and Conditions
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="privacy-tab" data-bs-toggle="tab" data-bs-target="#privacyContent">
+                            <i class="bi bi-shield-check me-1"></i> Privacy Policy
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content" style="max-height:55vh; overflow-y:auto;">
+                    <!-- TERMS TAB -->
+                    <div class="tab-pane fade show active" id="termsContent">
+                        <p class="text-muted" style="font-size:13px;">Last updated: May 2025</p>
+                        <h6 class="fw-bold">1. Acceptance of Terms</h6>
+                        <p style="font-size:13px;">By accessing and using ShopEasy, you agree to be bound by these Terms and Conditions. If you do not agree, please do not use our platform.</p>
+                        <h6 class="fw-bold">2. User Accounts</h6>
+                        <p style="font-size:13px;">You are responsible for maintaining the confidentiality of your account and password. You agree to accept responsibility for all activities that occur under your account.</p>
+                        <h6 class="fw-bold">3. Products and Services</h6>
+                        <p style="font-size:13px;">ShopEasy serves as a platform connecting buyers and sellers. We do not guarantee the quality, safety, or legality of items advertised.</p>
+                        <h6 class="fw-bold">4. Orders and Payments</h6>
+                        <p style="font-size:13px;">All orders are subject to availability. Prices are subject to change without notice. Payment must be completed before orders are processed.</p>
+                        <h6 class="fw-bold">5. Returns and Refunds</h6>
+                        <p style="font-size:13px;">Refund requests must be submitted within 7 days of receiving the item. Items must be in original condition. Shipping costs for returns are the buyer's responsibility.</p>
+                        <h6 class="fw-bold">6. Prohibited Activities</h6>
+                        <p style="font-size:13px;">Users must not engage in fraudulent activities, post false information, or violate any applicable laws while using ShopEasy.</p>
+                        <h6 class="fw-bold">7. Limitation of Liability</h6>
+                        <p style="font-size:13px;">ShopEasy shall not be liable for any indirect, incidental, or consequential damages arising from the use of our platform.</p>
+                        <h6 class="fw-bold">8. Changes to Terms</h6>
+                        <p style="font-size:13px;">We reserve the right to modify these terms at any time. Continued use of ShopEasy after changes constitutes acceptance of the new terms.</p>
+                    </div>
+                    <!-- PRIVACY TAB -->
+                    <div class="tab-pane fade" id="privacyContent">
+                        <p class="text-muted" style="font-size:13px;">Last updated: May 2025</p>
+                        <h6 class="fw-bold">1. Information We Collect</h6>
+                        <p style="font-size:13px;">We collect information you provide when creating an account, such as your name, email address, phone number, and password.</p>
+                        <h6 class="fw-bold">2. How We Use Your Information</h6>
+                        <p style="font-size:13px;">Your information is used to process orders, provide customer support, send important updates, and improve our services.</p>
+                        <h6 class="fw-bold">3. Information Sharing</h6>
+                        <p style="font-size:13px;">We do not sell or rent your personal information to third parties. We may share information with sellers only as necessary to fulfill your orders.</p>
+                        <h6 class="fw-bold">4. Data Security</h6>
+                        <p style="font-size:13px;">We implement appropriate security measures to protect your personal information from unauthorized access, alteration, or disclosure.</p>
+                        <h6 class="fw-bold">5. Cookies</h6>
+                        <p style="font-size:13px;">ShopEasy uses cookies to enhance your browsing experience. You may disable cookies in your browser settings, but some features may not function properly.</p>
+                        <h6 class="fw-bold">6. Your Rights</h6>
+                        <p style="font-size:13px;">You have the right to access, correct, or delete your personal information at any time through your account settings.</p>
+                        <h6 class="fw-bold">7. Contact Us</h6>
+                        <p style="font-size:13px;">If you have questions about this Privacy Policy, please contact us at support@shopeasy.com.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-primary px-4" onclick="acceptTermsPrivacy()">
+                    <i class="bi bi-check-circle"></i> I Understand & Agree
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.getElementById('forgotPasswordModal').addEventListener('shown.bs.modal', function() {
+    setTimeout(() => {
+        document.getElementById('forgotEmail').value = '';
+        document.getElementById('forgotUsername').value = '';
+        document.getElementById('forgotNewPass').value = '';
+        document.getElementById('forgotConfirmPass').value = '';
+    }, 500);
+    document.getElementById('forgotError').style.display = 'none';
+    document.getElementById('forgotPassError').style.display = 'none';
+    document.getElementById('forgotStep1').style.display = 'block';
+    document.getElementById('forgotStep2').style.display = 'none';
+    document.getElementById('forgotStep3').style.display = 'none';
+});
+
+function verifyForgotIdentity() {
+        const email = document.getElementById('forgotEmail').value.trim();
+        const username = document.getElementById('forgotUsername').value.trim();
+        if (!email || !username) {
+            document.getElementById('forgotErrorText').textContent = 'Please fill in all fields.';
+            document.getElementById('forgotError').style.display = 'block';
+            return;
+        }
+
+        // Show loading
+        const btn = document.getElementById('verifyBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Finding your account...';
+        document.getElementById('forgotError').style.display = 'none';
+
+        setTimeout(() => {
+            fetch('ForgotPasswordServlet', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'action=verify&email=' + encodeURIComponent(email) + '&username=' + encodeURIComponent(username)
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-search"></i> Verify Identity';
+                if (data.success) {
+                    document.getElementById('forgotError').style.display = 'none';
+                    document.getElementById('forgotStep1').style.display = 'none';
+                    document.getElementById('forgotStep2').style.display = 'block';
+                } else {
+                    document.getElementById('forgotErrorText').textContent = data.message || 'Email or username not found.';
+                    document.getElementById('forgotError').style.display = 'block';
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-search"></i> Verify Identity';
+                document.getElementById('forgotErrorText').textContent = 'Server error. Please try again.';
+                document.getElementById('forgotError').style.display = 'block';
+            });
+        }, 1500);
+    }
+
+function submitForgotPassword() {
+    const email = document.getElementById('forgotEmail').value.trim();
+    const newPass = document.getElementById('forgotNewPass').value;
+    const confirmPass = document.getElementById('forgotConfirmPass').value;
+    if (newPass !== confirmPass) {
+        document.getElementById('forgotPassErrorText').textContent = 'Passwords do not match.';
+        document.getElementById('forgotPassError').style.display = 'block';
+        return;
+    }
+    if (newPass.length < 6) {
+        document.getElementById('forgotPassErrorText').textContent = 'Password must be at least 6 characters.';
+        document.getElementById('forgotPassError').style.display = 'block';
+        return;
+    }
+    fetch('ForgotPasswordServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'action=reset&email=' + encodeURIComponent(email) + '&newPassword=' + encodeURIComponent(newPass)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('forgotStep2').style.display = 'none';
+            document.getElementById('forgotStep3').style.display = 'block';
+        } else {
+            document.getElementById('forgotPassErrorText').textContent = data.message || 'Failed to update password.';
+            document.getElementById('forgotPassError').style.display = 'block';
+        }
+    });
+}
+</script>
 <script>
 function togglePassword(fieldId, btn) {
     const field = document.getElementById(fieldId);
@@ -319,5 +563,40 @@ function handleLoginSubmit(e, form) {
         setTimeout(() => { form.submit(); }, 1500);
     }, 300);
     return false;
+}
+
+</script>
+
+<script>
+function acceptTermsPrivacy() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('termsPrivacyModal'));
+    if (modal) modal.hide();
+    document.getElementById('termsPrivacyModal').addEventListener('hidden.bs.modal', function handler() {
+        document.getElementById('termsPrivacyModal').removeEventListener('hidden.bs.modal', handler);
+        new bootstrap.Modal(document.getElementById('registerModal')).show();
+        const checkbox = document.getElementById('agreeTerms');
+        checkbox.disabled = false;
+        checkbox.checked = true;
+    });
+}
+
+function acceptPrivacy() {
+    privacyAccepted = true;
+    const privacyModal = bootstrap.Modal.getInstance(document.getElementById('privacyModal'));
+    if (privacyModal) privacyModal.hide();
+    document.getElementById('privacyModal').addEventListener('hidden.bs.modal', function handler() {
+        document.getElementById('privacyModal').removeEventListener('hidden.bs.modal', handler);
+        const registerModal = new bootstrap.Modal(document.getElementById('registerModal'));
+        registerModal.show();
+        checkEnableCheckbox();
+    });
+}
+
+function checkEnableCheckbox() {
+    if (termsAccepted && privacyAccepted) {
+        const checkbox = document.getElementById('agreeTerms');
+        checkbox.disabled = false;
+        checkbox.checked = true;
+    }
 }
 </script>

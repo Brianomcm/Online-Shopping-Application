@@ -17,10 +17,20 @@ public class UpdateOrderServlet extends HttpServlet {
         String status = request.getParameter("status");
         try {
             Connection conn = DBConnection.getConnection();
-            PreparedStatement ps = conn.prepareStatement(
-                "UPDATE orders SET status=? WHERE order_id=?");
-            ps.setString(1, status);
-            ps.setInt(2, orderId);
+            String reason = request.getParameter("reason");
+            PreparedStatement ps;
+            if (reason != null && !reason.isEmpty()) {
+                ps = conn.prepareStatement(
+                    "UPDATE orders SET status=?, cancel_reason=? WHERE order_id=?");
+                ps.setString(1, status);
+                ps.setString(2, reason);
+                ps.setInt(3, orderId);
+            } else {
+                ps = conn.prepareStatement(
+                    "UPDATE orders SET status=? WHERE order_id=?");
+                ps.setString(1, status);
+                ps.setInt(2, orderId);
+            }
             ps.executeUpdate();
             ps.close();
 

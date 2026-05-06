@@ -61,12 +61,14 @@ public class CheckoutServlet extends HttpServlet {
 
             // Insert into orders table
             String fullAddress = shipName + " | " + shipPhone + " | " + shipAddress;
-            String orderSql = "INSERT INTO orders (customer_id, total_amount, status, payment_method, shipping_address) VALUES (?, ?, 'Pending', ?, ?)";
+            String initialStatus = "Pending";
+            String orderSql = "INSERT INTO orders (customer_id, total_amount, status, payment_method, shipping_address) VALUES (?, ?, ?, ?, ?)";
             PreparedStatement orderPs = conn.prepareStatement(orderSql, PreparedStatement.RETURN_GENERATED_KEYS);
             orderPs.setInt(1, customerId);
             orderPs.setDouble(2, cartTotal);
-            orderPs.setString(3, paymentMethod);
-            orderPs.setString(4, fullAddress);
+            orderPs.setString(3, initialStatus);
+            orderPs.setString(4, paymentMethod);
+            orderPs.setString(5, fullAddress);
             orderPs.executeUpdate();
 
             ResultSet generatedKeys = orderPs.getGeneratedKeys();

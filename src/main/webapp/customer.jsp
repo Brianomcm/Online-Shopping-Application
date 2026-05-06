@@ -398,12 +398,12 @@
                             java.text.SimpleDateFormat ordSdf = new java.text.SimpleDateFormat("MMM d, yyyy h:mm a");
                             ordSdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Manila"));
                             java.sql.PreparedStatement ordPs = ordConn.prepareStatement(
-                                    "SELECT o.order_id, o.total_amount, o.status, o.payment_method, o.shipping_address, o.order_date, " +
-                                    "GROUP_CONCAT(DISTINCT s.business_name ORDER BY s.business_name SEPARATOR ', ') AS shop_names " +
-                                    "FROM orders o " +
-                                    "JOIN order_items oi ON o.order_id = oi.order_id " +
-                                    "JOIN seller s ON oi.seller_id = s.seller_id " +
-                                    "WHERE o.customer_id=? GROUP BY o.order_id ORDER BY o.order_id DESC");
+                            		"SELECT o.order_id, o.total_amount, o.status, o.payment_method, o.shipping_address, o.order_date, o.cancel_reason, " +
+                            				"GROUP_CONCAT(DISTINCT s.business_name ORDER BY s.business_name SEPARATOR ', ') AS shop_names " +
+                            				"FROM orders o " +
+                            				"JOIN order_items oi ON o.order_id = oi.order_id " +
+                            				"LEFT JOIN seller s ON oi.seller_id = s.seller_id " +
+                            				"WHERE o.customer_id=? AND o.status != 'Awaiting Payment' GROUP BY o.order_id ORDER BY o.order_id DESC");
                             ordPs.setInt(1, custId2);
                             java.sql.ResultSet ordRs = ordPs.executeQuery();
                             while (ordRs.next()) {
@@ -415,6 +415,7 @@
                                 ord.put("address", ordRs.getString("shipping_address"));
                                 java.sql.Timestamp ordTs = ordRs.getTimestamp("order_date");
                                 ord.put("date", ordTs != null ? ordSdf.format(ordTs) : "Date not available");
+                                ord.put("cancelReason", ordRs.getString("cancel_reason"));
                                 ord.put("shopNames", ordRs.getString("shop_names"));
                                 myOrders.add(ord);
                             }
@@ -422,23 +423,22 @@
                         } catch (Exception ex) { ex.printStackTrace(); }
                     %>
                     <!-- STATUS TABS -->
-                    <ul class="nav nav-tabs mb-3" id="orderTabs" style="flex-wrap:nowrap; overflow-x:auto;">
-                        <li class="nav-item"><a class="nav-link active" href="#" onclick="filterOrders('All', this)">All</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Pending', this)">To Pay</a></li>
-                       <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Processing', this)">To Ship</a></li>
-						<li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancellation Requested', this)">Cancel Requests</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Shipped', this)">To Receive</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Completed', this)">Completed</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancelled', this)">Cancelled</a></li>
-                    </ul>
-                    <% if (myOrders.isEmpty()) { %>
+                  <ul class="nav nav-tabs mb-3" id="orderTabs" style="flex-wrap:nowrap; overflow-x:auto;">
+    <li class="nav-item"><a class="nav-link active" href="#" onclick="filterOrders('All', this)">All</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('To Ship', this)">To Ship</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Shipped', this)">To Receive</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Completed', this)">Completed</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancellation Requested', this)">Cancel Requests</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancelled', this)">Cancelled</a></li>
+</ul>
+              <% if (myOrders.isEmpty()) { %>
                         <div class="text-center py-4 text-muted">
                             <i class="bi bi-bag fs-1 opacity-25"></i>
                             <p class="mt-2">No orders yet.</p>
                         </div>
                     <% } else { %>
                         <% for (java.util.Map<String, Object> ord : myOrders) { %>
-                        <div class="order-item order-card" data-status="<%= ord.get("status") %>">
+                        <div class="order-item order-card" data-status="<%= ord.get("status") %>" data-payment="<%= ord.get("payment") %>">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
                                     <p class="mb-0 fw-bold" style="font-size:14px;">Order #SE-<%= ord.get("id") %></p>
@@ -453,10 +453,12 @@
                                     else if ("Processing".equals(ordStatus)) badgeColor = "bg-primary";
                                 %>
                                 <span class="badge <%= badgeColor %> order-badge"><%= ordStatus %></span>
+                                
+
                             </div>
                             <p class="mb-1 fw-semibold" style="font-size:12px; color:#0d6efd;">
-                                <i class="bi bi-shop"></i> <%= ord.get("shopNames") %>
-                            </p>
+    <i class="bi bi-shop"></i> <%= ord.get("shopNames") != null ? ord.get("shopNames") : "Unknown Shop" %>
+</p>
                             <p class="mb-1 text-muted" style="font-size:12px;">
                                 <i class="bi bi-geo-alt"></i> <%= ord.get("address") %>
                             </p>
@@ -511,12 +513,39 @@
 
                             <div class="d-flex justify-content-between align-items-center mt-2">
     <p class="mb-0 fw-bold text-primary">Total: ₱<%= String.format("%.2f", ord.get("total")) %></p>
-    <div class="d-flex gap-2 flex-wrap">
-    <% if ("Processing".equals(ord.get("status"))) { %>
-    <button class="btn btn-outline-danger btn-sm"
-        onclick="openCancelModal(<%= ord.get("id") %>)">
-        <i class="bi bi-x-circle"></i> Cancel Order
-    </button>
+    <div class="d-flex gap-2 flex-wrap flex-column align-items-end">
+    <% if ("Cancelled".equals(ord.get("status"))) {
+        String custCancelReason = ord.get("cancelReason") != null ? (String) ord.get("cancelReason") : "";
+        boolean cancelledBySeller = custCancelReason.toLowerCase().contains("cancelled by seller");
+        boolean cancelledByCustomer = custCancelReason.toLowerCase().contains("cancelled by customer");
+    %>
+        <% if (cancelledBySeller) { %>
+            <span class="badge bg-danger px-3 py-2" style="font-size:12px;">
+                <i class="bi bi-shop"></i> Cancelled by Seller
+            </span>
+        <% } else if (cancelledByCustomer) { %>
+            <span class="badge bg-secondary px-3 py-2" style="font-size:12px;">
+                <i class="bi bi-person-x-fill"></i> Cancelled by You
+            </span>
+        <% } %>
+        <% if (!custCancelReason.isEmpty()) { %>
+            <div class="p-2 rounded-3" style="background:#fff0f0; border:1px solid #f5c2c7; font-size:12px;">
+                <i class="bi bi-chat-left-text text-danger me-1"></i>
+                <strong>Reason:</strong> <%= custCancelReason %>
+            </div>
+        <% } %>
+    <% } %>
+    <% if ("Pending".equals(ord.get("status"))) { %>
+<button class="btn btn-outline-danger btn-sm"
+    onclick="cancelPendingOrder(<%= ord.get("id") %>)">
+    <i class="bi bi-x-circle"></i> Cancel Order
+</button>
+<% } %>
+<% if ("Processing".equals(ord.get("status"))) { %>
+<button class="btn btn-outline-danger btn-sm"
+    onclick="openCancelModal(<%= ord.get("id") %>)">
+    <i class="bi bi-x-circle"></i> Request Cancel
+</button>
 <% } %>
 <% if ("Cancellation Requested".equals(ord.get("status"))) { %>
     <span class="badge bg-warning text-dark px-3 py-2" style="font-size:12px;">
@@ -530,9 +559,7 @@
             try {
                 java.sql.Connection rvChkConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement rvChkPs = rvChkConn.prepareStatement(
-                	    "SELECT COUNT(*) FROM review r " +
-                	    "JOIN order_items oi ON r.product_id = oi.product_id AND r.customer_id = ? " +
-                	    "WHERE oi.order_id = ?");
+                	    "SELECT COUNT(*) FROM review WHERE customer_id=? AND order_id=?");
                 	rvChkPs.setInt(1, (int) session.getAttribute("userId"));
                 	rvChkPs.setInt(2, (Integer) ord.get("id"));
                 	java.sql.ResultSet rvChkRs = rvChkPs.executeQuery();
@@ -544,12 +571,12 @@
             <span class="badge bg-success px-3 py-2" style="font-size:12px;">
                 <i class="bi bi-check-circle"></i> Reviewed
             </span>
-        <% } else { %>
-            <button class="btn btn-warning btn-sm text-dark fw-semibold"
+       <% } else { %>
+<button class="btn btn-warning btn-sm text-dark fw-semibold"
     onclick="openReviewModal(<%= ord.get("id") %>, <%= firstProductId %>)">
     <i class="bi bi-star-fill"></i> Write a Review
 </button>
-        <% } %>
+<% } %>
     <% } %>
     </div>
 </div>
@@ -571,8 +598,8 @@
                 int rvCustId = (int) session.getAttribute("userId");
                 java.sql.Connection rvConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement rvPs = rvConn.prepareStatement(
-                	    "SELECT r.review_id, r.product_id, r.rating, r.comment, r.photo, " +
-                	    "p.name AS pname, p.image AS pimage " +
+                		"SELECT r.review_id, r.product_id, r.rating, r.comment, r.photo, r.created_at, r.is_edited, " +
+                				"p.name AS pname, p.image AS pimage " +
                 	    "FROM review r JOIN product p ON r.product_id = p.product_id " +
                 	    "WHERE r.customer_id = ? ORDER BY r.review_id DESC");
                 rvPs.setInt(1, rvCustId);
@@ -582,29 +609,54 @@
                     hasReviews = true;
         %>
         <%
-    int rvId = rvRs.getInt("review_id");
-    int rvProdId = rvRs.getInt("product_id");
-    int rvRating = rvRs.getInt("rating");
-    String rvComment = rvRs.getString("comment");
-    String rvPhoto = rvRs.getString("photo");
-    String rvPname = rvRs.getString("pname");
-    String rvPimage = rvRs.getString("pimage");
-%>
+        int rvId = rvRs.getInt("review_id");
+        int rvProdId = rvRs.getInt("product_id");
+        int rvRating = rvRs.getInt("rating");
+        String rvComment = rvRs.getString("comment");
+        String rvPhoto = rvRs.getString("photo");
+        String rvPname = rvRs.getString("pname");
+        String rvPimage = rvRs.getString("pimage");
+        java.sql.Timestamp rvCreatedAt = rvRs.getTimestamp("created_at");
+        long rvDaysSince = rvCreatedAt != null
+            ? (System.currentTimeMillis() - rvCreatedAt.getTime()) / (1000 * 60 * 60 * 24)
+            : 999;
+        int rvIsEdited = rvRs.getInt("is_edited");
+        boolean rvCanEdit = rvDaysSince <= 7 && rvIsEdited == 0;
+        %>
 <div class="d-flex gap-3 p-3 mb-3 border rounded-3" id="review-<%= rvId %>">
+    <a href="product.jsp?id=<%= rvProdId %>" style="flex-shrink:0;">
     <% if (rvPimage != null && !rvPimage.isEmpty()) { %>
-        <img src="<%= rvPimage %>" style="width:60px; height:60px; object-fit:cover; border-radius:8px; flex-shrink:0;">
+        <img src="<%= rvPimage %>" style="width:60px; height:60px; object-fit:cover; border-radius:8px;">
     <% } else { %>
-        <div style="width:60px; height:60px; background:#f0f0f0; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <div style="width:60px; height:60px; background:#f0f0f0; border-radius:8px; display:flex; align-items:center; justify-content:center;">
             <i class="bi bi-image text-muted"></i>
         </div>
     <% } %>
+    </a>
     <div class="flex-grow-1">
         <div class="d-flex justify-content-between align-items-start">
-            <p class="mb-1 fw-bold" style="font-size:14px;"><%= rvPname %></p>
-            <button class="btn btn-outline-primary btn-sm"
-                onclick="openEditReviewModal(<%= rvId %>, <%= rvProdId %>, <%= rvRating %>, '<%= rvComment != null ? rvComment.replace("'", "\\'").replace("\n", "\\n") : "" %>', '<%= rvPhoto != null ? rvPhoto : "" %>')">
-                <i class="bi bi-pencil"></i> Edit
-            </button>
+            <a href="product.jsp?id=<%= rvProdId %>" class="text-decoration-none text-dark">
+                <p class="mb-1 fw-bold" style="font-size:14px;"><%= rvPname %></p>
+            </a>
+            <% if (rvCanEdit) { %>
+    <div class="d-flex flex-column align-items-end gap-1">
+        <button class="btn btn-outline-primary btn-sm"
+            onclick="openEditReviewModal(<%= rvId %>, <%= rvProdId %>, <%= rvRating %>, '<%= rvComment != null ? rvComment.replace("'", "\\'").replace("\n", "\\n") : "" %>', '<%= rvPhoto != null ? rvPhoto : "" %>')">
+            <i class="bi bi-pencil"></i> Edit
+        </button>
+        <span class="text-muted" style="font-size:11px;">
+            <i class="bi bi-clock"></i> <%= 7 - rvDaysSince %> day<%= (7 - rvDaysSince) == 1 ? "" : "s" %> left to edit
+        </span>
+    </div>
+<% } else if (rvIsEdited == 1) { %>
+    <span class="badge bg-success" style="font-size:11px;">
+        <i class="bi bi-check-circle"></i> Reviewed
+    </span>
+<% } else { %>
+    <span class="badge bg-secondary" style="font-size:11px;">
+        <i class="bi bi-lock"></i> Edit expired
+    </span>
+<% } %>
         </div>
         <div class="mb-1" id="rvStars-<%= rvId %>">
             <% for (int s = 1; s <= 5; s++) { %>
@@ -959,6 +1011,12 @@ window.addEventListener('load', function() {
         document.getElementById('tab-orders').classList.add('active');
         document.querySelector('.sidebar-nav a[onclick*="orders"]').classList.add('active');
     }
+    if (tabParam === 'reviews') {
+        document.querySelectorAll('.tab-content-section').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+        document.getElementById('tab-reviews').classList.add('active');
+        document.querySelector('.sidebar-nav a[onclick*="reviews"]').classList.add('active');
+    }
     
     if (tabParam === 'address') {
         document.querySelectorAll('.tab-content-section').forEach(t => t.classList.remove('active'));
@@ -1227,18 +1285,22 @@ window.addEventListener('load', function() {
         const cards = document.querySelectorAll('.order-card');
         let visible = 0;
         cards.forEach(card => {
-            if (status === 'All' || card.dataset.status === status) {
-                card.style.display = 'block';
-                visible++;
+            let show = false;
+            if (status === 'All') {
+                show = true;
+            } else if (status === 'To Ship') {
+                show = card.dataset.status === 'Pending' || card.dataset.status === 'Processing';
+            } else if (status === 'Shipped') {
+                show = card.dataset.status === 'Shipped';
             } else {
-                card.style.display = 'none';
+                show = card.dataset.status === status;
             }
+            card.style.display = show ? 'block' : 'none';
+            if (show) visible++;
         });
         const ef = document.getElementById('emptyFilter');
         if (ef) ef.style.display = visible === 0 ? 'block' : 'none';
     }
-    
-    
  // REVIEW MODAL
     let currentReviewOrderId = 0;
     let currentRating = 0;
@@ -1287,7 +1349,6 @@ window.addEventListener('load', function() {
         const orderId = document.getElementById('reviewOrderId').value;
         const productId = document.getElementById('reviewProductId').value;
         const photo = document.getElementById('reviewPhotoData').value;
-
         if (rating === 0) { alert('Please select a star rating!'); return; }
         if (comment === '') { alert('Please write a comment!'); return; }
 
@@ -1314,7 +1375,9 @@ window.addEventListener('load', function() {
     if (data.trim() === 'ok') {
         closeReviewModal();
         document.getElementById('savingOverlay').style.display = 'flex';
-        setTimeout(() => location.reload(), 1000);
+        setTimeout(() => {
+            window.location.href = 'customer.jsp?tab=reviews';
+        }, 1000);
     } else {
         alert('Something went wrong. Please try again.');
     }
@@ -1424,23 +1487,19 @@ window.addEventListener('load', function() {
         });
     }
     
-    function openCancelModal(orderId) {
-        document.getElementById('cancelOrderId').value = orderId;
-        document.querySelectorAll('input[name="cancelReason"]').forEach(r => r.checked = false);
-        document.getElementById('otherReasonText').value = '';
-        document.getElementById('otherReasonBox').style.display = 'none';
-        document.getElementById('cancelError').style.display = 'none';
-        document.getElementById('cancelOrderModal').style.display = 'block';
+    let cancelOrderType = 'processing'; // track kung pending or processing
 
-        document.getElementById('reasonOther').addEventListener('change', function() {
-            document.getElementById('otherReasonBox').style.display = this.checked ? 'block' : 'none';
-        });
-        document.querySelectorAll('input[name="cancelReason"]').forEach(r => {
-            r.addEventListener('change', function() {
-                document.getElementById('otherReasonBox').style.display =
-                    this.value === 'other' ? 'block' : 'none';
-            });
-        });
+    function openCancelModal(orderId, type) {
+        cancelOrderType = type || 'processing';
+        document.getElementById('cancelOrderId').value = orderId;
+        document.getElementById('cancelReasonSelect').value = '';
+        document.getElementById('otherReasonText').value = '';
+        document.getElementById('cancelError').style.display = 'none';
+        document.getElementById('cancelOrderModal').style.display = 'flex';
+    }
+
+    function cancelPendingOrder(orderId) {
+        openCancelModal(orderId, 'pending');
     }
 
     function closeCancelModal() {
@@ -1449,28 +1508,27 @@ window.addEventListener('load', function() {
 
     function submitCancelOrder() {
         const orderId = document.getElementById('cancelOrderId').value;
-        const selected = document.querySelector('input[name="cancelReason"]:checked');
+        const reason = document.getElementById('cancelReasonSelect').value;
+        const other = document.getElementById('otherReasonText').value.trim();
         document.getElementById('cancelError').style.display = 'none';
 
-        if (!selected) {
+        if (!reason) {
             document.getElementById('cancelError').style.display = 'block';
             return;
         }
 
-        let reason = selected.value;
-        if (reason === 'other') {
-            reason = document.getElementById('otherReasonText').value.trim();
-            if (!reason) {
-                document.getElementById('cancelError').style.display = 'block';
-                document.getElementById('cancelError').textContent = 'Please type your reason.';
-                return;
-            }
-        }
+        const fullReason = reason === 'Other' && other
+            ? other + ' (Cancelled by customer)'
+            : reason + ' (Cancelled by customer)';
+
+        const cancelBody = cancelOrderType === 'pending'
+            ? 'orderId=' + orderId + '&reason=' + encodeURIComponent(fullReason) + '&type=direct'
+            : 'orderId=' + orderId + '&reason=' + encodeURIComponent(fullReason);
 
         fetch('CancelOrderServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'orderId=' + orderId + '&reason=' + encodeURIComponent(reason)
+            body: cancelBody
         })
         .then(res => res.json())
         .then(data => {
@@ -1484,7 +1542,6 @@ window.addEventListener('load', function() {
             }
         });
     }
-    
  // EDIT REVIEW
     let editCurrentRating = 0;
 
@@ -1702,45 +1759,28 @@ window.addEventListener('load', function() {
 </div>
 
 <!-- CANCEL ORDER MODAL -->
-<div id="cancelOrderModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10001;">
-    <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:460px; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <p class="fw-bold mb-0" style="font-size:16px;"><i class="bi bi-x-circle-fill text-danger me-2"></i>Cancel Order</p>
-            <button class="btn btn-sm btn-outline-secondary" onclick="closeCancelModal()"><i class="bi bi-x"></i></button>
-        </div>
-        <p class="text-muted mb-3" style="font-size:13px;">Please select a reason for cancellation:</p>
+<div id="cancelOrderModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10001; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:16px; padding:28px; width:90%; max-width:420px;">
+        <h6 class="fw-bold mb-3"><i class="bi bi-x-circle text-danger me-2"></i>Cancel Order</h6>
+        <p class="text-muted mb-3" style="font-size:13px;">Please provide a reason for cancelling. The seller will be notified.</p>
         <input type="hidden" id="cancelOrderId">
-
-        <div class="d-flex flex-column gap-2 mb-3" id="cancelReasons">
-            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
-                <input type="radio" name="cancelReason" value="Changed my mind"> Changed my mind
-            </label>
-            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
-                <input type="radio" name="cancelReason" value="Found a better price elsewhere"> Found a better price elsewhere
-            </label>
-            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
-                <input type="radio" name="cancelReason" value="Ordered by mistake"> Ordered by mistake
-            </label>
-            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
-                <input type="radio" name="cancelReason" value="Shipping takes too long"> Shipping takes too long
-            </label>
-            <label class="d-flex align-items-center gap-2 p-2 border rounded-3" style="cursor:pointer; font-size:13px;">
-                <input type="radio" name="cancelReason" value="other" id="reasonOther"> Other (please specify)
-            </label>
-        </div>
-
-        <div id="otherReasonBox" style="display:none;" class="mb-3">
+        <div class="mb-3">
+            <label class="form-label fw-bold" style="font-size:13px;">Reason</label>
+            <select id="cancelReasonSelect" class="form-select mb-2">
+                <option value="">-- Select a reason --</option>
+                <option value="Changed my mind">Changed my mind</option>
+                <option value="Found a better price elsewhere">Found a better price elsewhere</option>
+                <option value="Ordered by mistake">Ordered by mistake</option>
+                <option value="Shipping takes too long">Shipping takes too long</option>
+                <option value="Other">Other</option>
+            </select>
             <textarea id="otherReasonText" class="form-control" rows="2"
-                placeholder="Type your reason here..." maxlength="300"></textarea>
+                placeholder="Additional details (optional)" style="font-size:13px;"></textarea>
         </div>
-
-        <div id="cancelError" class="alert alert-danger py-2 mb-2" style="display:none; font-size:13px;">
-            Please select or enter a reason.
-        </div>
-
+        <div id="cancelError" class="text-danger mb-2" style="display:none; font-size:13px;">Please select a reason.</div>
         <div class="d-flex gap-2 justify-content-end">
-            <button class="btn btn-outline-secondary" onclick="closeCancelModal()">Back</button>
-            <button class="btn btn-danger px-4" onclick="submitCancelOrder()">
+            <button class="btn btn-outline-secondary btn-sm" onclick="closeCancelModal()">Back</button>
+            <button class="btn btn-danger btn-sm" onclick="submitCancelOrder()">
                 <i class="bi bi-x-circle"></i> Confirm Cancel
             </button>
         </div>

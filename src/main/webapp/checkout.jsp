@@ -49,17 +49,6 @@ if (cartTotal == null) cartTotal = 0.0;
         addrRs.close(); addrPs.close(); addrConn.close();
     } catch (Exception ex) { ex.printStackTrace(); }
     
- // Track breadcrumb
-    String prevCrumb2 = (String) session.getAttribute("breadcrumb");
-    String checkoutCrumb;
-    if (isBuyNow) {
-        checkoutCrumb = "product-checkout";
-    } else if ("product-cart".equals(prevCrumb2)) {
-        checkoutCrumb = "product-cart-checkout";
-    } else {
-        checkoutCrumb = "cart-checkout";
-    }
-    session.setAttribute("breadcrumb", checkoutCrumb);
     
 %>
 <!DOCTYPE html>
@@ -113,24 +102,20 @@ if (cartTotal == null) cartTotal = 0.0;
             <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none text-primary">Home</a></li>
             <%
                 String ckCrumb = (String) session.getAttribute("breadcrumb");
-                Integer lpId2 = (Integer) session.getAttribute("lastProductId");
-                String lpName2 = (String) session.getAttribute("lastProduct");
-                if ("product-cart-checkout".equals(ckCrumb)) {
+                Integer lpId = (Integer) session.getAttribute("lastProductId");
+                String lpName = (String) session.getAttribute("lastProduct");
+                if (isBuyNow && lpId != null && lpName != null) {
             %>
                 <li class="breadcrumb-item">
-                    <a href="product.jsp?id=<%= lpId2 %>" class="text-decoration-none text-primary"><%= lpName2 %></a>
+                    <a href="product.jsp?id=<%= lpId %>" class="text-decoration-none text-primary"><%= lpName %></a>
                 </li>
+            <% } else if ("product-cart".equals(ckCrumb) && lpId != null && lpName != null) { %>
                 <li class="breadcrumb-item">
-                    <a href="CartServlet" class="text-decoration-none text-primary">Cart</a>
+                    <a href="product.jsp?id=<%= lpId %>" class="text-decoration-none text-primary"><%= lpName %></a>
                 </li>
-            <% } else if ("product-checkout".equals(ckCrumb)) { %>
-                <li class="breadcrumb-item">
-                    <a href="product.jsp?id=<%= lpId2 %>" class="text-decoration-none text-primary"><%= lpName2 %></a>
-                </li>
-            <% } else { %>
-                <li class="breadcrumb-item">
-                    <a href="CartServlet" class="text-decoration-none text-primary">Cart</a>
-                </li>
+                <li class="breadcrumb-item"><a href="CartServlet" class="text-decoration-none text-primary">Cart</a></li>
+            <% } else if (!"product-checkout".equals(ckCrumb)) { %>
+                <li class="breadcrumb-item"><a href="CartServlet" class="text-decoration-none text-primary">Cart</a></li>
             <% } %>
             <li class="breadcrumb-item active text-muted">Checkout</li>
         </ol>
@@ -237,10 +222,19 @@ if (cartTotal == null) cartTotal = 0.0;
                         <div class="product-img-placeholder"><i class="bi bi-image"></i></div>
                     <% } %>
                     <div class="flex-grow-1">
-                        <p class="mb-0 fw-bold" style="font-size:14px;"><%= item.get("name") %></p>
-                        <p class="mb-0 text-muted" style="font-size:12px;">Qty: <%= item.get("quantity") %></p>
-                    </div>
-                    <p class="mb-0 fw-bold text-danger">₱<%= String.format("%.2f", item.get("subtotal")) %></p>
+    <p class="mb-0 fw-bold" style="font-size:14px;"><%= item.get("name") %></p>
+    <p class="mb-0 text-muted" style="font-size:12px;">Qty: <%= item.get("quantity") %></p>
+    <%
+        double coDiscPrice = item.get("originalPrice") != null ? (Double) item.get("originalPrice") : 0;
+        double coRealPrice = item.get("price") != null ? (Double) item.get("price") : 0;
+        if (coDiscPrice > 0 && coDiscPrice < coRealPrice) {
+            int coPct = (int) Math.round((coRealPrice - coDiscPrice) / coRealPrice * 100);
+    %>
+        <span class="badge bg-danger" style="font-size:10px;">-<%= coPct %>% OFF</span>
+        <span class="text-muted text-decoration-line-through" style="font-size:10px;">₱<%= String.format("%.2f", coRealPrice) %></span>
+    <% } %>
+</div>
+<p class="mb-0 fw-bold text-danger">₱<%= String.format("%.2f", item.get("subtotal")) %></p>
                 </div>
                 <% } %>
             </div>
@@ -281,6 +275,13 @@ if (cartTotal == null) cartTotal = 0.0;
     </div>
 </div>
 
+<!-- PROCESSING ORDER OVERLAY -->
+<div id="processingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
+    <div class="spinner-border text-primary mb-3" style="width:3.5rem; height:3.5rem;" role="status"></div>
+    <p class="fw-bold text-primary fs-5">Processing Order...</p>
+    <p class="text-muted" style="font-size:13px;">Please wait, do not close this page.</p>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     let selectedPayment = 'COD';
@@ -312,6 +313,9 @@ if (cartTotal == null) cartTotal = 0.0;
         btn.disabled = true;
         btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Placing Order...';
 
+        const overlay = document.getElementById('processingOverlay');
+        overlay.style.display = 'flex';
+
         fetch('CheckoutServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -322,9 +326,11 @@ if (cartTotal == null) cartTotal = 0.0;
                   '&isBuyNow=<%= isBuyNow ? "true" : "false" %>'
         }).then(res => res.json())
           .then(data => {
-              if (data.success) {
-                  window.location.href = 'order_success.jsp?orderId=' + data.orderId;
-              } else {
+    if (data.success) {
+        setTimeout(function() {
+            window.location.href = 'order_success.jsp?orderId=' + data.orderId;
+        }, 2500);
+    } else {
                   alert('Error: ' + data.message);
                   btn.disabled = false;
                   btn.innerHTML = '<i class="bi bi-bag-check"></i> Place Order';

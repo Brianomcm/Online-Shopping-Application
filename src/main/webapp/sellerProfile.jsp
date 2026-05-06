@@ -130,7 +130,10 @@
                 <li class="breadcrumb-item">
                     <a href="product.jsp?id=<%= lpId3 %>" class="text-decoration-none text-primary"><%= lpName3 %></a>
                 </li>
-            <% } %>
+            <%
+                }
+                session.setAttribute("breadcrumb", "seller");
+            %>
             <li class="breadcrumb-item active text-muted"><%= businessName %></li>
         </ol>
     </nav>
@@ -154,11 +157,24 @@
             <div class="shop-logo-placeholder"><%= businessName.substring(0,1).toUpperCase() %></div>
         <% } %>
         <div class="pb-2">
-            <h4 class="fw-bold mb-0"><%= businessName %></h4>
-            <% if (address != null && !address.isEmpty()) { %>
-                <p class="text-muted mb-0" style="font-size:13px;"><i class="bi bi-geo-alt"></i> <%= address %></p>
-            <% } %>
-        </div>
+    <h4 class="fw-bold mb-0"><%= businessName %></h4>
+    <% if (address != null && !address.isEmpty()) { %>
+        <p class="text-muted mb-0" style="font-size:13px;"><i class="bi bi-geo-alt"></i> <%= address %></p>
+    <% } %>
+    <%
+    String storeAvgStr = seller.get("storeAvgRating");
+    String storeRevStr = seller.get("storeReviewCount");
+    double storeAvg = storeAvgStr != null ? Double.parseDouble(storeAvgStr) : 0.0;
+    int storeRevs = storeRevStr != null ? Integer.parseInt(storeRevStr) : 0;
+    %>
+    <div class="d-flex align-items-center gap-1 mt-1">
+        <% for (int s = 1; s <= 5; s++) { %>
+            <i class="bi bi-star-fill" style="color:<%= s <= Math.round(storeAvg) ? "#ffc107" : "#ddd" %>; font-size:13px;"></i>
+        <% } %>
+        <span class="fw-bold ms-1" style="font-size:13px;"><%= String.format("%.1f", storeAvg) %></span>
+        <span class="text-muted" style="font-size:12px;">· <%= storeRevs %> review<%= storeRevs != 1 ? "s" : "" %></span>
+    </div>
+</div>
     </div>
     <% if (shopDesc != null && !shopDesc.isEmpty()) { %>
         <p class="text-muted mb-3" style="font-size:14px;"><%= shopDesc %></p>
@@ -183,9 +199,37 @@
                         <div style="height:180px; background:#f8f9fa; display:flex; align-items:center; justify-content:center; color:#aaa; font-size:40px;"><i class="bi bi-image"></i></div>
                     <% } %>
                     <div class="card-body">
-                        <h6 class="card-title fw-bold"><%= prod.get("name") %></h6>
-                        <p class="text-danger fw-bold mb-1">₱<%= String.format("%.2f", prod.get("price")) %></p>
-                        <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
+    <h6 class="card-title fw-bold"><%= prod.get("name") %></h6>
+    <div class="d-flex align-items-center gap-1 mb-1">
+        <%
+        double spRating = prod.get("avgRating") != null ? (Double) prod.get("avgRating") : 0.0;
+        int spReviews = prod.get("reviewCount") != null ? (Integer) prod.get("reviewCount") : 0;
+        int spSold = prod.get("totalSold") != null ? (Integer) prod.get("totalSold") : 0;
+        for (int s = 1; s <= 5; s++) { %>
+            <i class="bi bi-star-fill" style="color:<%= s <= Math.round(spRating) ? "#ffc107" : "#ddd" %>; font-size:11px;"></i>
+        <% } %>
+        <span class="text-muted" style="font-size:10px;">(<%= spReviews %>)</span>
+        <span class="text-muted" style="font-size:10px;">· <%= spSold %> sold</span>
+    </div>
+    <%
+    double spDiscPrice = prod.get("originalPrice") != null ? (Double) prod.get("originalPrice") : 0;
+    double spRealPrice = prod.get("price") != null ? (Double) prod.get("price") : 0;
+    int spDiscPct = 0;
+    if (spDiscPrice > 0 && spDiscPrice < spRealPrice) {
+        spDiscPct = (int) Math.round((spRealPrice - spDiscPrice) / spRealPrice * 100);
+    }
+%>
+<% if (spDiscPct > 0) { %>
+    <div class="d-flex align-items-center gap-2 mb-0">
+        <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= String.format("%.2f", spRealPrice) %></span>
+        <span class="badge bg-danger" style="font-size:10px;">-<%= spDiscPct %>% OFF</span>
+    </div>
+    <p class="text-danger fw-bold mb-1">₱<%= String.format("%.2f", spDiscPrice) %></p>
+<% } else { %>
+    <p class="text-danger fw-bold mb-1">₱<%= String.format("%.2f", spRealPrice) %></p>
+<% } %>
+<p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
+
                         <div onclick="event.stopPropagation();">
                             <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
                                 <button class="btn btn-primary btn-sm w-100" onclick="addToCart(<%= prod.get("product_id") %>)">

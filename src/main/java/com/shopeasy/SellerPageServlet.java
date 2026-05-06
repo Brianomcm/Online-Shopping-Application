@@ -45,13 +45,29 @@ public class SellerPageServlet extends HttpServlet {
             seller.put("banner_picture", rs.getString("banner_picture"));
             seller.put("address", rs.getString("address"));
             rs.close(); ps.close();
+            
+         // Get store average rating
+            PreparedStatement ratingPs = conn.prepareStatement(
+                "SELECT COALESCE(AVG(r.rating), 0) AS store_avg, COUNT(r.review_id) AS store_reviews " +
+                "FROM review r JOIN product p ON r.product_id = p.product_id " +
+                "WHERE p.seller_id = ?");
+            ratingPs.setInt(1, sellerId);
+            ResultSet ratingRs = ratingPs.executeQuery();
+            if (ratingRs.next()) {
+                seller.put("storeAvgRating", String.valueOf(ratingRs.getDouble("store_avg")));
+                seller.put("storeReviewCount", String.valueOf(ratingRs.getInt("store_reviews")));
+            }
+            ratingRs.close(); ratingPs.close();
 
             // Get seller products
             PreparedStatement ps2 = conn.prepareStatement(
-                "SELECT p.*, c.name as category_name FROM product p " +
-                "LEFT JOIN category c ON p.category_id = c.category_id " +
-                "WHERE p.seller_id = ? AND p.status = 'active' " +
-                "ORDER BY p.product_id DESC");
+            	    "SELECT p.*, c.name as category_name, " +
+            	    "COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) AS avg_rating, " +
+            	    "COALESCE((SELECT COUNT(*) FROM review r WHERE r.product_id = p.product_id), 0) AS review_count, " +
+            	    "COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold " +
+            	    "FROM product p LEFT JOIN category c ON p.category_id = c.category_id " +
+            	    "WHERE p.seller_id = ? AND p.status = 'active' " +
+            	    "ORDER BY p.product_id DESC");
             ps2.setInt(1, sellerId);
             ResultSet rs2 = ps2.executeQuery();
 
@@ -65,6 +81,10 @@ public class SellerPageServlet extends HttpServlet {
                 prod.put("image", rs2.getString("image"));
                 prod.put("category_name", rs2.getString("category_name"));
                 prod.put("description", rs2.getString("description"));
+                prod.put("avgRating", rs2.getDouble("avg_rating"));
+                prod.put("reviewCount", rs2.getInt("review_count"));
+                prod.put("totalSold", rs2.getInt("total_sold"));
+                prod.put("originalPrice", rs2.getDouble("original_price"));
                 products.add(prod);
             }
             rs2.close(); ps2.close();

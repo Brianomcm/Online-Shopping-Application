@@ -31,7 +31,7 @@
         "COALESCE((SELECT COUNT(*) FROM review r WHERE r.product_id = p.product_id), 0) AS review_count, " +
         "COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold " +
         "FROM product p JOIN seller s ON p.seller_id = s.seller_id " +
-        "WHERE p.status='active' " + catFilter + searchFilter + minPriceFilter + maxPriceFilter + ratingFilter + orderBy);
+        "WHERE p.status='active' AND p.stock > 0 " + catFilter + searchFilter + minPriceFilter + maxPriceFilter + ratingFilter + orderBy);
         if (searchParam != null && !searchParam.trim().isEmpty()) {
             String like = "%" + searchParam.trim() + "%";
             prodPs.setString(1, like);
@@ -53,6 +53,7 @@ prod.put("categoryId", prodRs.getInt("category_id"));
 prod.put("avgRating", prodRs.getDouble("avg_rating"));
 prod.put("reviewCount", prodRs.getInt("review_count"));
 prod.put("totalSold", prodRs.getInt("total_sold"));
+prod.put("originalPrice", prodRs.getDouble("original_price"));
             products.add(prod);
         }
         prodRs.close();
@@ -82,6 +83,13 @@ prod.put("totalSold", prodRs.getInt("total_sold"));
         ex.printStackTrace();
     }
 %>
+
+<%
+    // Reset breadcrumb when user goes home
+    session.removeAttribute("breadcrumb");
+    session.removeAttribute("lastProductId");
+    session.removeAttribute("lastProduct");
+%>
 <!DOCTYPE html>
 <html>
 <head>
@@ -90,7 +98,19 @@ prod.put("totalSold", prodRs.getInt("total_sold"));
     <title>ShopEasy - Home</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    
     <style>
+    /* SKELETON LOADER */
+.skeleton-box {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
     input[type="password"]::-ms-reveal,
 input[type="password"]::-ms-clear {
     display: none;
@@ -220,10 +240,7 @@ input::-webkit-contacts-auto-fill-button {
     <span class="text-primary fw-bold">Loading...</span>
 </div>
 
-<!-- TOP BAR -->
-<div class="top-bar text-white py-1 text-center">
-    🎉 Free shipping on orders over ₱500! Limited time only!
-</div>
+
 <!-- SUCCESS MESSAGE -->
 
 <div id="successMsg" class="alert alert-success text-center mb-0 py-2" style="display:none; border-radius:0;">
@@ -332,17 +349,55 @@ String navAvatar = "seller".equals(loggedRole2) ?
     </form>
 </nav>
 
-<!-- HERO SECTION -->
-<div class="hero-section text-white text-center">
-    <div class="container">
-        <h1 class="fw-bold">Welcome to ShopEasy</h1>
-        <p class="lead mb-4">Browse thousands of products at the best prices!</p>
-        <a href="#products" class="btn btn-warning btn-lg fw-bold px-5">
-            <i class="bi bi-shop"></i> Shop Now
-        </a>
+<!-- HERO CAROUSEL -->
+<div id="heroCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="4000">
+    <div class="carousel-indicators">
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="0" class="active"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="1"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="2"></button>
     </div>
+    <div class="carousel-inner">
+        <!-- SLIDE 1 -->
+        <div class="carousel-item active">
+            <div style="background:linear-gradient(135deg,#0d6efd 0%,#0056b3 100%); min-height:280px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:white; text-align:center; padding:40px 20px;">
+                <div style="font-size:13px; font-weight:600; letter-spacing:3px; opacity:0.85; margin-bottom:8px;">⚡ LIMITED TIME OFFER</div>
+                <div style="font-size:52px; font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">BIG SALE</div>
+                <div style="font-size:22px; font-weight:700; margin:8px 0; opacity:0.95;">Up to 50% Off Storewide!</div>
+                <a href="#products" class="btn btn-warning btn-lg fw-bold mt-3 px-5" style="border-radius:30px;">
+                    <i class="bi bi-shop"></i> Shop Now →
+                </a>
+            </div>
+        </div>
+        <!-- SLIDE 2 -->
+        <div class="carousel-item">
+            <div style="background:linear-gradient(135deg,#fd7e14 0%,#dc3545 100%); min-height:280px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:white; text-align:center; padding:40px 20px;">
+                <div style="font-size:13px; font-weight:600; letter-spacing:3px; opacity:0.85; margin-bottom:8px;">🚚 NATIONWIDE DELIVERY</div>
+                <div style="font-size:52px; font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">FREE SHIPPING</div>
+                <div style="font-size:22px; font-weight:700; margin:8px 0; opacity:0.95;">On All Orders Over ₱500!</div>
+                <a href="#products" class="btn btn-light btn-lg fw-bold mt-3 px-5 text-danger" style="border-radius:30px;">
+                    <i class="bi bi-cart3"></i> Order Now →
+                </a>
+            </div>
+        </div>
+        <!-- SLIDE 3 -->
+        <div class="carousel-item">
+            <div style="background:linear-gradient(135deg,#198754 0%,#0f5132 100%); min-height:280px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:white; text-align:center; padding:40px 20px;">
+                <div style="font-size:13px; font-weight:600; letter-spacing:3px; opacity:0.85; margin-bottom:8px;">🌟 JUST DROPPED</div>
+                <div style="font-size:52px; font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">NEW ARRIVALS</div>
+                <div style="font-size:22px; font-weight:700; margin:8px 0; opacity:0.95;">Fresh Finds This Week!</div>
+                <a href="index.jsp?sort=newest" class="btn btn-warning btn-lg fw-bold mt-3 px-5" style="border-radius:30px;">
+                    <i class="bi bi-stars"></i> See New Items →
+                </a>
+            </div>
+        </div>
+    </div>
+    <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+    </button>
 </div>
-
 <!-- CATEGORIES -->
 <%
 String cp = request.getParameter("category");
@@ -396,8 +451,76 @@ boolean isAll = (cp == null || cp.isEmpty() || cp.equals("0"));
     </div>
 </div>
 
+
 <!-- FEATURED PRODUCTS -->
 <div class="container mt-4" id="products">
+<%
+String fMin = request.getParameter("minPrice") != null ? request.getParameter("minPrice") : "";
+String fMax = request.getParameter("maxPrice") != null ? request.getParameter("maxPrice") : "";
+String fRating = request.getParameter("minRating") != null ? request.getParameter("minRating") : "0";
+String fSort = request.getParameter("sort") != null ? request.getParameter("sort") : "";
+String fCat = request.getParameter("category") != null ? request.getParameter("category") : "0";
+String fSearch = request.getParameter("search") != null ? request.getParameter("search") : "";
+%>
+<!-- COLLAPSIBLE FILTER BAR -->
+<div class="mb-3">
+    <button class="btn btn-outline-primary btn-sm fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#filterPanel">
+        <i class="bi bi-funnel-fill"></i> Filters
+        <% if (!fMin.isEmpty() || !fMax.isEmpty() || !fRating.equals("0") || !fSort.isEmpty()) { %>
+        <span class="badge bg-primary ms-1">Active</span>
+        <% } %>
+    </button>
+    <a href="index.jsp?category=<%= fCat %>&search=<%= fSearch %>" class="btn btn-outline-secondary btn-sm ms-2">
+        <i class="bi bi-x-lg"></i> Clear
+    </a>
+    <div class="collapse <%= (!fMin.isEmpty() || !fMax.isEmpty() || !fRating.equals("0") || !fSort.isEmpty()) ? "show" : "" %>" id="filterPanel">
+        <div class="card border-0 shadow-sm p-3 mt-2" style="border-radius:12px;">
+            <form id="filterForm" action="index.jsp" method="get">
+                <input type="hidden" name="category" value="<%= fCat %>">
+                <input type="hidden" name="search" value="<%= fSearch %>">
+                <div class="row g-2 align-items-end">
+                    <div class="col-6 col-md-2">
+                        <label class="form-label fw-bold mb-1" style="font-size:12px;">Min Price (₱)</label>
+                        <input type="number" name="minPrice" class="form-control form-control-sm" placeholder="0" value="<%= fMin %>" min="0">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label fw-bold mb-1" style="font-size:12px;">Max Price (₱)</label>
+                        <input type="number" name="maxPrice" class="form-control form-control-sm" placeholder="Any" value="<%= fMax %>" min="0">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label fw-bold mb-1" style="font-size:12px;">Min Rating</label>
+                        <select name="minRating" class="form-select form-select-sm">
+                            <option value="0" <%= "0".equals(fRating) ? "selected" : "" %>>Any Rating</option>
+                            <option value="1" <%= "1".equals(fRating) ? "selected" : "" %>>⭐ 1 & up</option>
+                            <option value="2" <%= "2".equals(fRating) ? "selected" : "" %>>⭐⭐ 2 & up</option>
+                            <option value="3" <%= "3".equals(fRating) ? "selected" : "" %>>⭐⭐⭐ 3 & up</option>
+                            <option value="4" <%= "4".equals(fRating) ? "selected" : "" %>>⭐⭐⭐⭐ 4 & up</option>
+                            <option value="5" <%= "5".equals(fRating) ? "selected" : "" %>>⭐⭐⭐⭐⭐ 5 only</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label fw-bold mb-1" style="font-size:12px;">Sort By</label>
+                        <select name="sort" class="form-select form-select-sm">
+                            <option value="" <%= "".equals(fSort) ? "selected" : "" %>>Default</option>
+                            <option value="price_asc" <%= "price_asc".equals(fSort) ? "selected" : "" %>>Price: Low to High</option>
+                            <option value="price_desc" <%= "price_desc".equals(fSort) ? "selected" : "" %>>Price: High to Low</option>
+                            <option value="rating" <%= "rating".equals(fSort) ? "selected" : "" %>>Highest Rated</option>
+                            <option value="newest" <%= "newest".equals(fSort) ? "selected" : "" %>>Newest</option>
+                            <option value="best_seller" <%= "best_seller".equals(fSort) ? "selected" : "" %>>Best Seller</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-funnel-fill"></i> Apply
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- PRODUCTS COLUMN -->
+<div class="col-12">
    <%
 String[] catNames = {"Featured Products","Electronics","Fashion","Home","Gaming","Health","Others"};
 String catParamTitle = request.getParameter("category");
@@ -408,64 +531,25 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
         <h5 class="fw-bold mb-0"><%= searchTitle %></h5>
         <span class="text-muted" style="font-size:13px;"><%= products.size() %> product<%= products.size() != 1 ? "s" : "" %> found</span>
     </div>
-
-    <!-- FILTER BAR -->
-    <%
-    String fMin = request.getParameter("minPrice") != null ? request.getParameter("minPrice") : "";
-    String fMax = request.getParameter("maxPrice") != null ? request.getParameter("maxPrice") : "";
-    String fRating = request.getParameter("minRating") != null ? request.getParameter("minRating") : "0";
-    String fSort = request.getParameter("sort") != null ? request.getParameter("sort") : "";
-    String fCat = request.getParameter("category") != null ? request.getParameter("category") : "0";
-    String fSearch = request.getParameter("search") != null ? request.getParameter("search") : "";
-    %>
-    <form id="filterForm" action="index.jsp" method="get" class="mb-3">
-        <input type="hidden" name="category" value="<%= fCat %>">
-        <input type="hidden" name="search" value="<%= fSearch %>">
-        <div class="card border-0 shadow-sm p-3 mb-3" style="border-radius:12px;">
-            <div class="row g-2 align-items-end">
-                <div class="col-6 col-md-2">
-                    <label class="form-label mb-1 fw-bold" style="font-size:12px;">Min Price (₱)</label>
-                    <input type="number" name="minPrice" class="form-control form-control-sm" placeholder="0" value="<%= fMin %>" min="0">
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label mb-1 fw-bold" style="font-size:12px;">Max Price (₱)</label>
-                    <input type="number" name="maxPrice" class="form-control form-control-sm" placeholder="Any" value="<%= fMax %>" min="0">
-                </div>
-                <div class="col-6 col-md-3">
-                    <label class="form-label mb-1 fw-bold" style="font-size:12px;">Min Rating</label>
-                    <select name="minRating" class="form-select form-select-sm">
-                        <option value="0" <%= "0".equals(fRating) ? "selected" : "" %>>Any Rating</option>
-                        <option value="1" <%= "1".equals(fRating) ? "selected" : "" %>>⭐ 1 & up</option>
-                        <option value="2" <%= "2".equals(fRating) ? "selected" : "" %>>⭐⭐ 2 & up</option>
-                        <option value="3" <%= "3".equals(fRating) ? "selected" : "" %>>⭐⭐⭐ 3 & up</option>
-                        <option value="4" <%= "4".equals(fRating) ? "selected" : "" %>>⭐⭐⭐⭐ 4 & up</option>
-                        <option value="5" <%= "5".equals(fRating) ? "selected" : "" %>>⭐⭐⭐⭐⭐ 5 only</option>
-                    </select>
-                </div>
-                <div class="col-6 col-md-3">
-                    <label class="form-label mb-1 fw-bold" style="font-size:12px;">Sort By</label>
-                    <select name="sort" class="form-select form-select-sm">
-                        <option value="" <%= "".equals(fSort) ? "selected" : "" %>>Default</option>
-                        <option value="price_asc" <%= "price_asc".equals(fSort) ? "selected" : "" %>>Price: Low to High</option>
-                        <option value="price_desc" <%= "price_desc".equals(fSort) ? "selected" : "" %>>Price: High to Low</option>
-                        <option value="rating" <%= "rating".equals(fSort) ? "selected" : "" %>>Highest Rated</option>
-                        <option value="newest" <%= "newest".equals(fSort) ? "selected" : "" %>>Newest</option>
-                        <option value="best_seller" <%= "best_seller".equals(fSort) ? "selected" : "" %>>Best Seller</option>
-                    </select>
-                </div>
-                <div class="col-12 col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary btn-sm w-100">
-                        <i class="bi bi-funnel-fill"></i> Filter
-                    </button>
-                    <a href="index.jsp?category=<%= fCat %>&search=<%= fSearch %>" class="btn btn-outline-secondary btn-sm w-100">
-                        <i class="bi bi-x-lg"></i> Clear
-                    </a>
+    <!-- SKELETON LOADER -->
+    <div id="skeletonGrid" class="row g-3">
+        <% for (int sk = 0; sk < 8; sk++) { %>
+        <div class="col-6 col-md-4 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="skeleton-box" style="height:200px; border-radius:8px 8px 0 0;"></div>
+                <div class="card-body">
+                    <div class="skeleton-box mb-2" style="height:14px; width:80%; border-radius:4px;"></div>
+                    <div class="skeleton-box mb-2" style="height:12px; width:50%; border-radius:4px;"></div>
+                    <div class="skeleton-box mb-2" style="height:12px; width:60%; border-radius:4px;"></div>
+                    <div class="skeleton-box" style="height:30px; border-radius:6px;"></div>
                 </div>
             </div>
         </div>
-    </form>
+        <% } %>
+    </div>
+    <!-- ACTUAL PRODUCTS -->
+    <div id="actualGrid" class="row g-3" style="display:none;">
     
-    <div class="row g-3">
 <% if (products.isEmpty()) { %>
     <div class="col-12 text-center py-5 text-muted">
         <i class="bi bi-box-seam fs-1 opacity-25"></i>
@@ -494,7 +578,23 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
     <span class="text-muted" style="font-size:10px;">(<%= pReviews %>)</span>
     <span class="text-muted" style="font-size:10px;">· <%= prod.get("totalSold") %> sold</span>
 </div>
-<p class="card-text text-danger fw-bold mb-0">₱<%= String.format("%.2f", prod.get("price")) %></p>
+<%
+    double idxDiscPrice = (Double) prod.get("originalPrice");
+    double idxRealPrice = (Double) prod.get("price");
+    int idxDiscPct = 0;
+    if (idxDiscPrice > 0 && idxDiscPrice < idxRealPrice) {
+        idxDiscPct = (int) Math.round((idxRealPrice - idxDiscPrice) / idxRealPrice * 100);
+    }
+%>
+<% if (idxDiscPct > 0) { %>
+    <div class="d-flex align-items-center gap-2 mb-0">
+        <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= String.format("%.2f", idxRealPrice) %></span>
+        <span class="badge bg-danger" style="font-size:10px;">-<%= idxDiscPct %>% OFF</span>
+    </div>
+    <p class="card-text text-danger fw-bold mb-0">₱<%= String.format("%.2f", idxDiscPrice) %></p>
+<% } else { %>
+    <p class="card-text text-danger fw-bold mb-0">₱<%= String.format("%.2f", idxRealPrice) %></p>
+<% } %>
 <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
                 <div class="mt-auto" onclick="event.stopPropagation();">
                     <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
@@ -512,12 +612,15 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
     </div>
 <% } %>
 <% } %>
+</div>
 <!-- LOAD MORE -->
 <div class="col-12 text-center mt-4" id="loadMoreSection" style="display:none;">
     <button class="btn btn-outline-primary px-5 py-2 fw-bold" onclick="loadMore()" id="loadMoreBtn">
         <i class="bi bi-arrow-down-circle"></i> Load More Products
     </button>
     <p class="text-muted mt-2" style="font-size:12px;" id="loadMoreCount"></p>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -556,29 +659,130 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
 
 
 <!-- FOOTER -->
-<footer class="bg-dark text-white mt-5 py-4">
+<footer style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color:white; margin-top:60px; padding:60px 0 0 0;">
     <div class="container">
-        <div class="row text-center text-md-start">
-            <div class="col-md-4 mb-3">
-                <h6 class="fw-bold"><i class="bi bi-bag-heart-fill"></i> ShopEasy</h6>
-                <p style="font-size:13px;" class="text-muted">Your one stop shop for everything you need.</p>
+        <div class="row g-4 pb-5">
+
+            <!-- Brand -->
+            <div class="col-lg-4 col-md-6">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <div style="background:linear-gradient(135deg,#22c55e,#16a34a); border-radius:10px; width:38px; height:38px; display:flex; align-items:center; justify-content:center;">
+                        <i class="bi bi-bag-heart-fill text-white" style="font-size:18px;"></i>
+                    </div>
+                    <span style="font-size:22px; font-weight:800; letter-spacing:-0.5px;">ShopEasy</span>
+                </div>
+                <p style="font-size:13px; color:#94a3b8; line-height:1.7;">
+                    Your one-stop marketplace for everything you need — from gadgets to fashion, delivered fast and easy across the Philippines.
+                </p>
+                <div class="d-flex gap-2 mt-3">
+                    <div style="background:#1e3a5f; border-radius:8px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                        <i class="bi bi-facebook" style="color:#60a5fa; font-size:15px;"></i>
+                    </div>
+                    <div style="background:#2d1b4e; border-radius:8px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                        <i class="bi bi-instagram" style="color:#e879f9; font-size:15px;"></i>
+                    </div>
+                    <div style="background:#1a3a2a; border-radius:8px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                        <i class="bi bi-twitter-x" style="color:#4ade80; font-size:15px;"></i>
+                    </div>
+                    <div style="background:#3b1f1f; border-radius:8px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                        <i class="bi bi-youtube" style="color:#f87171; font-size:15px;"></i>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-4 mb-3">
-                <h6 class="fw-bold">Quick Links</h6>
+
+            <!-- Quick Links -->
+            <div class="col-lg-2 col-md-6 col-6">
+                <p style="font-size:12px; font-weight:700; color:#22c55e; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:16px;">Navigate</p>
                 <ul class="list-unstyled" style="font-size:13px;">
-                    <li><a href="#">Home</a></li>
-                    <li><a href="#">Products</a></li>
-                    <li><a href="#">Register</a></li>
+                    <li class="mb-2"><a href="index.jsp" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Home</a></li>
+                    <li class="mb-2"><a href="index.jsp?category=1" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Electronics</a></li>
+                    <li class="mb-2"><a href="index.jsp?category=2" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Fashion</a></li>
+                    <li class="mb-2"><a href="index.jsp?category=4" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Gaming</a></li>
+                    <li class="mb-2"><a href="index.jsp?category=3" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Home & Living</a></li>
                 </ul>
             </div>
-            <div class="col-md-4 mb-3">
-                <h6 class="fw-bold">Contact Us</h6>
-                <p style="font-size:13px;" class="text-muted mb-1"><i class="bi bi-envelope"></i> support@shopeasy.com</p>
-                <p style="font-size:13px;" class="text-muted"><i class="bi bi-telephone"></i> +63 912 345 6789</p>
+
+            <!-- Support -->
+            <div class="col-lg-2 col-md-6 col-6">
+                <p style="font-size:12px; font-weight:700; color:#22c55e; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:16px;">Support</p>
+                <ul class="list-unstyled" style="font-size:13px;">
+                    <li class="mb-2"><a href="#" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Help Center</a></li>
+                    <li class="mb-2"><a href="#" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Track Order</a></li>
+                    <li class="mb-2"><a href="#" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Returns</a></li>
+                    <li class="mb-2"><a href="#" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Privacy Policy</a></li>
+                    <li class="mb-2"><a href="#" style="color:#cbd5e1; text-decoration:none;" onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='#cbd5e1'"><i class="bi bi-chevron-right me-1" style="font-size:10px;"></i>Terms of Use</a></li>
+                </ul>
+            </div>
+
+            <!-- Contact -->
+            <div class="col-lg-4 col-md-6">
+                <p style="font-size:12px; font-weight:700; color:#22c55e; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:16px;">Get In Touch</p>
+                <div class="d-flex align-items-start gap-3 mb-3">
+                    <div style="background:#1a3a2a; border-radius:8px; width:36px; height:36px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+                        <i class="bi bi-geo-alt-fill" style="color:#22c55e; font-size:15px;"></i>
+                    </div>
+                    <div>
+                        <p style="font-size:12px; font-weight:600; color:#e2e8f0; margin:0;">Head Office</p>
+                        <p style="font-size:12px; color:#94a3b8; margin:0;">123 Ayala Ave, Makati City, Metro Manila, Philippines</p>
+                    </div>
+                </div>
+                <div class="d-flex align-items-start gap-3 mb-3">
+                    <div style="background:#1e3a5f; border-radius:8px; width:36px; height:36px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+                        <i class="bi bi-envelope-fill" style="color:#60a5fa; font-size:15px;"></i>
+                    </div>
+                    <div>
+                        <p style="font-size:12px; font-weight:600; color:#e2e8f0; margin:0;">Email Us</p>
+                        <p style="font-size:12px; color:#94a3b8; margin:0;">support@shopeasy.com</p>
+                    </div>
+                </div>
+                <div class="d-flex align-items-start gap-3">
+                    <div style="background:#3b1f1f; border-radius:8px; width:36px; height:36px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+                        <i class="bi bi-telephone-fill" style="color:#f87171; font-size:15px;"></i>
+                    </div>
+                    <div>
+                        <p style="font-size:12px; font-weight:600; color:#e2e8f0; margin:0;">Call Us</p>
+                        <p style="font-size:12px; color:#94a3b8; margin:0;">+63 912 345 6789 &nbsp;|&nbsp; Mon–Sat 8AM–6PM</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Stats bar -->
+        <div style="border-top:1px solid #1e293b; padding:20px 0;" class="d-none d-md-block">
+            <div class="row text-center">
+                <div class="col-3">
+                    <p style="font-size:22px; font-weight:800; color:#22c55e; margin:0;">10K+</p>
+                    <p style="font-size:11px; color:#64748b; margin:0;">Products Listed</p>
+                </div>
+                <div class="col-3">
+                    <p style="font-size:22px; font-weight:800; color:#60a5fa; margin:0;">5K+</p>
+                    <p style="font-size:11px; color:#64748b; margin:0;">Happy Customers</p>
+                </div>
+                <div class="col-3">
+                    <p style="font-size:22px; font-weight:800; color:#e879f9; margin:0;">500+</p>
+                    <p style="font-size:11px; color:#64748b; margin:0;">Verified Sellers</p>
+                </div>
+                <div class="col-3">
+                    <p style="font-size:22px; font-weight:800; color:#f87171; margin:0;">4.8★</p>
+                    <p style="font-size:11px; color:#64748b; margin:0;">Average Rating</p>
+                </div>
             </div>
         </div>
-        <hr class="border-secondary">
-        <p class="text-center text-muted mb-0" style="font-size:12px;">2026 ShopEasy. All rights reserved.</p>
+
+        <!-- Bottom bar -->
+        <div style="border-top:1px solid #1e293b; padding:16px 0;">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+                <p style="font-size:12px; color:#475569; margin:0;">© 2026 ShopEasy Philippines. All rights reserved.</p>
+                <div class="d-flex gap-3">
+                    <img src="https://img.icons8.com/color/32/visa.png" style="height:22px; opacity:0.8;" alt="Visa">
+<img src="https://img.icons8.com/color/32/mastercard-logo.png" style="height:22px; opacity:0.8;" alt="Mastercard">
+<span style="background:#007bff; color:white; font-size:10px; font-weight:800; padding:3px 7px; border-radius:5px; letter-spacing:0.5px; opacity:0.85;">GCash</span>
+<img src="https://img.icons8.com/color/32/paypal.png" style="height:22px; opacity:0.8;" alt="PayPal">
+                </div>
+            </div>
+        </div>
+
     </div>
 </footer>
 <%@ include file="modals.jsp" %>
@@ -786,6 +990,14 @@ function showProduct(id, name, price, stock, seller, image, description) {
             });
         });
     });
+ // Show skeleton first, then reveal actual products after short delay
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            document.getElementById('skeletonGrid').style.display = 'none';
+            document.getElementById('actualGrid').style.display = 'flex';
+            document.getElementById('actualGrid').style.flexWrap = 'wrap';
+        }, 800);
+    });
     </script>
     
 
@@ -795,5 +1007,7 @@ function showProduct(id, name, price, stock, seller, image, description) {
     String isLoggedInFlag = (loggedUser != null && "customer".equals(loggedRole)) ? "true" : "false";
 %>
 <input type="hidden" id="isLoggedInFlag" value="<%= isLoggedInFlag %>">
+
+
 </body>
 </html>

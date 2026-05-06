@@ -58,6 +58,8 @@ public class BuyNowServlet extends HttpServlet {
             }
 
             double price = rs.getDouble("price");
+            double originalPrice = rs.getDouble("original_price");
+            double usePrice = (originalPrice > 0 && originalPrice < price) ? originalPrice : price;
             int stock = rs.getInt("stock");
             String name = rs.getString("name");
             String image = rs.getString("image");
@@ -77,10 +79,11 @@ public class BuyNowServlet extends HttpServlet {
             item.put("sellerId", sellerId);
             item.put("name", name);
             item.put("price", price);
+            item.put("originalPrice", originalPrice);
             item.put("quantity", quantity);
             item.put("stock", stock);
             item.put("image", image);
-            item.put("subtotal", price * quantity);
+            item.put("subtotal", usePrice * quantity);
             item.put("isBuyNow", true);
             if (variationId != null) item.put("variationId", variationId);
             items.add(item);
@@ -89,7 +92,7 @@ public class BuyNowServlet extends HttpServlet {
 
             // Store in session as buyNow — separate from cart
             session.setAttribute("buyNowItems", items);
-            session.setAttribute("buyNowTotal", price * quantity);
+            session.setAttribute("buyNowTotal", usePrice * quantity);
 
             out.print("{\"success\":true}");
 

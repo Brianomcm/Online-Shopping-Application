@@ -36,11 +36,11 @@ public class PrepareCheckoutServlet extends HttpServlet {
         try {
             Connection conn = DBConnection.getConnection();
             PreparedStatement ps = conn.prepareStatement(
-                "SELECT ci.cartitem_id, ci.quantity, ci.variation_id, p.product_id, p.seller_id, p.name, p.price, p.stock, p.image " +
-                "FROM cartitem ci " +
-                "JOIN cart c ON ci.cart_id = c.cart_id " +
-                "JOIN product p ON ci.product_id = p.product_id " +
-                "WHERE c.customer_id = ? AND p.product_id = ? " +
+            		"SELECT ci.cartitem_id, ci.quantity, ci.variation_id, p.product_id, p.seller_id, p.name, p.price, p.original_price, p.stock, p.image " +
+            				"FROM cartitem ci " +
+            				"JOIN cart c ON ci.cart_id = c.cart_id " +
+            				"JOIN product p ON ci.product_id = p.product_id " +
+            				"WHERE c.customer_id = ? AND p.product_id = ? " +
                 "ORDER BY ci.cartitem_id DESC LIMIT 1");
             ps.setInt(1, customerId);
             ps.setInt(2, productId);
@@ -55,13 +55,18 @@ public class PrepareCheckoutServlet extends HttpServlet {
                 item.put("productId", rs.getInt("product_id"));
                 item.put("sellerId", rs.getInt("seller_id"));
                 item.put("name", rs.getString("name"));
-                item.put("price", rs.getDouble("price"));
+                item.put("name", rs.getString("name"));
+                double getOrigPrice = rs.getDouble("original_price");
+                double getRealPrice = rs.getDouble("price");
+                double getUsePrice = (getOrigPrice > 0 && getOrigPrice < getRealPrice) ? getOrigPrice : getRealPrice;
+                item.put("price", getRealPrice);
+                item.put("originalPrice", getOrigPrice);
                 item.put("quantity", rs.getInt("quantity"));
                 item.put("stock", rs.getInt("stock"));
                 item.put("image", rs.getString("image"));
                 int varId = rs.getInt("variation_id");
                 if (!rs.wasNull()) item.put("variationId", varId);
-                double subtotal = rs.getDouble("price") * rs.getInt("quantity");
+                double subtotal = getUsePrice * rs.getInt("quantity");
                 item.put("subtotal", subtotal);
                 total += subtotal;
                 items.add(item);
@@ -97,7 +102,7 @@ public class PrepareCheckoutServlet extends HttpServlet {
         try {
             Connection conn = DBConnection.getConnection();
 
-            String sql = "SELECT ci.cartitem_id, ci.quantity, ci.variation_id, p.product_id, p.seller_id, p.name, p.price, p.stock, p.image " +
+            String sql = "SELECT ci.cartitem_id, ci.quantity, ci.variation_id, p.product_id, p.seller_id, p.name, p.price, p.original_price, p.stock, p.image " +
                     "FROM cartitem ci " +
                     "JOIN cart c ON ci.cart_id = c.cart_id " +
                     "JOIN product p ON ci.product_id = p.product_id " +
@@ -117,6 +122,10 @@ public class PrepareCheckoutServlet extends HttpServlet {
                 item.put("sellerId", rs.getInt("seller_id"));
                 item.put("name", rs.getString("name"));
                 item.put("price", rs.getDouble("price"));
+                double pcoOrigPrice = rs.getDouble("original_price");
+                double pcoUsePrice = (pcoOrigPrice > 0 && pcoOrigPrice < rs.getDouble("price")) ? pcoOrigPrice : rs.getDouble("price");
+                item.put("originalPrice", pcoOrigPrice);
+                item.put("originalPrice", rs.getDouble("original_price"));
                 item.put("quantity", rs.getInt("quantity"));
                 item.put("stock", rs.getInt("stock"));
                 item.put("image", rs.getString("image"));
@@ -125,8 +134,11 @@ public class PrepareCheckoutServlet extends HttpServlet {
                     item.put("variationId", varId);
                 }
                 int qty = rs.getInt("quantity");
-                if (qty <= 0) continue; // Skip zero quantity items
-                double subtotal = rs.getDouble("price") * qty;
+                if (qty <= 0) continue;
+                double postOrigPrice = (Double) item.get("originalPrice");
+                double postRealPrice = (Double) item.get("price");
+                double postUsePrice = (postOrigPrice > 0 && postOrigPrice < postRealPrice) ? postOrigPrice : postRealPrice;
+                double subtotal = postUsePrice * qty;
                 item.put("subtotal", subtotal);
                 total += subtotal;
                 items.add(item);

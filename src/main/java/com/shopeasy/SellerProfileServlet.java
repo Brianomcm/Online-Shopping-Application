@@ -50,7 +50,7 @@ public class SellerProfileServlet extends HttpServlet {
             }
          // Fetch products
             java.util.List<java.util.Map<String, String>> products = new java.util.ArrayList<>();
-            String productSql = "SELECT p.*, c.name as category_name FROM product p LEFT JOIN category c ON p.category_id = c.category_id WHERE p.seller_id = ?";
+            String productSql = "SELECT p.*, c.name as category_name FROM product p LEFT JOIN category c ON p.category_id = c.category_id WHERE p.seller_id = ? ORDER BY p.product_id DESC";
             PreparedStatement productPs = conn.prepareStatement(productSql);
             productPs.setInt(1, userId);
             ResultSet productRs = productPs.executeQuery();

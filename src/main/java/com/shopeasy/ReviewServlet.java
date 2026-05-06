@@ -22,40 +22,60 @@ public class ReviewServlet extends HttpServlet {
         }
 
         int customerId = (int) session.getAttribute("userId");
-        int productId = Integer.parseInt(request.getParameter("productId"));
-        int orderId = Integer.parseInt(request.getParameter("orderId"));
-        int rating = Integer.parseInt(request.getParameter("rating"));
+
+        String productIdParam = request.getParameter("productId");
+        String orderIdParam = request.getParameter("orderId");
+        String ratingParam = request.getParameter("rating");
         String comment = request.getParameter("comment");
         String reviewPhoto = request.getParameter("reviewPhoto");
+
+        // Debug — print all params
+        System.out.println("DEBUG productId=" + productIdParam);
+        System.out.println("DEBUG orderId=" + orderIdParam);
+        System.out.println("DEBUG rating=" + ratingParam);
+        System.out.println("DEBUG comment=" + comment);
+
+        if (productIdParam == null || orderIdParam == null || ratingParam == null) {
+            response.setContentType("text/plain");
+            response.getWriter().print("error: missing params - productId=" + productIdParam + " orderId=" + orderIdParam + " rating=" + ratingParam);
+            return;
+        }
+
+        int productId = Integer.parseInt(productIdParam);
+        int orderId = Integer.parseInt(orderIdParam);
+        int rating = Integer.parseInt(ratingParam);
 
         try {
             Connection conn = DBConnection.getConnection();
 
-            // Check if already reviewed
+         // Check if already reviewed for THIS specific order
             PreparedStatement checkPs = conn.prepareStatement(
-            	    "SELECT review_id FROM review WHERE customer_id=? AND product_id=?");
-            	checkPs.setInt(1, customerId);
-            	checkPs.setInt(2, productId);
+                "SELECT review_id FROM review WHERE customer_id=? AND product_id=? AND order_id=?");
+            checkPs.setInt(1, customerId);
+            checkPs.setInt(2, productId);
+            checkPs.setInt(3, orderId);
             ResultSet checkRs = checkPs.executeQuery();
             if (checkRs.next()) {
                 checkRs.close(); checkPs.close(); conn.close();
-                response.sendRedirect("customer.jsp?tab=orders&orderTab=Completed&msg=already_reviewed");
+                response.setContentType("text/plain");
+                response.getWriter().print("already_reviewed");
                 return;
             }
             checkRs.close(); checkPs.close();
 
             // Insert review
             PreparedStatement ps = conn.prepareStatement(
-            	    "INSERT INTO review (customer_id, product_id, rating, comment, photo) " +
-            	    "VALUES (?, ?, ?, ?, ?)");
+            	    "INSERT INTO review (customer_id, product_id, order_id, rating, comment, photo) " +
+            	    "VALUES (?, ?, ?, ?, ?, ?)");
             	ps.setInt(1, customerId);
             	ps.setInt(2, productId);
-            	ps.setInt(3, rating);
-            	ps.setString(4, comment);
+            	ps.setInt(3, orderId);
+            	ps.setInt(4, rating);
+            	ps.setString(5, comment);
             	if (reviewPhoto != null && !reviewPhoto.isEmpty()) {
-            	    ps.setString(5, reviewPhoto);
+            	    ps.setString(6, reviewPhoto);
             	} else {
-            	    ps.setNull(5, java.sql.Types.VARCHAR);
+            	    ps.setNull(6, java.sql.Types.VARCHAR);
             	}
             	ps.executeUpdate();
                 ps.close();
@@ -86,7 +106,8 @@ public class ReviewServlet extends HttpServlet {
             response.getWriter().print("ok");
         } catch (Exception e) {
             e.printStackTrace();
-            response.sendRedirect("customer.jsp?tab=orders&orderTab=Completed&error=true");
+            response.setContentType("text/plain");
+            response.getWriter().print("error: " + e.getMessage());
         }
     }
 }

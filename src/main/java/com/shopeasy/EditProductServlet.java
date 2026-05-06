@@ -25,6 +25,7 @@ public class EditProductServlet extends HttpServlet {
         String price        = request.getParameter("price");
         String stock        = request.getParameter("stock");
         String description  = request.getParameter("description");
+        String originalPrice = request.getParameter("originalPrice");
 
         // Variation arrays
         String[] varIds     = request.getParameterValues("editVarId[]");
@@ -36,14 +37,20 @@ public class EditProductServlet extends HttpServlet {
 
             // 1. Update product basic info
             PreparedStatement ps = conn.prepareStatement(
-                "UPDATE product SET name=?, price=?, stock=?, description=? WHERE product_id=?");
-            ps.setString(1, productName);
-            ps.setDouble(2, Double.parseDouble(price));
-            ps.setInt(3, Integer.parseInt(stock));
-            ps.setString(4, description);
-            ps.setInt(5, Integer.parseInt(productId));
-            ps.executeUpdate();
-            ps.close();
+            	    "UPDATE product SET name=?, price=?, original_price=?, stock=?, description=? WHERE product_id=?");
+            	ps.setString(1, productName);
+            	ps.setDouble(2, Double.parseDouble(price));
+            	if (originalPrice != null && !originalPrice.isEmpty()) {
+            	    ps.setDouble(3, Double.parseDouble(originalPrice));
+            	} else {
+            	    ps.setNull(3, java.sql.Types.DECIMAL);
+            	}
+            	ps.setInt(4, Integer.parseInt(stock));
+            	ps.setString(5, description);
+            	ps.setInt(6, Integer.parseInt(productId));
+            	
+            	ps.executeUpdate();
+            	ps.close();
 
             // 2. Delete all old variations then re-insert
             PreparedStatement delPs = conn.prepareStatement(

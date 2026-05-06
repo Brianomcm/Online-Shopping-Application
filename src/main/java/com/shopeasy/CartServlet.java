@@ -35,14 +35,14 @@ public class CartServlet extends HttpServlet {
         try {
             Connection conn = DBConnection.getConnection();
             PreparedStatement ps = conn.prepareStatement(
-                "SELECT ci.cartitem_id, ci.quantity, ci.variation_id, " +
-                "p.product_id, p.name, p.price, p.image, p.stock, " +
+            		"SELECT ci.cartitem_id, ci.quantity, ci.variation_id, " +
+            				"p.product_id, p.name, p.price, p.original_price, p.image, p.stock, " +
                 "pv.variation_type, pv.variation_value " +
                 "FROM cart c " +
                 "JOIN cartitem ci ON c.cart_id = ci.cart_id " +
                 "JOIN product p ON ci.product_id = p.product_id " +
                 "LEFT JOIN product_variation pv ON ci.variation_id = pv.variation_id " +
-            		"WHERE c.customer_id = ? AND ci.quantity > 0");
+            		"WHERE c.customer_id = ?");
             ps.setInt(1, userId);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
@@ -50,14 +50,18 @@ public class CartServlet extends HttpServlet {
                 item.put("cartitemId",      rs.getInt("cartitem_id"));
                 item.put("productId",       rs.getInt("product_id"));
                 item.put("name",            rs.getString("name"));
-                item.put("price",           rs.getDouble("price"));
+                item.put("originalPrice",   rs.getDouble("original_price"));
                 item.put("image",           rs.getString("image"));
                 item.put("stock",           rs.getInt("stock"));
                 item.put("quantity",        rs.getInt("quantity"));
-                item.put("subtotal",        rs.getDouble("price") * rs.getInt("quantity"));
+                double cartOrigPrice = rs.getDouble("original_price");
+                double cartUsePrice = (cartOrigPrice > 0 && cartOrigPrice < rs.getDouble("price")) ? cartOrigPrice : rs.getDouble("price");
+                item.put("price", rs.getDouble("price"));
+                item.put("originalPrice", rs.getDouble("original_price"));
+                item.put("subtotal",      cartUsePrice * rs.getInt("quantity"));
                 item.put("variationType",   rs.getString("variation_type"));   // null if no variation
                 item.put("variationValue",  rs.getString("variation_value"));  // null if no variation
-                total += rs.getDouble("price") * rs.getInt("quantity");
+                total += cartUsePrice * rs.getInt("quantity");
                 cartItems.add(item);
             }
             rs.close();

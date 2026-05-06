@@ -384,7 +384,7 @@ try {
     </div>
 
     <!-- SHOP SETTINGS -->
-    <div class="card-section mb-4" id="section-shop">
+    <div class="card-section mb-4" id="section-shop" style="display:none;">
     <p class="section-title"><i class="bi bi-shop-window text-success"></i> Shop Settings</p>
         <form action="UpdateSellerServlet" method="post">
             <input type="hidden" name="action" value="shop">
@@ -452,7 +452,7 @@ try {
     <input type="hidden" id="removeBannerFlag" name="removeBanner" value="false">
 </form>
     <!-- PERSONAL INFORMATION -->
-   <div class="card-section mb-4" id="section-profile">
+   <div class="card-section mb-4" id="section-profile" style="display:none;">
     <p class="section-title"><i class="bi bi-person-fill text-success"></i> Personal Information</p>
         <form id="profileForm" action="UpdateSellerServlet" method="post">
             <input type="hidden" name="action" value="profile">
@@ -555,6 +555,10 @@ try {
                         <input type="number" name="price" class="form-control" placeholder="0.00" step="0.01" min="0" required>
                     </div>
                     <div class="col-md-6">
+<label class="form-label fw-bold" style="font-size:13px;">Discounted Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional — leave blank if no discount</span></label>
+<input type="number" name="originalPrice" class="form-control" placeholder="e.g. 199.00" step="0.01" min="0">
+</div>
+                    <div class="col-md-6">
                         <label class="form-label fw-bold" style="font-size:13px;">Stock Quantity</label>
                         <input type="number" name="stock" class="form-control" placeholder="0" min="0" required>
                     </div>
@@ -603,9 +607,32 @@ try {
         </div>
 
         <%
-    java.util.List<java.util.Map<String, String>> products = 
-        (java.util.List<java.util.Map<String, String>>) session.getAttribute("sellerProducts");
-    if (products != null && !products.isEmpty()) {
+    java.util.List<java.util.Map<String, String>> products = new java.util.ArrayList<>();
+    try {
+        int sellerIdForProducts = (int) session.getAttribute("userId");
+        java.sql.Connection prodConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement prodPs = prodConn.prepareStatement(
+            "SELECT p.*, c.name as category_name FROM product p " +
+            "LEFT JOIN category c ON p.category_id = c.category_id " +
+            "WHERE p.seller_id = ? ORDER BY p.product_id DESC");
+        prodPs.setInt(1, sellerIdForProducts);
+        java.sql.ResultSet prodRs = prodPs.executeQuery();
+        while (prodRs.next()) {
+            java.util.Map<String, String> product = new java.util.HashMap<>();
+            product.put("product_id", prodRs.getString("product_id"));
+            product.put("name", prodRs.getString("name"));
+            product.put("description", prodRs.getString("description"));
+            product.put("price", prodRs.getString("price"));
+            product.put("original_price", prodRs.getString("original_price"));
+            product.put("stock", prodRs.getString("stock"));
+            product.put("image", prodRs.getString("image"));
+            product.put("category_name", prodRs.getString("category_name"));
+            product.put("status", prodRs.getString("status"));
+            products.add(product);
+        }
+        prodRs.close(); prodPs.close(); prodConn.close();
+    } catch (Exception prodEx) { prodEx.printStackTrace(); }
+    if (!products.isEmpty()) {
 %>
     <div id="productList">
     <% for (java.util.Map<String, String> product : products) { %>
@@ -626,19 +653,35 @@ try {
                     </p>
                 </div>
                 <div class="text-end">
-                    <p class="mb-1 fw-bold text-success">₱<%= product.get("price") %></p>
-                    <% int stock = Integer.parseInt(product.get("stock") != null ? product.get("stock") : "0");
-                       if (stock > 5) { %>
-                        <span class="badge bg-success stock-badge">In Stock</span>
-                    <% } else if (stock > 0) { %>
-                        <span class="badge bg-warning text-dark stock-badge">Low Stock</span>
-                    <% } else { %>
-                        <span class="badge bg-danger stock-badge">Out of Stock</span>
-                    <% } %>
-                </div>
+    <%
+    String discPriceStr = product.get("original_price");
+    double discPrice = (discPriceStr != null && !discPriceStr.isEmpty()) ? Double.parseDouble(discPriceStr) : 0;
+    double realPrice = Double.parseDouble(product.get("price") != null ? product.get("price") : "0");
+    int discPct = 0;
+    if (discPrice > 0 && discPrice < realPrice) {
+        discPct = (int) Math.round((realPrice - discPrice) / realPrice * 100);
+    }
+%>
+<% if (discPct > 0) { %>
+    <span class="badge bg-danger mb-1" style="font-size:10px;">-<%= discPct %>% OFF</span><br>
+    <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= product.get("price") %></span><br>
+    <p class="mb-1 fw-bold text-success">₱<%= discPriceStr %></p>
+<% } else { %>
+    <p class="mb-1 fw-bold text-success">₱<%= product.get("price") %></p>
+<% } %>
+    <%  int stock = Integer.parseInt(product.get("stock") != null ? product.get("stock") : "0");
+        if (stock > 5) { %>
+        <span class="badge bg-success stock-badge">In Stock</span>
+    <% } else if (stock > 0) { %>
+        <span class="badge bg-warning text-dark stock-badge">Low Stock</span>
+    <% } else { %>
+        <span class="badge bg-danger stock-badge">Out of Stock</span>
+    <% } %>
+</div>
+
                 <div class="d-flex flex-column gap-1">
     <button class="btn btn-outline-primary btn-sm" 
-        onclick="editProduct('<%= product.get("product_id") %>', '<%= product.get("name") %>', '<%= product.get("price") %>', '<%= product.get("stock") %>', '<%= product.get("description") != null ? product.get("description").replace("'", "\\'") : "" %>', '<%= product.get("category_name") %>')">
+       onclick="editProduct('<%= product.get("product_id") %>', '<%= product.get("name") %>', '<%= product.get("price") %>', '<%= product.get("stock") %>', '<%= product.get("description") != null ? product.get("description").replace("'", "\\'") : "" %>', '<%= product.get("category_name") %>', '<%= product.get("original_price") != null ? product.get("original_price") : "" %>')">
         <i class="bi bi-pencil"></i>
     </button>
     <button class="btn btn-outline-danger btn-sm"
@@ -770,7 +813,7 @@ try {
             else if ("Shipped".equals(sStatus)) badgeClass = "info text-dark";
             else if ("Completed".equals(sStatus)) badgeClass = "success";
             else if ("Cancelled".equals(sStatus)) badgeClass = "danger";
-            else if ("Cancellation Requested".equals(sStatus)) badgeClass = "danger";
+            else if ("Cancellation Requested".equals(sStatus)) badgeClass = "warning text-dark";
             @SuppressWarnings("unchecked")
             java.util.List<java.util.Map<String, Object>> ordItems =
                 (java.util.List<java.util.Map<String, Object>>) ord.get("items");
@@ -846,60 +889,95 @@ try {
                     </div>
                     <% } %>
 
-                    <%-- Total + Actions --%>
-                   <div class="d-flex gap-2 flex-wrap" id="actions_<%= ord.get("id") %>">
-    <% if ("Pending".equals(sStatus)) { %>
-        <button class="btn btn-primary btn-sm"
-            onclick="updateOrderStatus(<%= ord.get("id") %>, 'Processing')">
-            <i class="bi bi-check-circle"></i> Confirm Order
-        </button>
-        <button class="btn btn-outline-danger btn-sm"
-            onclick="updateOrderStatus(<%= ord.get("id") %>, 'Cancelled')">
-            <i class="bi bi-x-circle"></i> Cancel
-        </button>
-    <% } else if ("Processing".equals(sStatus)) { %>
-        <button class="btn btn-info btn-sm text-white"
-            onclick="updateOrderStatus(<%= ord.get("id") %>, 'Shipped')">
-            <i class="bi bi-truck"></i> Ship Order
-        </button>
-    <% } else if ("Shipped".equals(sStatus)) { %>
-        <button class="btn btn-success btn-sm"
-            onclick="updateOrderStatus(<%= ord.get("id") %>, 'Completed')">
-            <i class="bi bi-bag-check"></i> Mark Completed
-        </button>
-    <% } else if ("Cancellation Requested".equals(sStatus)) { %>
-        <%-- Show cancel reason --%>
-        <%
-            String cancelReason = "";
-            try {
-                java.sql.Connection crConn = com.shopeasy.DBConnection.getConnection();
-                java.sql.PreparedStatement crPs = crConn.prepareStatement(
-                    "SELECT cancel_reason FROM orders WHERE order_id=?");
-                crPs.setInt(1, (int) ord.get("id"));
-                java.sql.ResultSet crRs = crPs.executeQuery();
-                if (crRs.next() && crRs.getString("cancel_reason") != null)
-                    cancelReason = crRs.getString("cancel_reason");
-                crRs.close(); crPs.close(); crConn.close();
-            } catch (Exception crEx) { crEx.printStackTrace(); }
-        %>
-        <div class="w-100 mb-2 p-2 rounded-3"
-             style="background:#fff3cd; border:1px solid #ffc107; font-size:12px;">
-            <i class="bi bi-chat-left-text text-warning me-1"></i>
-            <strong>Cancel Reason:</strong> <%= cancelReason.isEmpty() ? "No reason provided" : cancelReason %>
-        </div>
-        <button class="btn btn-success btn-sm"
-            onclick="approveCancel(<%= ord.get("id") %>, 'approve')">
-            <i class="bi bi-check-circle"></i> Approve Cancel
-        </button>
-        <button class="btn btn-outline-danger btn-sm"
-            onclick="approveCancel(<%= ord.get("id") %>, 'decline')">
-            <i class="bi bi-x-circle"></i> Decline
-        </button>
+                   <%-- Total + Actions --%>
+<div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+    <p class="mb-0 fw-bold text-success" style="font-size:13px;">
+        Total: ₱<%= String.format("%.2f", ord.get("total")) %>
+    </p>
+    <div class="d-flex gap-2 flex-column align-items-end" id="actions_<%= ord.get("id") %>">
+        <% if ("Pending".equals(sStatus)) { %>
+            <button class="btn btn-primary btn-sm"
+                onclick="updateOrderStatus(<%= ord.get("id") %>, 'Processing')">
+                <i class="bi bi-check-circle"></i> Confirm Order
+            </button>
+            <button class="btn btn-outline-danger btn-sm"
+    onclick="openSellerCancelModal(<%= ord.get("id") %>)">
+    <i class="bi bi-x-circle"></i> Cancel Order
+</button>
+        <% } else if ("Processing".equals(sStatus)) { %>
+            <button class="btn btn-info btn-sm text-white"
+                onclick="updateOrderStatus(<%= ord.get("id") %>, 'Shipped')">
+                <i class="bi bi-truck"></i> Ship Order
+            </button>
+        <% } else if ("Shipped".equals(sStatus)) { %>
+            <button class="btn btn-success btn-sm"
+                onclick="updateOrderStatus(<%= ord.get("id") %>, 'Completed')">
+                <i class="bi bi-bag-check"></i> Mark Completed
+            </button>
+        <% } else if ("Cancellation Requested".equals(sStatus)) { %>
+            <%
+                String cancelReason = "";
+                try {
+                    java.sql.Connection crConn = com.shopeasy.DBConnection.getConnection();
+                    java.sql.PreparedStatement crPs = crConn.prepareStatement(
+                        "SELECT cancel_reason FROM orders WHERE order_id=?");
+                    crPs.setInt(1, (int) ord.get("id"));
+                    java.sql.ResultSet crRs = crPs.executeQuery();
+                    if (crRs.next() && crRs.getString("cancel_reason") != null)
+                        cancelReason = crRs.getString("cancel_reason");
+                    crRs.close(); crPs.close(); crConn.close();
+                } catch (Exception crEx) { crEx.printStackTrace(); }
+            %>
+            <div class="w-100 mb-2 p-2 rounded-3"
+                 style="background:#fff3cd; border:1px solid #ffc107; font-size:12px;">
+                <i class="bi bi-chat-left-text text-warning me-1"></i>
+                <strong>Cancel Reason:</strong> <%= cancelReason.isEmpty() ? "No reason provided" : cancelReason %>
+            </div>
+            <button class="btn btn-success btn-sm"
+                onclick="approveCancel(<%= ord.get("id") %>, 'approve')">
+                <i class="bi bi-check-circle"></i> Approve Cancel
+            </button>
+            <button class="btn btn-outline-danger btn-sm"
+                onclick="approveCancel(<%= ord.get("id") %>, 'decline')">
+                <i class="bi bi-x-circle"></i> Decline
+            </button>
+        <% } else if ("Cancelled".equals(sStatus)) { %>
+    <%
+        String cancelledReason = "";
+        try {
+            java.sql.Connection crConn2 = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement crPs2 = crConn2.prepareStatement(
+                "SELECT cancel_reason FROM orders WHERE order_id=?");
+            crPs2.setInt(1, (int) ord.get("id"));
+            java.sql.ResultSet crRs2 = crPs2.executeQuery();
+            if (crRs2.next() && crRs2.getString("cancel_reason") != null)
+                cancelledReason = crRs2.getString("cancel_reason");
+            crRs2.close(); crPs2.close(); crConn2.close();
+        } catch (Exception crEx2) { crEx2.printStackTrace(); }
+        boolean cancelledByCustomer = cancelledReason.toLowerCase().contains("cancelled by customer");
+    %>
+    <% if (cancelledByCustomer) { %>
+        <span class="badge bg-danger px-3 py-2" style="font-size:12px;">
+            <i class="bi bi-person-x-fill"></i> Cancelled by Customer
+        </span>
     <% } else { %>
-        <span class="text-muted" style="font-size:12px;">
-            <i class="bi bi-check2-all"></i> <%= sStatus %>
+        <span class="badge bg-secondary px-3 py-2" style="font-size:12px;">
+            <i class="bi bi-x-circle"></i> Cancelled
         </span>
     <% } %>
+    <% if (!cancelledReason.isEmpty()) { %>
+        <div class="mt-1 p-2 rounded-3" style="background:#fff0f0; border:1px solid #f5c2c7; font-size:12px;">
+            <i class="bi bi-chat-left-text text-danger me-1"></i>
+            <strong>Reason:</strong> <%= cancelledReason %>
+        </div>
+    <% } %>
+<% } else { %>
+    <span class="text-muted" style="font-size:12px;">
+        <i class="bi bi-check2-all"></i> <%= sStatus %>
+    </span>
+<% } %>
+
+    </div>
 </div>
                 </div>
             </div>
@@ -983,7 +1061,7 @@ try {
             %>
 
             <!-- Summary Cards -->
-            <div class="row g-3 mb-4">
+            <div class="row g-3 mb-4" id="section-stats" style="display:none;">
                 <div class="col-md-4">
                     <div class="p-3 rounded-3 text-center" style="background:#f0fdf4; border:1px solid #bbf7d0;">
                         <p class="mb-0 text-muted" style="font-size:12px;">Total Revenue</p>
@@ -1250,6 +1328,7 @@ try {
         // Hide shop and profile sections
         document.getElementById('section-shop').style.display = 'none';
         document.getElementById('section-profile').style.display = 'none';
+        document.getElementById('section-stats').style.display = 'none';
         // Hide all other tabs
         document.querySelectorAll('.tab-content-section').forEach(t => t.style.display = 'none');
         document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
@@ -1259,6 +1338,7 @@ try {
             otherTab.style.display = 'block';
         } else {
             // If no tab found, show shop+profile (home view)
+            document.getElementById('section-stats').style.display = 'flex';
             document.getElementById('section-shop').style.display = 'block';
             document.getElementById('section-profile').style.display = 'block';
         }
@@ -1678,15 +1758,15 @@ window.addEventListener('load', function() {
 
     const tab = params.get('tab');
     if (tab === 'orders') {
-        document.getElementById('section-shop').style.display = 'none';
-        document.getElementById('section-profile').style.display = 'none';
         const ordersTab = document.getElementById('tab-orders');
         if (ordersTab) ordersTab.style.display = 'block';
     } else if (tab) {
-        setTimeout(() => {
-            const link = document.querySelector('.sidebar-nav a[onclick*="' + tab + '"]');
-            if (link) link.click();
-        }, 100);
+        const link = document.querySelector('.sidebar-nav a[onclick*="' + tab + '"]');
+        if (link) link.click();
+    } else {
+        document.getElementById('section-stats').style.display = 'flex';
+        document.getElementById('section-shop').style.display = 'block';
+        document.getElementById('section-profile').style.display = 'block';
     }
 });
     function doLogout() {
@@ -1729,21 +1809,23 @@ window.addEventListener('load', function() {
     
     function addVariationRow() {
         const container = document.getElementById('variationsContainer');
-        const idx = container.children.length;
         const row = document.createElement('div');
-        row.className = 'd-flex gap-2 align-items-center';
+        row.className = 'border rounded-3 p-2 mb-1';
         row.innerHTML = `
-            <select name="variationType[]" class="form-select form-select-sm" style="width:130px; flex-shrink:0;">
-                <option value="Size">Size</option>
-                <option value="Color">Color</option>
-                <option value="Kilos">Kilos</option>
-            </select>
-            <input type="text" name="variationValue[]" class="form-control form-control-sm"
-                   placeholder="e.g. XL, Red, 5kg" required>
-            <button type="button" class="btn btn-outline-danger btn-sm px-2"
-                    onclick="this.parentElement.remove()">
-                <i class="bi bi-x"></i>
-            </button>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <select name="variationType[]" class="form-select form-select-sm" style="width:110px; flex-shrink:0;">
+                    <option value="Size">Size</option>
+                    <option value="Color">Color</option>
+                    <option value="Kilos">Kilos</option>
+                    <option value="Style">Style</option>
+                </select>
+                <input type="text" name="variationValue[]" class="form-control form-control-sm"
+                       placeholder="e.g. XL, Red, 5kg" style="width:180px;" required>
+                <button type="button" class="btn btn-outline-danger btn-sm px-2"
+                        onclick="this.closest('.border').remove()">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
         `;
         container.appendChild(row);
     }
@@ -1880,14 +1962,57 @@ window.addEventListener('load', function() {
         window.location.href = 'DeleteProductServlet?productId=' + id + '&tab=products&msg=deleted';
     }
 
-    function editProduct(id, name, price, stock, description, category) {
+    function editProduct(id, name, price, stock, description, category, originalPrice) {
         document.getElementById('editProductId').value = id;
         document.getElementById('editProductName').value = name;
         document.getElementById('editProductPrice').value = price;
         document.getElementById('editProductStock').value = stock;
         document.getElementById('editProductDesc').value = description;
+        document.getElementById('editOriginalPrice').value = originalPrice || '';
+
+        // Load existing variations via fetch
+        const container = document.getElementById('editVariationsContainer');
+        container.innerHTML = '<p class="text-muted" style="font-size:12px;">Loading variations...</p>';
+        fetch('GetVariationsServlet?productId=' + id)
+            .then(r => r.json())
+            .then(vars => {
+                container.innerHTML = '';
+                vars.forEach(v => addEditVariationRow(v));
+            })
+            .catch(() => { container.innerHTML = ''; });
+
         document.getElementById('editProductModal').style.display = 'flex';
     }
+
+    function addEditVariationRow(v) {
+        const container = document.getElementById('editVariationsContainer');
+        const row = document.createElement('div');
+        row.className = 'border rounded-3 p-2 mb-1';
+        const varId = v ? v.id : '';
+        const varVal = v ? v.value : '';
+        const varPrice = (v && v.price) ? v.price : '';
+        const varStock = (v && v.stock !== null && v.stock !== undefined) ? v.stock : '';
+        const selSize  = (v && v.type==='Size')  ? 'selected' : '';
+        const selColor = (v && v.type==='Color') ? 'selected' : '';
+        const selKilos = (v && v.type==='Kilos') ? 'selected' : '';
+        const selStyle = (v && v.type==='Style') ? 'selected' : '';
+        row.innerHTML =
+            '<div class="d-flex gap-2 align-items-center flex-wrap">' +
+                '<input type="hidden" name="editVarId[]" value="' + varId + '">' +
+                '<select name="editVarType[]" class="form-select form-select-sm" style="width:110px; flex-shrink:0;">' +
+                    '<option value="Size" ' + selSize + '>Size</option>' +
+                    '<option value="Color" ' + selColor + '>Color</option>' +
+                    '<option value="Kilos" ' + selKilos + '>Kilos</option>' +
+                    '<option value="Style" ' + selStyle + '>Style</option>' +
+                '</select>' +
+                '<input type="text" name="editVarValue[]" class="form-control form-control-sm" placeholder="e.g. XL, Red" style="width:180px;" value="' + varVal + '" required>' +
+                '<button type="button" class="btn btn-outline-danger btn-sm px-2" onclick="this.closest(\'.border\').remove()">' +
+                    '<i class="bi bi-x"></i>' +
+                '</button>' +
+            '</div>';
+        container.appendChild(row);
+    }
+    
     function closeEditModal() {
         document.getElementById('editProductModal').style.display = 'none';
     }
@@ -2057,16 +2182,56 @@ window.addEventListener('load', function() {
                     <label class="form-label fw-bold" style="font-size:13px;">Stock</label>
                     <input type="number" name="stock" id="editProductStock" class="form-control" min="0" required>
                 </div>
+                <div class="col-md-6">
+   <label class="form-label fw-bold" style="font-size:13px;">Discounted Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional</span></label>
+    <input type="number" name="originalPrice" id="editOriginalPrice" class="form-control" step="0.01" min="0">
+</div>
                 <div class="col-12">
                     <label class="form-label fw-bold" style="font-size:13px;">Description</label>
                     <textarea name="description" id="editProductDesc" class="form-control" rows="3"></textarea>
                 </div>
-                <div class="col-12 d-flex gap-2 justify-content-end">
-                    <button type="button" class="btn btn-outline-secondary" onclick="closeEditModal()">Cancel</button>
-                    <button type="submit" class="btn btn-success px-4">Save Changes</button>
-                </div>
+                <div class="col-12">
+    <label class="form-label fw-bold" style="font-size:13px;">
+        Variations <span class="text-muted fw-normal" style="font-size:11px;">optional</span>
+    </label>
+    <div id="editVariationsContainer" class="d-flex flex-column gap-1 mb-2"></div>
+    <button type="button" class="btn btn-outline-success btn-sm" onclick="addEditVariationRow()">
+        <i class="bi bi-plus"></i> Add Variation
+    </button>
+</div>
+<div class="col-12 d-flex gap-2 justify-content-end">
+    <button type="button" class="btn btn-outline-secondary" onclick="closeEditModal()">Cancel</button>
+    <button type="submit" class="btn btn-success px-4">Save Changes</button>
+</div>
             </div>
         </form>
+    </div>
+</div>
+<!-- SELLER CANCEL ORDER MODAL -->
+<div id="sellerCancelModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:16px; padding:28px; width:90%; max-width:420px;">
+        <h6 class="fw-bold mb-3"><i class="bi bi-x-circle text-danger me-2"></i>Cancel Order</h6>
+        <p class="text-muted mb-3" style="font-size:13px;">Please provide a reason for cancelling this order. The customer will be notified.</p>
+        <input type="hidden" id="sellerCancelOrderId">
+        <div class="mb-3">
+            <label class="form-label fw-bold" style="font-size:13px;">Reason</label>
+            <select id="sellerCancelReason" class="form-select mb-2">
+                <option value="">-- Select a reason --</option>
+                <option value="Out of stock">Out of stock</option>
+                <option value="Pricing error">Pricing error</option>
+                <option value="Cannot fulfill order">Cannot fulfill order</option>
+                <option value="System/logistics issue">System/logistics issue</option>
+                <option value="Other">Other</option>
+            </select>
+            <textarea id="sellerCancelOther" class="form-control" rows="2" placeholder="Additional details (optional)" style="font-size:13px;"></textarea>
+        </div>
+        <div id="sellerCancelError" class="text-danger mb-2" style="display:none; font-size:13px;">Please select a reason.</div>
+        <div class="d-flex gap-2 justify-content-end">
+            <button class="btn btn-outline-secondary btn-sm" onclick="closeSellerCancelModal()">Back</button>
+            <button class="btn btn-danger btn-sm" onclick="submitSellerCancel()">
+                <i class="bi bi-x-circle"></i> Confirm Cancel
+            </button>
+        </div>
     </div>
 </div>
 
@@ -2214,6 +2379,50 @@ function sellerClearAll() {
         showToast('All notifications cleared!');
     });
 }
+function openSellerCancelModal(orderId) {
+    document.getElementById('sellerCancelOrderId').value = orderId;
+    document.getElementById('sellerCancelReason').value = '';
+    document.getElementById('sellerCancelOther').value = '';
+    document.getElementById('sellerCancelError').style.display = 'none';
+    document.getElementById('sellerCancelModal').style.display = 'flex';
+}
+
+function closeSellerCancelModal() {
+    document.getElementById('sellerCancelModal').style.display = 'none';
+}
+
+function submitSellerCancel() {
+    const orderId = document.getElementById('sellerCancelOrderId').value;
+    const reason = document.getElementById('sellerCancelReason').value;
+    const other = document.getElementById('sellerCancelOther').value.trim();
+    
+    if (!reason) {
+        document.getElementById('sellerCancelError').style.display = 'block';
+        return;
+    }
+    
+    const fullReason = reason === 'Other' && other 
+        ? other 
+        : reason + (other ? ' — ' + other : '') + ' (Cancelled by Seller)';
+
+    fetch('UpdateOrderServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'orderId=' + orderId + '&status=Cancelled&reason=' + encodeURIComponent(fullReason)
+    })
+    .then(res => res.text())
+    .then(() => {
+        closeSellerCancelModal();
+        document.getElementById('successBarMsg').textContent = 'Order cancelled successfully. ✅';
+        document.getElementById('successBar').style.display = 'block';
+        setTimeout(() => {
+            document.getElementById('successBar').style.display = 'none';
+            location.reload();
+        }, 1500);
+    })
+    .catch(err => alert('Error: ' + err));
+}
+
 </script>
 </body>
 </html>

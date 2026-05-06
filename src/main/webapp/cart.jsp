@@ -12,14 +12,17 @@
     Double cartTotal = (Double) request.getAttribute("cartTotal");
     if (cartItems == null) { response.sendRedirect("CartServlet"); return; }
     if (cartTotal == null) cartTotal = 0.0;
-    
+ 
  // Track breadcrumb
-    String prevCrumb = (String) session.getAttribute("breadcrumb");
-    if ("product".equals(prevCrumb)) {
-        session.setAttribute("breadcrumb", "product-cart");
-    } else {
-        session.setAttribute("breadcrumb", "cart");
-    }
+   String prevCrumb = (String) session.getAttribute("breadcrumb");
+if ("product".equals(prevCrumb) || "seller".equals(prevCrumb)) {
+    session.setAttribute("breadcrumb", "product-cart");
+} else if (!"product-cart".equals(prevCrumb)) {
+    session.setAttribute("breadcrumb", "cart");
+    session.removeAttribute("lastProductId");
+    session.removeAttribute("lastProduct");
+}
+    // if already "product-cart", keep it — para hindi mawala ang history
 %>
 <!DOCTYPE html>
 <html>
@@ -75,15 +78,14 @@
             <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none text-primary">Home</a></li>
             <%
                 String cartCrumb = (String) session.getAttribute("breadcrumb");
-                if ("product-cart".equals(cartCrumb)) {
-                    Integer lpId = (Integer) session.getAttribute("lastProductId");
-                    String lpName = (String) session.getAttribute("lastProduct");
-                    if (lpId != null && lpName != null) {
+                Integer lpId = (Integer) session.getAttribute("lastProductId");
+                String lpName = (String) session.getAttribute("lastProduct");
+                if ("product-cart".equals(cartCrumb) && lpId != null && lpName != null) {
             %>
                 <li class="breadcrumb-item">
                     <a href="product.jsp?id=<%= lpId %>" class="text-decoration-none text-primary"><%= lpName %></a>
                 </li>
-            <%  } } %>
+            <% } %>
             <li class="breadcrumb-item active text-muted">Cart</li>
         </ol>
     </nav>
@@ -91,16 +93,27 @@
 <div class="container py-4">
     <h5 class="fw-bold mb-4 d-flex align-items-center gap-2">
     <span><i class="bi bi-cart3 text-primary"></i> My Cart
-        <span class="badge bg-primary ms-2"><%= cartItems.size() %></span>
+        <%
+int badgeCount = 0;
+for (Map<String, Object> ci : cartItems) {
+    if ((int)ci.get("quantity") > 0) badgeCount++;
+}
+%>
+<span class="badge bg-primary ms-2"><%= badgeCount %></span>
     </span>
-    <% if (!cartItems.isEmpty()) { %>
+    <% if (badgeCount > 0) { %>
     <button class="btn btn-outline-danger btn-sm ms-auto" onclick="removeAll()">
         <i class="bi bi-trash3"></i> Remove All
     </button>
     <% } %>
 </h5>
 
-    <% if (cartItems.isEmpty()) { %>
+    <%
+boolean allZero = true;
+for (Map<String, Object> ci : cartItems) {
+    if ((int)ci.get("quantity") > 0) { allZero = false; break; }
+}
+if (cartItems.isEmpty()) { %>
     <div class="empty-cart">
         <i class="bi bi-cart-x" style="font-size: 64px; opacity: 0.2;"></i>
         <p class="mt-3 fs-5">Your cart is empty</p>
@@ -124,7 +137,26 @@
                     <!-- Product Info -->
                     <div class="flex-grow-1">
                         <h6 class="mb-1 fw-bold"><%= item.get("name") %></h6>
-<p class="text-danger fw-bold mb-1">₱<%= String.format("%.2f", item.get("price")) %></p>
+<%
+    double cartRealPrice = item.get("price") != null ? (Double) item.get("price") : 0;
+    double cartDiscPrice = item.get("originalPrice") != null ? (Double) item.get("originalPrice") : 0;
+    int cartDiscPct = 0;
+    double cartDisplayPrice = cartRealPrice;
+    if (cartDiscPrice > 0 && cartDiscPrice < cartRealPrice) {
+        cartDiscPct = (int) Math.round((cartRealPrice - cartDiscPrice) / cartRealPrice * 100);
+        cartDisplayPrice = cartDiscPrice;
+    }
+%>
+<% if (cartDiscPct > 0) { %>
+    <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= String.format("%.2f", cartRealPrice) %></span>
+        <span class="badge bg-danger" style="font-size:10px;">-<%= cartDiscPct %>% OFF</span>
+    </div>
+    <p class="text-danger fw-bold mb-1">₱<%= String.format("%.2f", cartDisplayPrice) %></p>
+<% } else { %>
+    <p class="text-danger fw-bold mb-1">₱<%= String.format("%.2f", cartRealPrice) %></p>
+<% } %>
+
 <% if (item.get("variationType") != null) { %>
 <p class="mb-1">
     <span class="badge bg-light text-dark border" style="font-size:11px;">
@@ -160,7 +192,13 @@
             <div class="summary-card">
                 <h6 class="fw-bold mb-3">Order Summary</h6>
                 <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Items (<%= cartItems.size() %>)</span>
+                    <%
+int activeItemCount = 0;
+for (Map<String, Object> ci : cartItems) {
+    if ((int)ci.get("quantity") > 0) activeItemCount++;
+}
+%>
+<span class="text-muted" id="itemsLabel">Items (<%= activeItemCount %>)</span>
                     <span id="summaryTotal">₱<%= String.format("%.2f", cartTotal) %></span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
@@ -215,18 +253,25 @@
         document.getElementById('sub_' + itemId).innerText = '₱' + sub.toFixed(2);
         updateTotal();
 
-        // Grey out if zero
+     // Grey out if zero
         const card = document.getElementById('cartItem_' + itemId);
         if (qty === 0) {
-            card.remove();
-            delete prices[itemId];
-            updateTotal();
-            return;
+            card.style.opacity = '0.4';
+            card.style.filter = 'grayscale(1)';
         } else {
             card.style.opacity = '1';
             card.style.filter = 'none';
         }
-
+     // Update badge and items count
+        let activeCount = 0;
+        document.querySelectorAll('[id^="qty_"]').forEach(el => {
+            if (parseInt(el.innerText) > 0) activeCount++;
+        });
+        const badge = document.querySelector('.badge.bg-primary');
+        if (badge) badge.innerText = activeCount;
+        const itemsLabel = document.getElementById('itemsLabel');
+        if (itemsLabel) itemsLabel.innerText = 'Items (' + activeCount + ')';
+        
         // Save to server
         fetch('UpdateCartServlet', {
             method: 'POST',
@@ -257,8 +302,12 @@
 
     function updateTotal() {
         let total = 0;
-        document.querySelectorAll('[id^="sub_"]').forEach(el => {
-            total += parseFloat(el.innerText.replace('₱',''));
+        document.querySelectorAll('[id^="qty_"]').forEach(el => {
+            const itemId = el.id.replace('qty_', '');
+            const qty = parseInt(el.innerText);
+            if (qty > 0) {
+                total += prices[itemId] * qty;
+            }
         });
         document.getElementById('summaryTotal').innerText = '₱' + total.toFixed(2);
         document.getElementById('grandTotal').innerText = '₱' + total.toFixed(2);

@@ -9,16 +9,18 @@
     }
 
     int productId = Integer.parseInt(productIdParam.trim());
-    String name = "", description = "", image = "", sellerName = "", sellerPfp = "";
-    double price = 0;
+    String name = "", loggedUser = "", description = "", image = "", sellerName = "", sellerPfp = "";
+    double price = 0, originalPrice = 0;
     int stock = 0, sellerId = 0;
+    double storeAvg = 0;
+    int storeRevs = 0;
 
     try {
         Connection conn = com.shopeasy.DBConnection.getConnection();
         PreparedStatement ps = conn.prepareStatement(
         	    "SELECT p.*, s.business_name, s.seller_id, s.profile_picture FROM product p " +
         	    "JOIN seller s ON p.seller_id = s.seller_id " +
-        	    "WHERE p.product_id = ? AND p.status = 'active'");
+        	    "WHERE p.product_id = ?");
         ps.setInt(1, productId);
         ResultSet rs = ps.executeQuery();
         if (rs.next()) {
@@ -26,6 +28,7 @@
             description = rs.getString("description");
             image = rs.getString("image");
             price = rs.getDouble("price");
+            originalPrice = rs.getDouble("original_price");
             stock = rs.getInt("stock");
             sellerName = rs.getString("business_name");
             sellerId = rs.getInt("seller_id");
@@ -34,18 +37,28 @@
             response.sendRedirect("index.jsp");
             return;
         }
-        rs.close(); ps.close(); conn.close();
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
-    
+        rs.close(); ps.close();
+
+     // Get store average rating
+     PreparedStatement storeRatPs = conn.prepareStatement(
+    "SELECT COALESCE(AVG(r.rating), 0) AS store_avg, COUNT(r.review_id) AS store_revs " +
+    "FROM review r JOIN product p ON r.product_id = p.product_id " +
+    "WHERE p.seller_id = ?");
+storeRatPs.setInt(1, sellerId);
+ResultSet storeRatRs = storeRatPs.executeQuery();
+if (storeRatRs.next()) {
+    storeAvg = storeRatRs.getDouble("store_avg");
+    storeRevs = storeRatRs.getInt("store_revs");
+}
+storeRatRs.close(); storeRatPs.close(); conn.close();
+    } catch (Exception e) { e.printStackTrace(); }
     
  // Fetch variations for this product
  java.util.List<java.util.Map<String, Object>> variations = new java.util.ArrayList<>();
  try {
      Connection varConn = com.shopeasy.DBConnection.getConnection();
      PreparedStatement varPs = varConn.prepareStatement(
-         "SELECT variation_id, variation_type, variation_value FROM product_variation WHERE product_id = ? ORDER BY variation_type");
+    		    "SELECT variation_id, variation_type, variation_value, price, stock FROM product_variation WHERE product_id = ? ORDER BY variation_type");
      varPs.setInt(1, productId);
      ResultSet varRs = varPs.executeQuery();
      while (varRs.next()) {
@@ -53,13 +66,15 @@
          v.put("id", varRs.getInt("variation_id"));
          v.put("type", varRs.getString("variation_type"));
          v.put("value", varRs.getString("variation_value"));
+         v.put("price", varRs.getObject("price"));
+         v.put("stock", varRs.getObject("stock"));
          variations.add(v);
      }
      varRs.close(); varPs.close(); varConn.close();
  } catch (Exception e) { e.printStackTrace(); }
  
 
-    String loggedUser = (String) session.getAttribute("userName");
+ loggedUser = (String) session.getAttribute("userName");
     String loggedRole = (String) session.getAttribute("userRole");
     String userAvatar = (String) session.getAttribute("userAvatar");
     int cartCount = 0;
@@ -277,15 +292,33 @@ try {
     <span class="text-muted" style="font-size:13px;"><i class="bi bi-bag-check"></i> <%= totalSold %> sold</span>
 </div>
 
-<div class="price-tag mb-2">₱<%= String.format("%.2f", price) %></div>
+<%
+    int prodDiscPct = 0;
+    if (originalPrice > 0 && originalPrice < price) {
+        prodDiscPct = (int) Math.round((price - originalPrice) / price * 100);
+    }
+%>
+<div id="priceDisplay">
+<% if (prodDiscPct > 0) { %>
+    <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="text-muted text-decoration-line-through" style="font-size:15px;">₱<%= String.format("%.2f", price) %></span>
+        <span class="badge bg-danger" style="font-size:12px;">-<%= prodDiscPct %>% OFF</span>
+    </div>
+    <div class="price-tag mb-2">₱<%= String.format("%.2f", originalPrice) %></div>
+<% } else { %>
+    <div class="price-tag mb-2">₱<%= String.format("%.2f", price) %></div>
+<% } %>
+</div>
 
-                <% if (stock > 10) { %>
-                    <span class="badge bg-success stock-badge mb-3"><i class="bi bi-check-circle"></i> In Stock (<%= stock %> available)</span>
-                <% } else if (stock > 0) { %>
-                    <span class="badge bg-warning text-dark stock-badge mb-3"><i class="bi bi-exclamation-circle"></i> Low Stock (<%= stock %> left)</span>
-                <% } else { %>
-                    <span class="badge bg-danger stock-badge mb-3"><i class="bi bi-x-circle"></i> Out of Stock</span>
-                <% } %>
+<div id="stockDisplay">
+<% if (stock > 10) { %>
+    <span class="badge bg-success stock-badge mb-3"><i class="bi bi-check-circle"></i> In Stock (<%= stock %> available)</span>
+<% } else if (stock > 0) { %>
+    <span class="badge bg-warning text-dark stock-badge mb-3"><i class="bi bi-exclamation-circle"></i> Low Stock (<%= stock %> left)</span>
+<% } else { %>
+    <span class="badge bg-danger stock-badge mb-3"><i class="bi bi-x-circle"></i> Out of Stock</span>
+<% } %>
+</div>
 
                 <hr>
                 <p class="fw-bold mb-1">Description</p>
@@ -302,9 +335,17 @@ try {
             </div>
         <% } %>
         <div>
-            <p class="mb-0 fw-bold text-primary" style="font-size:13px;"><%= sellerName %></p>
-            <p class="mb-0 text-muted" style="font-size:11px;">View Shop →</p>
-        </div>
+    <p class="mb-0 fw-bold text-primary" style="font-size:13px;"><%= sellerName %></p>
+    <div class="d-flex align-items-center gap-1">
+    <% if (storeRevs > 0) { %>
+        <i class="bi bi-star-fill" style="color:#ffc107; font-size:10px;"></i>
+    <% } else { %>
+        <i class="bi bi-star" style="color:#ddd; font-size:10px;"></i>
+    <% } %>
+    <span class="text-muted" style="font-size:10px;"><%= storeRevs > 0 ? String.format("%.1f", storeAvg) + " · " + storeRevs + " review" + (storeRevs != 1 ? "s" : "") : "No reviews yet" %></span>
+</div>
+    <p class="mb-0 text-muted" style="font-size:11px;">View Shop →</p>
+</div>
     </a>
 </div>
 
@@ -325,14 +366,16 @@ try {
         <div class="d-flex flex-wrap gap-2" id="varGroup_<%= entry.getKey() %>">
             <% for (java.util.Map<String, Object> v : entry.getValue()) { %>
             <button type="button"
-                class="btn btn-outline-secondary btn-sm variation-btn"
-                data-type="<%= entry.getKey() %>"
-                data-id="<%= v.get("id") %>"
-                data-value="<%= v.get("value") %>"
-                onclick="selectVariation(this, '<%= entry.getKey() %>')"
-                style="border-radius:8px; min-width:52px; font-size:13px;">
-                <%= v.get("value") %>
-            </button>
+    class="btn btn-outline-secondary btn-sm variation-btn"
+    data-type="<%= entry.getKey() %>"
+    data-id="<%= v.get("id") %>"
+    data-value="<%= v.get("value") %>"
+    data-price="<%= v.get("price") != null ? v.get("price") : "" %>"
+    data-stock="<%= v.get("stock") != null ? v.get("stock") : "" %>"
+    onclick="selectVariation(this, '<%= entry.getKey() %>')"
+    style="border-radius:8px; min-width:52px; font-size:13px;">
+    <%= v.get("value") %>
+</button>
             <% } %>
         </div>
     </div>
@@ -508,19 +551,53 @@ document.querySelectorAll('.star-btn').forEach(star => {
 
 </script>
 <script>
+const basePrice = <%= price %>;
+const baseOriginalPrice = <%= originalPrice %>;
+const baseStock = <%= stock %>;
+
 function selectVariation(btn, type) {
-    // Deselect all buttons in this group
     document.querySelectorAll('#varGroup_' + type + ' .variation-btn').forEach(b => {
         b.classList.remove('btn-dark');
         b.classList.add('btn-outline-secondary');
     });
-    // Select clicked
     btn.classList.remove('btn-outline-secondary');
     btn.classList.add('btn-dark');
-    // Store the last selected variation id
-    // We store all selected per type, pick last one for single variation products
-    // For multi-type, we just pass the last clicked (you can extend this)
     document.getElementById('selectedVariationId').value = btn.dataset.id;
+
+    // Update price display
+    const varPrice = btn.dataset.price ? parseFloat(btn.dataset.price) : null;
+    const varStock = btn.dataset.stock !== '' ? parseInt(btn.dataset.stock) : null;
+    const displayPrice = varPrice !== null ? varPrice : baseOriginalPrice > 0 ? baseOriginalPrice : basePrice;
+    const displayOriginal = varPrice !== null ? basePrice : basePrice;
+    const displayStock = varStock !== null ? varStock : baseStock;
+
+    // Update price tag
+    const pct = varPrice !== null && basePrice > varPrice
+        ? Math.round((basePrice - varPrice) / basePrice * 100) : 0;
+
+    let priceHtml = '';
+    if (pct > 0) {
+        priceHtml = '<div class="d-flex align-items-center gap-2 mb-1">' +
+            '<span class="text-muted text-decoration-line-through" style="font-size:15px;">₱' + basePrice.toFixed(2) + '</span>' +
+            '<span class="badge bg-danger" style="font-size:12px;">-' + pct + '% OFF</span>' +
+            '</div>' +
+            '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
+    } else {
+        priceHtml = '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
+    }
+    document.getElementById('priceDisplay').innerHTML = priceHtml;
+
+    // Update stock badge
+    let stockHtml = '';
+    if (displayStock > 10) {
+        stockHtml = '<span class="badge bg-success stock-badge mb-3"><i class="bi bi-check-circle"></i> In Stock (' + displayStock + ' available)</span>';
+    } else if (displayStock > 0) {
+        stockHtml = '<span class="badge bg-warning text-dark stock-badge mb-3"><i class="bi bi-exclamation-circle"></i> Low Stock (' + displayStock + ' left)</span>';
+    } else {
+        stockHtml = '<span class="badge bg-danger stock-badge mb-3"><i class="bi bi-x-circle"></i> Out of Stock</span>';
+    }
+    document.getElementById('stockDisplay').innerHTML = stockHtml;
+    document.getElementById('qtyInput').max = displayStock;
 }
 
 function changeQty(delta) {

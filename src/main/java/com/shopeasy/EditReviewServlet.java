@@ -51,9 +51,37 @@ public class EditReviewServlet extends HttpServlet {
             }
             checkRs.close(); checkPs.close();
 
+            // Check 7-day edit window
+            PreparedStatement datePs = conn.prepareStatement(
+                "SELECT created_at FROM review WHERE review_id=?");
+            datePs.setInt(1, reviewId);
+            ResultSet dateRs = datePs.executeQuery();
+            if (dateRs.next()) {
+                java.sql.Timestamp createdAt = dateRs.getTimestamp("created_at");
+                long daysSince = (System.currentTimeMillis() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+                if (daysSince > 7) {
+                    out.print("{\"success\":false,\"message\":\"Edit period has expired (7 days only)\"}");
+                    dateRs.close(); datePs.close(); conn.close();
+                    return;
+                }
+            }
+            dateRs.close(); datePs.close();
+
+         // Check if already edited
+            PreparedStatement editCheckPs = conn.prepareStatement(
+                "SELECT is_edited FROM review WHERE review_id=?");
+            editCheckPs.setInt(1, reviewId);
+            ResultSet editCheckRs = editCheckPs.executeQuery();
+            if (editCheckRs.next() && editCheckRs.getInt("is_edited") == 1) {
+                out.print("{\"success\":false,\"message\":\"You can only edit a review once.\"}");
+                editCheckRs.close(); editCheckPs.close(); conn.close();
+                return;
+            }
+            editCheckRs.close(); editCheckPs.close();
+
             if (newPhoto != null && !newPhoto.isEmpty()) {
                 PreparedStatement updatePs = conn.prepareStatement(
-                    "UPDATE review SET rating=?, comment=?, photo=? WHERE review_id=?");
+                    "UPDATE review SET rating=?, comment=?, photo=?, is_edited=1 WHERE review_id=?");
                 updatePs.setInt(1, rating);
                 updatePs.setString(2, comment != null ? comment.trim() : "");
                 updatePs.setString(3, newPhoto);
@@ -62,7 +90,7 @@ public class EditReviewServlet extends HttpServlet {
                 updatePs.close();
             } else {
                 PreparedStatement updatePs = conn.prepareStatement(
-                    "UPDATE review SET rating=?, comment=? WHERE review_id=?");
+                    "UPDATE review SET rating=?, comment=?, is_edited=1 WHERE review_id=?");
                 updatePs.setInt(1, rating);
                 updatePs.setString(2, comment != null ? comment.trim() : "");
                 updatePs.setInt(3, reviewId);

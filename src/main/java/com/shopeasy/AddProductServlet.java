@@ -30,6 +30,7 @@ public class AddProductServlet extends HttpServlet {
         String stock         = request.getParameter("stock");
         String categoryId    = request.getParameter("categoryId");
         String productImage  = request.getParameter("productImage");
+        String originalPrice = request.getParameter("originalPrice");
 
         // Variation arrays from form
         String[] variationTypes  = request.getParameterValues("variationType[]");
@@ -39,19 +40,24 @@ public class AddProductServlet extends HttpServlet {
             Connection conn = DBConnection.getConnection();
 
             // 1. Insert product and get generated product_id
-            String sql = "INSERT INTO product (seller_id, category_id, name, description, price, stock, image, status) "
-                       + "VALUES (?, ?, ?, ?, ?, ?, ?, 'active')";
+            String sql = "INSERT INTO product (seller_id, category_id, name, description, price, original_price, stock, image, status) "
+                       + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')";
             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             ps.setInt(1, sellerId);
             ps.setInt(2, categoryId != null && !categoryId.isEmpty() ? Integer.parseInt(categoryId) : 1);
             ps.setString(3, productName);
             ps.setString(4, description);
             ps.setDouble(5, Double.parseDouble(price));
-            ps.setInt(6, Integer.parseInt(stock));
-            if (productImage != null && !productImage.isEmpty()) {
-                ps.setString(7, productImage);
+            if (originalPrice != null && !originalPrice.isEmpty()) {
+                ps.setDouble(6, Double.parseDouble(originalPrice));
             } else {
-                ps.setNull(7, java.sql.Types.VARCHAR);
+                ps.setNull(6, java.sql.Types.DECIMAL);
+            }
+            ps.setInt(7, Integer.parseInt(stock));
+            if (productImage != null && !productImage.isEmpty()) {
+                ps.setString(8, productImage);
+            } else {
+                ps.setNull(8, java.sql.Types.VARCHAR);
             }
             ps.executeUpdate();
 

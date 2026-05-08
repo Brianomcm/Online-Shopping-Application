@@ -71,7 +71,7 @@
                     <div id="loginError" class="alert alert-danger py-2 mb-3" style="display:none; font-size:13px;">
                         <i class="bi bi-x-circle-fill"></i> <span id="loginErrorText">Invalid email or password.</span>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
+                   <button type="submit" id="registerSubmitBtn" class="btn btn-primary w-100 fw-bold py-2">
                         <i class="bi bi-box-arrow-in-right"></i> Login
                     </button>
                 </form>
@@ -108,21 +108,12 @@
 
                 <form action="RegisterServlet" method="post" id="registerForm">
                 <!-- ACCOUNT TYPE SELECTOR -->
-                <p class="fw-bold mb-2">Select Account Type:</p>
-                <div class="row g-2 mb-3">
-                    <div class="col-6">
-                        <div class="account-type-card border rounded-3 p-3 text-center" id="customerCard" onclick="selectTypeWithMessage('customer', 'Setting up Customer account...')" style="cursor:pointer; border-color:#0d6efd !important; background:#e8f0fe;">
-                            <i class="bi bi-person-fill fs-3 text-primary"></i>
-                            <p class="mb-0 fw-bold mt-1">Customer</p>
-                            <small class="text-muted">I want to shop</small>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="account-type-card border rounded-3 p-3 text-center" id="sellerCard" onclick="selectTypeWithMessage('seller', 'Setting up Business account...')" style="cursor:pointer;">
-                            <i class="bi bi-shop fs-3 text-secondary"></i>
-                            <p class="mb-0 fw-bold mt-1">Business / Seller</p>
-                            <small class="text-muted">I want to sell</small>
-                        </div>
+                <p class="fw-bold mb-2">Create Your Account</p>
+                <div class="mb-3">
+                    <div class="border rounded-3 p-3 text-center" style="border-color:#0d6efd !important; background:#e8f0fe;">
+                        <i class="bi bi-person-fill fs-3 text-primary"></i>
+                        <p class="mb-0 fw-bold mt-1">Customer Account</p>
+                        <small class="text-muted">Start shopping and explore products. You can become a seller anytime later.</small>
                     </div>
                 </div>
 
@@ -144,17 +135,26 @@
                         <label class="form-label fw-bold">Phone Number</label>
                         <div class="input-group">
                             <span class="input-group-text">+63</span>
-                            <input type="tel" name="phone" class="form-control" placeholder="9XX XXX XXXX" required>
+                            <input type="tel" name="phone" id="regPhone" class="form-control" placeholder="9XX XXX XXXX" required maxlength="10" oninput="formatPHPhone(this)">
+                        </div>
+                        <div id="regPhoneError" class="invalid-feedback" style="display:none; font-size:11px;">
+                            First digit must be 9 (e.g. 9171234567)
                         </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Password</label>
                         <div class="input-group">
-    <input type="password" name="password" id="regPassword" class="form-control" placeholder="Create a password" required>
+    <input type="password" name="password" id="regPassword" class="form-control" placeholder="Create a password" required oninput="checkPasswordStrength(this.value)">
     <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('regPassword', this)">
         <i class="bi bi-eye"></i>
     </button>
 </div>
+                   <div id="passStrengthWrap" class="mt-1 px-1">
+                        <div class="progress" style="height:5px; border-radius:4px;">
+                            <div id="passStrengthBar" class="progress-bar" style="width:0%; transition:0.3s;"></div>
+                        </div>
+                        <small id="passStrengthText" style="font-size:11px;"></small>
+                    </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Confirm Password</label>
@@ -167,33 +167,6 @@
                     </div>
                 </div>
 
-                <!-- SELLER EXTRA FIELDS -->
-                <div id="sellerFields" style="display:none;">
-                    <hr>
-                    <p class="fw-bold mb-2"><i class="bi bi-shop text-primary"></i> Business Information</p>
-                    <div class="row g-2">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Business Name</label>
-                            <input type="text" name="businessName" class="form-control" placeholder="Enter your business name">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Business Type</label>
-                            <select name="businessType" class="form-select">
-                                <option value="">Select type</option>
-                                <option>Retail</option>
-                                <option>Wholesale</option>
-                                <option>Food & Beverage</option>
-                                <option>Fashion & Apparel</option>
-                                <option>Electronics</option>
-                                <option>Others</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label fw-bold">Business Address</label>
-                            <input type="text" name="businessAddress" class="form-control" placeholder="Enter your business address">
-                        </div>
-                    </div>
-                </div>
 
                 <div class="mt-3">
                     <div class="form-check mb-3">
@@ -599,4 +572,71 @@ function checkEnableCheckbox() {
         checkbox.checked = true;
     }
 }
+function checkPasswordStrength(val) {
+    const bar = document.getElementById('passStrengthBar');
+    const text = document.getElementById('passStrengthText');
+    if (!bar) return;
+    let score = 0;
+    if (val.length >= 6) score++;
+    if (val.length >= 10) score++;
+    if (/[A-Z]/.test(val)) score++;
+    if (/[0-9]/.test(val)) score++;
+    if (/[^A-Za-z0-9]/.test(val)) score++;
+
+    const submitBtn = document.getElementById('registerSubmitBtn');
+
+    if (val.length === 0) {
+        bar.style.width = '0%'; bar.className = 'progress-bar';
+        text.textContent = '';
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.title = ''; }
+    } else if (score <= 2) {
+        bar.style.width = '33%'; bar.className = 'progress-bar bg-danger';
+        text.innerHTML = '<span class="text-danger">Weak - password too simple</span>';
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.title = 'Password is too weak'; }
+    } else if (score === 3) {
+        bar.style.width = '66%'; bar.className = 'progress-bar bg-warning';
+        text.innerHTML = '<span class="text-warning">Medium - acceptable but could be stronger</span>';
+        if (submitBtn) { submitBtn.disabled = false; }
+    } else {
+        bar.style.width = '100%'; bar.className = 'progress-bar bg-success';
+        text.innerHTML = '<span class="text-success">Strong - great password!</span>';
+        if (submitBtn) { submitBtn.disabled = false; }
+    }
+}
+
+function formatPHPhone(input) {
+    let val = input.value.replace(/\D/g, ''); // remove non-digits
+    if (val.startsWith('0')) val = val.substring(1); // remove leading 0
+    if (val.length > 10) val = val.substring(0, 10); // max 10 digits
+    input.value = val;
+
+    const err = document.getElementById('regPhoneError');
+    if (val.length > 0 && !val.startsWith('9')) {
+        input.classList.add('is-invalid');
+        if (err) err.style.display = 'block';
+    } else {
+        input.classList.remove('is-invalid');
+        if (err) err.style.display = 'none';
+    }
+}
 </script>
+
+<!-- ===== SELLER BLOCKED MODAL (no birthday / underage) ===== -->
+<div class="modal fade" id="sellerBlockedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-4">
+                <div class="mb-3" style="width:64px; height:64px; border-radius:50%; background:#fee2e2; display:flex; align-items:center; justify-content:center; margin:0 auto;">
+    <i class="bi bi-x-lg" style="font-size:28px; color:#dc3545;"></i>
+</div>
+                <h5 class="fw-bold mb-2">Not Eligible</h5>
+                <p class="text-muted mb-4" style="font-size:14px;">
+                    You must be <strong>18 years old or above</strong> to become a seller.<br>
+                    Please come back when you meet the age requirement.
+                </p>
+                <button type="button" class="btn btn-primary rounded-pill px-4"
+                        data-bs-dismiss="modal">Okay</button>
+            </div>
+        </div>
+    </div>
+</div>

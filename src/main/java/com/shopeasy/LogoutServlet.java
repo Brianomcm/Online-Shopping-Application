@@ -14,8 +14,10 @@ public class LogoutServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        HttpSession session = request.getSession(false);
+    	HttpSession session = request.getSession(false);
         if (session != null) {
+            // Reset activeMode before invalidating
+            session.setAttribute("activeMode", "customer");
             session.invalidate();
         }
         response.sendRedirect("index.jsp");

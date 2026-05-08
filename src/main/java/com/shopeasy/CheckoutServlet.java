@@ -31,7 +31,8 @@ public class CheckoutServlet extends HttpServlet {
             return;
         }
 
-        int customerId = (int) session.getAttribute("userId");
+        Integer customerId = (Integer) session.getAttribute("customerId");
+        if (customerId == null) customerId = (int) session.getAttribute("userId");
         String shipName = request.getParameter("shipName");
         String shipAddress = request.getParameter("shipAddress");
         String shipPhone = request.getParameter("shipPhone");
@@ -109,9 +110,11 @@ public class CheckoutServlet extends HttpServlet {
             itemPs.close();
 
             // Notify customer
+           
+            int notifUserId = (int) session.getAttribute("userId");
             PreparedStatement custNotifPs = conn.prepareStatement(
                 "INSERT INTO notifications (user_id, user_type, message) VALUES (?, 'customer', ?)");
-            custNotifPs.setInt(1, customerId);
+            custNotifPs.setInt(1, notifUserId);
             custNotifPs.setString(2, "Your order #" + orderId + " has been placed successfully! Total: ₱" + String.format("%.2f", cartTotal));
             custNotifPs.executeUpdate();
             custNotifPs.close();
@@ -121,9 +124,18 @@ public class CheckoutServlet extends HttpServlet {
             for (Map<String, Object> item : cartItems) {
                 int sellerId = (Integer) item.get("sellerId");
                 if (notifiedSellers.add(sellerId)) {
-                    PreparedStatement sellerNotifPs = conn.prepareStatement(
-                        "INSERT INTO notifications (user_id, user_type, message) VALUES (?, 'seller', ?)");
-                    sellerNotifPs.setInt(1, sellerId);
+                	// Get user_id from seller_id
+                	PreparedStatement sellerUserPs = conn.prepareStatement(
+                	    "SELECT user_id FROM seller WHERE seller_id = ?");
+                	sellerUserPs.setInt(1, sellerId);
+                	ResultSet sellerUserRs = sellerUserPs.executeQuery();
+                	int sellerUserId = sellerId; // fallback
+                	if (sellerUserRs.next()) sellerUserId = sellerUserRs.getInt("user_id");
+                	sellerUserRs.close(); sellerUserPs.close();
+
+                	PreparedStatement sellerNotifPs = conn.prepareStatement(
+                	    "INSERT INTO notifications (user_id, user_type, message) VALUES (?, 'seller', ?)");
+                	sellerNotifPs.setInt(1, sellerUserId);
                     sellerNotifPs.setString(2, "You have a new order #" + orderId + " from a customer!");
                     sellerNotifPs.executeUpdate();
                     sellerNotifPs.close();

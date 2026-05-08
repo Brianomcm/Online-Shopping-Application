@@ -21,7 +21,7 @@ public class ProfileServlet extends HttpServlet {
         }
         try {
             Connection conn = DBConnection.getConnection();
-            String sql = "SELECT * FROM customer WHERE customer_id = ?";
+            String sql = "SELECT * FROM customer WHERE user_id = ?";
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setInt(1, (Integer) session.getAttribute("userId"));
             ResultSet rs = ps.executeQuery();

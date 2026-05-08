@@ -24,7 +24,8 @@ public class WishlistServlet extends HttpServlet {
             out.print("{\"wishlisted\":false}");
             return;
         }
-        int customerId = (int) session.getAttribute("userId");
+        Integer customerId = (Integer) session.getAttribute("customerId");
+        if (customerId == null) customerId = (int) session.getAttribute("userId");
         int productId = Integer.parseInt(request.getParameter("check"));
         try {
             Connection conn = DBConnection.getConnection();
@@ -50,7 +51,8 @@ public class WishlistServlet extends HttpServlet {
             out.print("{\"success\":false}");
             return;
         }
-        int customerId = (int) session.getAttribute("userId");
+        Integer customerId = (Integer) session.getAttribute("customerId");
+        if (customerId == null) customerId = (int) session.getAttribute("userId");
         String productIdParam = request.getParameter("productId");
         String action = request.getParameter("action");
         int productId = Integer.parseInt(productIdParam);

@@ -27,12 +27,12 @@ public class UpdatePasswordServlet extends HttpServlet {
 
         try {
             Connection conn = DBConnection.getConnection();
-            String table = "customer".equals(role) ? "customer" : "seller";
-            String idCol = "customer".equals(role) ? "customer_id" : "seller_id";
+            String table = "users";
+            String idCol = "user_id";
 
             // Verify current password
             PreparedStatement ps = conn.prepareStatement(
-                "SELECT * FROM " + table + " WHERE " + idCol + "=? AND password=?");
+            		"SELECT * FROM users WHERE user_id=? AND password=?");
             ps.setInt(1, userId);
             ps.setString(2, currentPassword);
             ResultSet rs = ps.executeQuery();
@@ -45,7 +45,7 @@ public class UpdatePasswordServlet extends HttpServlet {
 
             // Update password
             PreparedStatement updatePs = conn.prepareStatement(
-                "UPDATE " + table + " SET password=? WHERE " + idCol + "=?");
+            		"UPDATE users SET password=? WHERE user_id=?");
             updatePs.setString(1, newPassword);
             updatePs.setInt(2, userId);
             updatePs.executeUpdate();

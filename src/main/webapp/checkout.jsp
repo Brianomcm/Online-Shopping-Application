@@ -2,7 +2,9 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ page import="java.util.*" %>
 <%
-    if(session.getAttribute("userId") == null || !"customer".equals(session.getAttribute("userRole"))) {
+String ckRole = (String) session.getAttribute("userRole");
+if(session.getAttribute("userId") == null || ckRole == null ||
+   (!ckRole.equals("customer") && !ckRole.equals("both"))) {
         response.sendRedirect("index.jsp");
         return;
     }
@@ -31,7 +33,8 @@ if (cartTotal == null) cartTotal = 0.0;
  // Load saved addresses from database
     java.util.List<java.util.Map<String, Object>> savedAddresses = new java.util.ArrayList<>();
     try {
-        int custId = (int) session.getAttribute("userId");
+    	Integer custId = (Integer) session.getAttribute("customerId");
+        if (custId == null) custId = (int) session.getAttribute("userId");
         java.sql.Connection addrConn = com.shopeasy.DBConnection.getConnection();
         java.sql.PreparedStatement addrPs = addrConn.prepareStatement(
             "SELECT * FROM customer_address WHERE customer_id=? ORDER BY is_default DESC");
@@ -59,42 +62,32 @@ if (cartTotal == null) cartTotal = 0.0;
     <title>Checkout - ShopEasy</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    <style>
-        body { background: #f8f9fa; font-family: 'Segoe UI', sans-serif; }
+  <style>
+     body { background: #f8f9fa; font-family: 'Segoe UI', sans-serif; }
         .navbar-brand { font-weight: 800; color: #0d6efd !important; font-size: 22px; }
-        .card-section { background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); padding: 24px; margin-bottom: 20px; }
-        .section-title { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #e8f0fe; }
-        .product-img { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
-        .product-img-placeholder { width: 60px; height: 60px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 22px; }
-        .payment-option { border: 2px solid #dee2e6; border-radius: 12px; padding: 14px; cursor: pointer; transition: 0.2s; margin-bottom: 10px; }
+        .card-section { background: white; border-radius: 16px; box-shadow: 0 2px 16px rgba(13,110,253,0.07); padding: 24px; margin-bottom: 16px; border: 1px solid #e8f0fe; }
+        .section-title { font-size: 14px; font-weight: 700; color: #0d6efd; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #e8f0fe; display: flex; align-items: center; gap: 8px; }
+        .product-img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 1px solid #eee; }
+        .product-img-placeholder { width: 64px; height: 64px; background: #f0f0f0; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 22px; }
+        .payment-option { border: 2px solid #e8f0fe; border-radius: 12px; padding: 14px 18px; cursor: pointer; transition: 0.2s; margin-bottom: 10px; background: #fafbff; }
         .payment-option:hover { border-color: #0d6efd; background: #f0f4ff; }
-        .payment-option.selected { border-color: #0d6efd; background: #f0f4ff; }
-        .summary-card { background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); padding: 24px; position: sticky; top: 80px; }
+        .payment-option.selected { border-color: #0d6efd; background: #f0f4ff; box-shadow: 0 0 0 3px rgba(13,110,253,0.1); }
+        .summary-card { background: white; border-radius: 16px; box-shadow: 0 2px 16px rgba(13,110,253,0.07); padding: 24px; position: sticky; top: 80px; border: 1px solid #e8f0fe; }
         .place-order-btn { background: linear-gradient(135deg, #0d6efd, #6610f2); border: none; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 700; }
-        .avatar-circle { width: 36px; height: 36px; border-radius: 50%; background: #0d6efd; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; overflow: hidden; }
-        .step-badge { background: #0d6efd; color: white; border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; margin-right: 8px; }
+        .place-order-btn:hover { opacity: 0.92; transform: translateY(-1px); transition: 0.2s; }
+        .step-badge { background: linear-gradient(135deg, #0d6efd, #6610f2); color: white; border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+        .saved-addr-card { transition: 0.2s; border-radius: 12px !important; }
+        .saved-addr-card:hover { border-color: #0d6efd !important; background: #f0f4ff !important; }
+        .item-row { padding: 12px 0; border-bottom: 1px solid #f0f4ff; }
+        .item-row:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
 
 <!-- NAVBAR -->
-<nav class="navbar navbar-light bg-white shadow-sm sticky-top px-3">
-    <a class="navbar-brand" href="index.jsp"><i class="bi bi-bag-heart-fill text-primary"></i> ShopEasy</a>
-    <div class="d-flex align-items-center gap-3">
-        <% if (isBuyNow) { %>
-            <a href="javascript:history.back()" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left"></i> Back to Product</a>
-        <% } else { %>
-            <a href="CartServlet" class="btn btn-outline-primary btn-sm"><i class="bi bi-cart3"></i> Back to Cart</a>
-        <% } %>
-        <a href="customer.jsp" class="avatar-circle" style="text-decoration:none; color:white;">
-            <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
-                <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
-            <% } else { %>
-                <%= userName != null ? String.valueOf(userName.charAt(0)).toUpperCase() : "U" %>
-            <% } %>
-        </a>
-    </div>
-</nav>
+<% request.setAttribute("navType", "checkout"); %>
+<%@ include file="navbar.jsp" %>
+
 <!-- BREADCRUMB -->
 <div class="bg-white border-bottom px-4 py-2">
     <nav aria-label="breadcrumb">
@@ -123,7 +116,11 @@ if (cartTotal == null) cartTotal = 0.0;
 </div>
 
 <div class="container py-4">
-    <h5 class="fw-bold mb-4"><i class="bi bi-bag-check text-primary"></i> Checkout</h5>
+  <h5 class="fw-bold mb-4 d-flex align-items-center gap-2">
+        <span style="background:linear-gradient(135deg,#0d6efd,#6610f2); color:white; border-radius:10px; padding:6px 12px; font-size:14px;">
+            <i class="bi bi-bag-check-fill"></i> Checkout
+        </span>
+    </h5>
 
     <div class="row g-4">
         <div class="col-lg-8">

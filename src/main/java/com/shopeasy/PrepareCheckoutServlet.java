@@ -28,7 +28,8 @@ public class PrepareCheckoutServlet extends HttpServlet {
             return;
         }
 
-        int customerId = (int) session.getAttribute("userId");
+        Integer customerId = (Integer) session.getAttribute("customerId");
+        if (customerId == null) customerId = (int) session.getAttribute("userId");
         String productIdParam = request.getParameter("productId");
         if (productIdParam == null) { response.sendRedirect("index.jsp"); return; }
         int productId = Integer.parseInt(productIdParam);
@@ -97,7 +98,8 @@ public class PrepareCheckoutServlet extends HttpServlet {
             return;
         }
 
-        int customerId = (int) session.getAttribute("userId");
+        Integer customerId = (Integer) session.getAttribute("customerId");
+        if (customerId == null) customerId = (int) session.getAttribute("userId");
 
         try {
             Connection conn = DBConnection.getConnection();

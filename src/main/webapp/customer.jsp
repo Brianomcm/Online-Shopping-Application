@@ -11,6 +11,8 @@
     String userUsername = (String) session.getAttribute("userUsername");
     String userBirthday = (String) session.getAttribute("userBirthday");
     String userGender = (String) session.getAttribute("userGender");
+    String userRole = (String) session.getAttribute("userRole");
+    if (userRole == null) userRole = "customer";
     String initial = (userName != null && !userName.isEmpty()) ? String.valueOf(userName.charAt(0)).toUpperCase() : "?";
 %>
  <!-- NOTIFICATIONS TAB -->
@@ -45,8 +47,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Profile - ShopEasy</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
     #reviewModal > div {
     position: absolute;
@@ -56,15 +59,140 @@
     max-height: 90vh;
     overflow-y: auto;
 }
-        body { background: #f4f6fb; }
-        .sidebar {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-            padding: 24px 0;
-            position: sticky;
-            top: 20px;
-        }
+      body { background: #eef1f7; }
+.sidebar {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    padding: 24px 0;
+    position: sticky;
+    top: 20px;
+    overflow: hidden;
+}
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 24px;
+    color: #555;
+    text-decoration: none;
+    font-size: 14px;
+    transition: 0.2s;
+    border-left: 3px solid transparent;
+}
+.sidebar-nav a:hover, .sidebar-nav a.active {
+    background: linear-gradient(90deg, #e8f0fe, #f0f4ff);
+    color: #0d6efd;
+    border-left-color: #0d6efd;
+    font-weight: 600;
+}
+.sidebar-nav a i { font-size: 16px; width: 20px; }
+.card-section {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+    padding: 28px;
+    margin-bottom: 20px;
+}
+.section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e8f0fe;
+}
+.avatar-circle {
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0d6efd, #6610f2);
+    color: white;
+    font-size: 36px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 4px solid white;
+    box-shadow: 0 4px 16px rgba(13,110,253,0.3);
+    margin: 0 auto;
+}
+.sidebar-avatar {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid white;
+    box-shadow: 0 4px 12px rgba(13,110,253,0.3);
+}
+.avatar-upload {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 16px;
+}
+.upload-btn {
+    position: absolute;
+    bottom: 2px; right: 2px;
+    background: #0d6efd;
+    color: white;
+    border: 2px solid white;
+    border-radius: 50%;
+    width: 30px; height: 30px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: 0.2s;
+}
+.upload-btn:hover { background: #0b5ed7; transform: scale(1.1); }
+.order-badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; }
+.order-item {
+    border: 1px solid #e8f0fe;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: 0.2s;
+    background: #fafbff;
+}
+.order-item:hover { box-shadow: 0 4px 16px rgba(13,110,253,0.1); border-color: #c5d8fb; }
+.order-img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; }
+.review-star { color: #ffc107; font-size: 13px; }
+.address-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    position: relative;
+    transition: 0.2s;
+    background: #fafbff;
+}
+.address-card.default { border-color: #0d6efd; background: #f0f4ff; }
+.address-card:hover { box-shadow: 0 4px 16px rgba(13,110,253,0.1); }
+.default-badge {
+    position: absolute;
+    top: 10px; right: 10px;
+    background: linear-gradient(135deg, #0d6efd, #6610f2);
+    color: white;
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+.tab-content-section { display: none; }
+.tab-content-section.active { display: block; }
+.stat-box {
+    background: linear-gradient(135deg, #f0f4ff, #e8f0fe);
+    border-radius: 16px;
+    padding: 16px;
+    text-align: center;
+    border: 1px solid #dce8fd;
+    transition: 0.2s;
+}
+.stat-box:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(13,110,253,0.1); }
+.stat-box .stat-num { font-size: 26px; font-weight: 800; color: #0d6efd; }
+.stat-box .stat-label { font-size: 12px; color: #666; font-weight: 500; }
+.navbar-shopeasy { background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .sidebar-nav a {
             display: flex;
             align-items: center;
@@ -180,7 +308,13 @@
         .stat-box .stat-num { font-size: 24px; font-weight: 700; color: #0d6efd; }
         .stat-box .stat-label { font-size: 12px; color: #666; }
         .navbar-shopeasy { background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .password-strength { height: 4px; border-radius: 2px; margin-top: 6px; transition: 0.3s; }
+       .password-strength { height: 4px; border-radius: 2px; margin-top: 6px; transition: 0.3s; }
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear,
+        input[type="text"]::-ms-reveal { display: none; }
+        input::-webkit-credentials-auto-fill-button { display: none !important; }
+        input[type="password"] { -webkit-text-security: disc; }
+        ::-webkit-inner-spin-button { display: none; }
         .crop-modal-overlay {
             display: none; position: fixed; top: 0; left: 0;
             width: 100%; height: 100%; background: rgba(0,0,0,0.8);
@@ -209,23 +343,13 @@
 <body>
 
 <!-- NAVBAR -->
-<nav class="navbar navbar-light navbar-shopeasy py-2 mb-4">
-    <div class="container-fluid px-3">
-        <a class="navbar-brand fw-bold text-primary" href="index.jsp">
-            <i class="bi bi-bag-heart-fill"></i> ShopEasy
-        </a>
-        <div class="d-flex align-items-center gap-3">
-            <a href="index.jsp" class="text-decoration-none text-muted" style="font-size:14px;">
-                <i class="bi bi-house"></i> Home
-            </a>
-            <a href="#" onclick="doLogout()" class="btn btn-outline-danger btn-sm">
-    <i class="bi bi-box-arrow-right"></i> Logout
-</a>
-        </div>
-    </div>
-</nav>
+<%
+request.setAttribute("navType", "simple");
+request.setAttribute("navBackUrl", "index.jsp");
+%>
+<%@ include file="navbar.jsp" %>
 
-<div class="container pb-5">
+<div class="container pb-5 mt-5">
     <div class="row g-4">
 
         <!-- SIDEBAR -->
@@ -236,10 +360,10 @@
     String sideAvatar = (String) session.getAttribute("userAvatar");
 %>
 <% if (sideAvatar != null && !sideAvatar.isEmpty()) { %>
-    <img id="sidebarAvatar" src="<%= sideAvatar %>" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:3px solid #0d6efd;" alt="Avatar">
+   <img id="sidebarAvatar" src="<%= sideAvatar %>" class="sidebar-avatar mb-2" alt="Avatar">
     <div id="sidebarInitials" class="avatar-circle-sm" style="display:none;"><%= initial %></div>
 <% } else { %>
-    <img id="sidebarAvatar" src="" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:3px solid #0d6efd; display:none;" alt="Avatar">
+    <img id="sidebarAvatar" src="" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:4px solid white; box-shadow: 0 0 0 3px #0d6efd, 0 4px 16px rgba(13,110,253,0.35); display:none;" alt="Avatar">
     <div id="sidebarInitials" class="avatar-circle-sm"><%= initial %></div>
 <% } %>
                     <p class="fw-bold mb-0" style="font-size:15px;"><%= userName %></p>
@@ -270,7 +394,8 @@
 <%
     int statTotal = 0, statPending = 0, statCompleted = 0, statCancelled = 0;
     try {
-        int statId = (int) session.getAttribute("userId");
+    	Integer statId = (Integer) session.getAttribute("customerId");
+        if (statId == null) statId = (int) session.getAttribute("userId");
         java.sql.Connection statConn = com.shopeasy.DBConnection.getConnection();
         java.sql.PreparedStatement statPs = statConn.prepareStatement(
             "SELECT status, COUNT(*) as cnt FROM orders WHERE customer_id=? GROUP BY status");
@@ -300,7 +425,6 @@
     <div class="col-6 col-md-3">
         <div class="stat-box"><div class="stat-num"><%= statCancelled %></div><div class="stat-label">Cancelled</div></div>
     </div>
-</div>
 
             <!-- MY PROFILE TAB -->
 <div id="tab-profile" class="tab-content-section active">
@@ -320,12 +444,12 @@
     %>
     <% if (profileAvatar != null && !profileAvatar.isEmpty()) { %>
         <div class="avatar-circle" id="avatarInitials" style="display:none;"><%= initial %></div>
-        <img src="<%= profileAvatar %>" alt="Avatar" id="avatarPreview" 
-             style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid #0d6efd; position:absolute; top:0; left:0; right:0; margin:0 auto;">
+ <img src="<%= profileAvatar %>" alt="Avatar" id="avatarPreview" 
+           style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:4px solid white; box-shadow: 0 0 0 3px #0d6efd, 0 6px 20px rgba(13,110,253,0.35); position:absolute; top:0; left:0; right:0; margin:0 auto;">
     <% } else { %>
         <div class="avatar-circle" id="avatarInitials"><%= initial %></div>
-        <img src="" alt="Avatar" id="avatarPreview" 
-             style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid #0d6efd; display:none; position:absolute; top:0; left:0;">
+       <img src="" alt="Avatar" id="avatarPreview" 
+             style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:4px solid white; box-shadow: 0 0 0 3px #0d6efd, 0 6px 20px rgba(13,110,253,0.35); display:none; position:absolute; top:0; left:0;">
     <% } %>
     <button class="upload-btn" id="avatarBtn" onclick="document.getElementById('avatarInput').click()">
         <i class="bi bi-camera"></i>
@@ -349,7 +473,7 @@
                     <input type="text" name="username" id="inputUsername" class="form-control" value="<%= userUsername != null ? userUsername : "" %>" readonly>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Email</label>
+                  <label class="form-label fw-bold" style="font-size:13px;">Email <span class="text-muted" style="font-size:11px;"><i class="bi bi-lock-fill"></i> Locked</span></label>
                     <input type="email" class="form-control" value="<%= userEmail != null ? userEmail : "" %>" readonly style="background:#f8f9fa;">
                     <small class="text-muted">Email cannot be changed</small>
                 </div>
@@ -357,12 +481,18 @@
                     <label class="form-label fw-bold" style="font-size:13px;">Phone Number</label>
                     <div class="input-group">
                         <span class="input-group-text">+63</span>
-                        <input type="tel" name="phone" id="inputPhone" class="form-control" value="<%= userPhone != null ? userPhone : "" %>" readonly>
+                       <input type="tel" name="phone" id="inputPhone" class="form-control" value="<%= userPhone != null ? userPhone : "" %>" readonly oninput="formatPHPhone(this)">
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Birthday</label>
-                    <input type="date" name="birthday" id="inputBirthday" class="form-control" value="<%= userBirthday != null ? userBirthday : "" %>" readonly>
+               <label class="form-label fw-bold" style="font-size:13px;">Birthday 
+    <% if (userBirthday == null || userBirthday.isEmpty()) { %>
+        <span class="text-danger" style="font-size:11px;">* One-time edit only</span>
+    <% } else { %>
+        <span class="text-muted" style="font-size:11px;"><i class="bi bi-lock-fill"></i> Locked</span>
+    <% } %>
+</label>
+<input type="text" name="birthday" id="inputBirthday" class="form-control" value="<%= userBirthday != null ? userBirthday : "" %>" placeholder="Select your birthday" readonly>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-bold" style="font-size:13px;">Gender</label>
@@ -393,7 +523,8 @@
                     <%
                         java.util.List<java.util.Map<String, Object>> myOrders = new java.util.ArrayList<>();
                         try {
-                            int custId2 = (int) session.getAttribute("userId");
+                        	Integer custId2 = (Integer) session.getAttribute("customerId");
+                            if (custId2 == null) custId2 = (int) session.getAttribute("userId");
                             java.sql.Connection ordConn = com.shopeasy.DBConnection.getConnection();
                             java.text.SimpleDateFormat ordSdf = new java.text.SimpleDateFormat("MMM d, yyyy h:mm a");
                             ordSdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Manila"));
@@ -560,7 +691,9 @@
                 java.sql.Connection rvChkConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement rvChkPs = rvChkConn.prepareStatement(
                 	    "SELECT COUNT(*) FROM review WHERE customer_id=? AND order_id=?");
-                	rvChkPs.setInt(1, (int) session.getAttribute("userId"));
+                Integer rvChkId = (Integer) session.getAttribute("customerId");
+                if (rvChkId == null) rvChkId = (int) session.getAttribute("userId");
+            	rvChkPs.setInt(1, rvChkId);
                 	rvChkPs.setInt(2, (Integer) ord.get("id"));
                 	java.sql.ResultSet rvChkRs = rvChkPs.executeQuery();
                 	if (rvChkRs.next() && rvChkRs.getInt(1) > 0) hasReview = true;
@@ -587,15 +720,16 @@
                         </div>
                         <% } %>
                     <% } %>
-                </div>
             </div>
+        </div>
 <!-- MY REVIEWS TAB -->
-<div id="tab-reviews" class="tab-content-section">
+            <div id="tab-reviews" class="tab-content-section">
     <div class="card-section">
         <p class="section-title"><i class="bi bi-star-fill text-primary"></i> My Reviews</p>
         <%
             try {
-                int rvCustId = (int) session.getAttribute("userId");
+            	Integer rvCustId = (Integer) session.getAttribute("customerId");
+                if (rvCustId == null) rvCustId = (int) session.getAttribute("userId");
                 java.sql.Connection rvConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement rvPs = rvConn.prepareStatement(
                 		"SELECT r.review_id, r.product_id, r.rating, r.comment, r.photo, r.created_at, r.is_edited, " +
@@ -689,8 +823,8 @@
     </div>
 </div>
            <!-- ADDRESSES TAB -->
-<div id="tab-address" class="tab-content-section">
-    <div class="card-section">
+            <div id="tab-address" class="tab-content-section">
+   <div class="card-section" style="position:relative;">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <p class="section-title mb-0"><i class="bi bi-geo-alt-fill text-primary"></i> My Addresses</p>
             <button class="btn btn-primary btn-sm" onclick="showAddressForm()">
@@ -715,9 +849,12 @@
                         <label class="form-label fw-bold" style="font-size:13px;">Phone Number</label>
                         <div class="input-group">
                             <span class="input-group-text">+63</span>
-                            <input type="tel" name="phone" id="addrPhone" class="form-control" placeholder="9XX XXX XXXX" required>
+                          <input type="tel" name="phone" id="addrPhone" class="form-control" placeholder="9XX XXX XXXX" required maxlength="10" oninput="formatPHPhone(this)">
                         </div>
-                    </div>
+                  </div>
+                        <div id="addrPhoneError" class="text-danger" style="display:none; font-size:11px;">
+                            First digit must be 9 (e.g. 9171234567)
+                        </div>
                     <div class="col-12">
                         <label class="form-label fw-bold" style="font-size:13px;">Full Address</label>
                         <input type="text" name="address" id="addrAddress" class="form-control" placeholder="Street, Barangay, City, Province, ZIP" required>
@@ -744,7 +881,8 @@
         <%
             java.util.List<java.util.Map<String, Object>> addresses = new java.util.ArrayList<>();
             try {
-                int custId = (int) session.getAttribute("userId");
+            	Integer custId = (Integer) session.getAttribute("customerId");
+                if (custId == null) custId = (int) session.getAttribute("userId");
                 java.sql.Connection addrConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement addrPs = addrConn.prepareStatement(
                     "SELECT * FROM customer_address WHERE customer_id=? ORDER BY is_default DESC, address_id ASC");
@@ -808,15 +946,17 @@
             <% } %>
         <% } %>
     </div>
-</div>
+        </div>
+            </div>
 
             <!-- WISHLIST TAB -->
-<div id="tab-wishlist" class="tab-content-section">
+            <div id="tab-wishlist" class="tab-content-section">
     <div class="card-section">
         <p class="section-title"><i class="bi bi-heart-fill text-primary"></i> My Wishlist</p>
         <%
         try {
-            int wlCustId = (int) session.getAttribute("userId");
+        	Integer wlCustId = (Integer) session.getAttribute("customerId");
+            if (wlCustId == null) wlCustId = (int) session.getAttribute("userId");
             java.sql.Connection wlConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement wlPs = wlConn.prepareStatement(
                 "SELECT p.product_id, p.name, p.price, p.image, p.stock " +
@@ -873,8 +1013,16 @@
            <!-- SECURITY TAB -->
             <div id="tab-security" class="tab-content-section">
                 <div class="card-section">
-                    <p class="section-title"><i class="bi bi-shield-lock-fill text-primary"></i> Security Settings</p>
-
+      <p class="section-title"><i class="bi bi-shield-lock-fill text-primary"></i> Security</p>
+<div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
+    <div style="width:48px; height:48px; border-radius:12px; background:#e8f0fe; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <i class="bi bi-shield-lock-fill text-primary" style="font-size:22px;"></i>
+    </div>
+    <div>
+        <h6 class="fw-bold mb-0">Change Password</h6>
+        <p class="text-muted mb-0" style="font-size:12px;">Update your account password to keep it secure.</p>
+    </div>
+</div>
                     <!-- Alert messages -->
                     <div id="securitySuccess" class="alert alert-success py-2 mb-3" style="display:none; font-size:13px;">
                         <i class="bi bi-check-circle-fill"></i> <span id="securitySuccessText">Password updated successfully!</span>
@@ -885,15 +1033,15 @@
 
                     <div class="row g-3">
                         <div class="col-12">
-                            <label class="form-label fw-bold" style="font-size:13px;">Current Password</label>
+                       <label class="form-label fw-bold" style="font-size:13px;">Current Password <span class="text-muted fw-normal" style="font-size:11px;">— enter your existing password</span></label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                                <input type="password" id="currentPw" class="form-control" placeholder="Enter current password" autocomplete="new-password">
+                            <input type="password" id="currentPw" class="form-control" placeholder="Enter current password" autocomplete="new-password">
                                 <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('currentPw', this)"><i class="bi bi-eye"></i></button>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-bold" style="font-size:13px;">New Password</label>
+                      <label class="form-label fw-bold" style="font-size:13px;">New Password <span class="text-muted fw-normal" style="font-size:11px;">— min. 6 characters</span></label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-lock"></i></span>
                                 <input type="password" id="newPw" class="form-control" placeholder="Enter new password" autocomplete="new-password" oninput="checkStrength(this.value)">
@@ -903,20 +1051,26 @@
                             <small id="strengthText" class="text-muted"></small>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-bold" style="font-size:13px;">Confirm New Password</label>
+                        <label class="form-label fw-bold" style="font-size:13px;">Confirm New Password <span class="text-muted fw-normal" style="font-size:11px;">— re-enter new password</span></label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-lock"></i></span>
                                 <input type="password" id="confirmPw" class="form-control" placeholder="Confirm new password" autocomplete="new-password">
                                 <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('confirmPw', this)"><i class="bi bi-eye"></i></button>
                             </div>
                         </div>
-                        <div class="col-12 d-flex gap-2 align-items-center flex-wrap">
+                      <div class="col-12">
                             <button class="btn btn-primary px-4" id="updatePwBtn" onclick="updatePassword()">
                                 <i class="bi bi-shield-check"></i> Update Password
                             </button>
-                            <a href="#" class="text-primary" style="font-size:13px;" onclick="openForgotFromSecurity()">
-                                <i class="bi bi-question-circle"></i> Forgot current password?
-                            </a>
+                        </div>
+                        <div class="col-12">
+                            <div class="p-3 rounded-3" style="background:#f8f9fa; border:1px solid #e0e6ff;">
+                              <p class="mb-1 fw-bold" style="font-size:13px;"><i class="bi bi-question-circle-fill text-primary me-1"></i> Forgot your current password?</p>
+                                <p class="mb-2 text-muted" style="font-size:12px;">Verify your identity using your email and username to reset your password.</p>
+                                <a href="#" class="btn btn-outline-primary btn-sm" onclick="openForgotFromSecurity()">
+                                    <i class="bi bi-shield-lock"></i> Verify Identity & Reset
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -974,11 +1128,13 @@
                         <% } %>
                     <% } %>
                     </div>
-                </div>
-            </div>
+              </div>
+        </div>
+        </div><!-- end col-md-9 -->
+    </div><!-- end row -->
 
 <!-- GREEN BAR NOTIFICATION -->
-<div id="successBar" style="display:none; position:fixed; top:0; left:0; width:100%; background:#198754; color:white; padding:12px 20px; z-index:9999; text-align:center; font-size:14px; font-weight:600; box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+<div id="successBar" style="display:none; position:fixed; top:0; left:0; width:100%; background:#198754; color:white; padding:12px 20px; z-index:99999; text-align:center; font-size:14px; font-weight:600; box-shadow:0 2px 8px rgba(0,0,0,0.15); margin:0;">
     <i class="bi bi-check-circle-fill me-2"></i>Profile saved successfully ✅
 </div>
 
@@ -989,7 +1145,29 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
+const bdayInput = document.getElementById('inputBirthday');
+const fp = flatpickr(bdayInput, {
+    dateFormat: "Y-m-d",
+    maxDate: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
+    disableMobile: true,
+    allowInput: false,
+    onReady: function() {
+        const bdayVal = bdayInput.value;
+        if (bdayVal) this.setDate(bdayVal);
+    }
+});
+const bdayVal = bdayInput.value;
+if (!bdayVal) {
+    bdayInput.removeAttribute('readonly');
+} else {
+    fp.set('clickOpens', false);
+}
+</script>
+<script>
+
+
 window.addEventListener('load', function() {
     const profileParams = new URLSearchParams(window.location.search);
     const tabParam = profileParams.get('tab');
@@ -1031,7 +1209,11 @@ window.addEventListener('load', function() {
         document.getElementById('inputFullname').removeAttribute('readonly');
         document.getElementById('inputUsername').removeAttribute('readonly');
         document.getElementById('inputPhone').removeAttribute('readonly');
-        document.getElementById('inputBirthday').removeAttribute('readonly');
+     // Lock birthday if already set
+        const bdayVal = document.getElementById('inputBirthday').value;
+        if (!bdayVal || bdayVal.trim() === '') {
+            fp.set('clickOpens', true);
+        }
         document.getElementById('inputGender').removeAttribute('disabled');
         document.getElementById('saveSection').style.display = 'block';
         document.getElementById('editBtn').style.display = 'none';
@@ -1046,12 +1228,12 @@ window.addEventListener('load', function() {
         location.reload();
     }
 
-    function showTab(tab, el) {
+    function showTab(tab, el, e) {
+        if (e) e.preventDefault();
         document.querySelectorAll('.tab-content-section').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
         document.getElementById('tab-' + tab).classList.add('active');
         el.classList.add('active');
-        event.preventDefault();
     }
 
     function togglePassword(fieldId, btn) {
@@ -1079,6 +1261,12 @@ window.addEventListener('load', function() {
             document.getElementById('securityError').style.display = 'block';
             return;
         }
+        if (newPw === current) {
+            document.getElementById('securityErrorText').textContent = 'New password cannot be the same as current password.';
+            document.getElementById('securityError').style.display = 'block';
+            return;
+        }
+      
         if (newPw !== confirm) {
             document.getElementById('securityErrorText').textContent = 'New passwords do not match.';
             document.getElementById('securityError').style.display = 'block';
@@ -1117,6 +1305,9 @@ window.addEventListener('load', function() {
                 document.getElementById('currentPw').value = '';
                 document.getElementById('newPw').value = '';
                 document.getElementById('confirmPw').value = '';
+                document.getElementById('strengthBar').style.width = '0%';
+                document.getElementById('strengthBar').className = 'password-strength bg-secondary';
+                document.getElementById('strengthText').textContent = '';
                 document.getElementById('securitySuccessText').textContent = 'Password updated successfully!';
                 document.getElementById('securitySuccess').style.display = 'block';
             } else {
@@ -1133,12 +1324,21 @@ window.addEventListener('load', function() {
     }
     
     function checkStrength(val) {
-        const bar = document.getElementById('strengthBar');
+    	const bar = document.getElementById('strengthBar');
         const text = document.getElementById('strengthText');
-        if (val.length === 0) { bar.style.width = '0%'; text.textContent = ''; return; }
-        if (val.length < 6) { bar.style.width = '25%'; bar.className = 'password-strength bg-danger'; text.textContent = 'Weak'; text.className = 'text-danger'; }
-        else if (val.length < 10) { bar.style.width = '60%'; bar.className = 'password-strength bg-warning'; text.textContent = 'Medium'; text.className = 'text-warning'; }
-        else { bar.style.width = '100%'; bar.className = 'password-strength bg-success'; text.textContent = 'Strong'; text.className = 'text-success'; }
+        const currentVal = document.getElementById('currentPw').value.trim();
+        let score = 0;
+        if (val.length >= 6) score++;
+        if (val.length >= 10) score++;
+        if (/[A-Z]/.test(val)) score++;
+        if (/[0-9]/.test(val)) score++;
+        if (/[^A-Za-z0-9]/.test(val)) score++;
+        const sameAsCurrent = val.length > 0 && val === currentVal;
+        if (val.length === 0) { bar.style.width = '0%'; bar.className = 'password-strength bg-secondary'; text.textContent = ''; text.className = 'text-muted'; }
+        else if (sameAsCurrent) { bar.style.width = '100%'; bar.className = 'password-strength bg-danger'; text.innerHTML = '<span class="text-danger">Cannot be the same as current password</span>'; }
+        else if (score <= 2) { bar.style.width = '33%'; bar.className = 'password-strength bg-danger'; text.innerHTML = '<span class="text-danger">Weak - password too simple</span>'; }
+        else if (score === 3) { bar.style.width = '66%'; bar.className = 'password-strength bg-warning'; text.innerHTML = '<span class="text-warning">Medium - acceptable but could be stronger</span>'; }
+        else { bar.style.width = '100%'; bar.className = 'password-strength bg-success'; text.innerHTML = '<span class="text-success">Strong - great password!</span>'; }
     }
 
     let custCropImg = new Image();
@@ -1786,6 +1986,29 @@ window.addEventListener('load', function() {
         </div>
     </div>
 </div>
+
+<!-- Seller Center Loading Overlay -->
+<div id="sellerCenterOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95);
+     z-index:99999; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
+    <div style="width:56px; height:56px; border:5px solid #e9ecef; border-top-color:#198754;
+         border-radius:50%; animation:scSpin 0.8s linear infinite;"></div>
+    <p style="font-size:16px; font-weight:600; color:#198754; margin:0;">
+        <i class="bi bi-shop me-2"></i>Opening Seller Center…
+    </p>
+    <small style="color:#888; font-size:13px;">Please wait…</small>
+</div>
+<style>
+@keyframes scSpin { to { transform: rotate(360deg); } }
+</style>
+<script>
+function goToSellerCenter() {
+    var overlay = document.getElementById('sellerCenterOverlay');
+    overlay.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:99999; flex-direction:column; align-items:center; justify-content:center; gap:16px;";
+    setTimeout(function() {
+        window.location.href = 'seller.jsp';
+    }, 1500);
+}
+</script>
 </body>
-</body>
+
 </html>

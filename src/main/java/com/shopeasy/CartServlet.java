@@ -24,10 +24,11 @@ public class CartServlet extends HttpServlet {
         Integer userId = (Integer) session.getAttribute("userId");
         String role = (String) session.getAttribute("userRole");
 
-        if (userId == null || !"customer".equals(role)) {
-            response.sendRedirect("index.jsp");
-            return;
-        }
+        if (userId == null || role == null || 
+                (!role.equals("customer") && !role.equals("both"))) {
+                response.sendRedirect("index.jsp");
+                return;
+            }
 
         List<Map<String, Object>> cartItems = new ArrayList<>();
         double total = 0;
@@ -36,14 +37,18 @@ public class CartServlet extends HttpServlet {
             Connection conn = DBConnection.getConnection();
             PreparedStatement ps = conn.prepareStatement(
             		"SELECT ci.cartitem_id, ci.quantity, ci.variation_id, " +
-            				"p.product_id, p.name, p.price, p.original_price, p.image, p.stock, " +
-                "pv.variation_type, pv.variation_value " +
-                "FROM cart c " +
-                "JOIN cartitem ci ON c.cart_id = ci.cart_id " +
-                "JOIN product p ON ci.product_id = p.product_id " +
-                "LEFT JOIN product_variation pv ON ci.variation_id = pv.variation_id " +
+            		        "p.product_id, p.name, p.price, p.original_price, p.image, p.stock, " +
+            		"pv.variation_type, pv.variation_value, " +
+            		"s.seller_id, s.business_name " +
+            		"FROM cart c " +
+            		"JOIN cartitem ci ON c.cart_id = ci.cart_id " +
+            		"JOIN product p ON ci.product_id = p.product_id " +
+            		"LEFT JOIN product_variation pv ON ci.variation_id = pv.variation_id " +
+            		"JOIN seller s ON p.seller_id = s.seller_id " +
             		"WHERE c.customer_id = ?");
-            ps.setInt(1, userId);
+            Integer customerId = (Integer) session.getAttribute("customerId");
+            if (customerId == null) customerId = userId;
+            ps.setInt(1, customerId);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 Map<String, Object> item = new HashMap<>();
@@ -59,8 +64,10 @@ public class CartServlet extends HttpServlet {
                 item.put("price", rs.getDouble("price"));
                 item.put("originalPrice", rs.getDouble("original_price"));
                 item.put("subtotal",      cartUsePrice * rs.getInt("quantity"));
-                item.put("variationType",   rs.getString("variation_type"));   // null if no variation
-                item.put("variationValue",  rs.getString("variation_value"));  // null if no variation
+                item.put("variationType",   rs.getString("variation_type"));
+                item.put("variationValue",  rs.getString("variation_value"));
+                item.put("sellerId",        rs.getInt("seller_id"));
+                item.put("businessName",    rs.getString("business_name"));
                 total += cartUsePrice * rs.getInt("quantity");
                 cartItems.add(item);
             }

@@ -18,7 +18,7 @@
     try {
         Connection conn = com.shopeasy.DBConnection.getConnection();
         PreparedStatement ps = conn.prepareStatement(
-        	    "SELECT p.*, s.business_name, s.seller_id, s.profile_picture FROM product p " +
+        		"SELECT p.*, s.business_name, s.seller_id, COALESCE(s.profile_picture, s.shop_logo) as profile_picture FROM product p " +
         	    "JOIN seller s ON p.seller_id = s.seller_id " +
         	    "WHERE p.product_id = ?");
         ps.setInt(1, productId);
@@ -30,6 +30,18 @@
             price = rs.getDouble("price");
             originalPrice = rs.getDouble("original_price");
             stock = rs.getInt("stock");
+         // If stock is 0 but has variations, get total stock from variations
+         if (stock == 0) {
+             try {
+                 java.sql.Connection stockConn = com.shopeasy.DBConnection.getConnection();
+                 java.sql.PreparedStatement stockPs = stockConn.prepareStatement(
+                     "SELECT COALESCE(SUM(stock), 0) FROM product_variation WHERE product_id = ?");
+                 stockPs.setInt(1, productId);
+                 java.sql.ResultSet stockRs = stockPs.executeQuery();
+                 if (stockRs.next()) stock = stockRs.getInt(1);
+                 stockRs.close(); stockPs.close(); stockConn.close();
+             } catch (Exception ignored) {}
+         }
             sellerName = rs.getString("business_name");
             sellerId = rs.getInt("seller_id");
             sellerPfp = rs.getString("profile_picture");
@@ -73,18 +85,34 @@ storeRatRs.close(); storeRatPs.close(); conn.close();
      varRs.close(); varPs.close(); varConn.close();
  } catch (Exception e) { e.printStackTrace(); }
  
-
  loggedUser = (String) session.getAttribute("userName");
-    String loggedRole = (String) session.getAttribute("userRole");
-    String userAvatar = (String) session.getAttribute("userAvatar");
+ String loggedRole = (String) session.getAttribute("userRole");
+ String userAvatar = (String) session.getAttribute("userAvatar");
+ // Check if logged-in user is the seller of this product
+ boolean isOwnProduct = false;
+ try {
+     Integer sessionUserId2 = (Integer) session.getAttribute("userId");
+     if (sessionUserId2 != null && sellerId > 0) {
+         java.sql.Connection ownConn = com.shopeasy.DBConnection.getConnection();
+         java.sql.PreparedStatement ownPs = ownConn.prepareStatement(
+             "SELECT COUNT(*) FROM seller WHERE seller_id=? AND user_id=?");
+         ownPs.setInt(1, sellerId);
+         ownPs.setInt(2, sessionUserId2);
+         java.sql.ResultSet ownRs = ownPs.executeQuery();
+         if (ownRs.next() && ownRs.getInt(1) > 0) isOwnProduct = true;
+         ownRs.close(); ownPs.close(); ownConn.close();
+     }
+ } catch (Exception ignored) {}
     int cartCount = 0;
     try {
         Integer sessionUserId = (Integer) session.getAttribute("userId");
-        if (sessionUserId != null && "customer".equals(loggedRole)) {
+        if (sessionUserId != null && (("customer".equals(loggedRole) || "both".equals(loggedRole)))) {
             Connection cartConn = com.shopeasy.DBConnection.getConnection();
             PreparedStatement cartPs = cartConn.prepareStatement(
                 "SELECT SUM(ci.quantity) FROM cart c JOIN cartitem ci ON c.cart_id = ci.cart_id WHERE c.customer_id = ?");
-            cartPs.setInt(1, sessionUserId);
+            Integer cartCustId = (Integer) session.getAttribute("customerId");
+            if (cartCustId == null) cartCustId = sessionUserId;
+            cartPs.setInt(1, cartCustId);
             ResultSet cartRs = cartPs.executeQuery();
             if (cartRs.next()) cartCount = cartRs.getInt(1);
             cartRs.close(); cartPs.close(); cartConn.close();
@@ -106,16 +134,24 @@ storeRatRs.close(); storeRatPs.close(); conn.close();
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
-        body { background: #f8f9fa; font-family: 'Segoe UI', sans-serif; }
-        .navbar-brand { font-weight: 800; color: #0d6efd !important; }
-        .product-img { width: 100%; max-height: 420px; object-fit: contain; background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
-        .product-card { background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); padding: 28px; }
-        .price-tag { font-size: 32px; font-weight: 800; color: #dc3545; }
-        .stock-badge { font-size: 13px; padding: 4px 12px; border-radius: 20px; }
-        .add-cart-btn { background: linear-gradient(135deg, #0d6efd, #6610f2); border: none; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 700; }
-        .seller-card { background: #f0f4ff; border-radius: 12px; padding: 14px; margin-top: 16px; }
-        .avatar-circle { width: 36px; height: 36px; border-radius: 50%; background: #0d6efd; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; overflow: hidden; }
-        .toast-msg { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #198754; color: white; padding: 12px 28px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 9999; box-shadow: 0 4px 16px rgba(0,0,0,0.2); display: none; }
+  body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+.navbar-brand { font-weight: 800; color: #0d6efd !important; }
+.product-img { width: 100%; max-height: 440px; object-fit: contain; background: white; border-radius: 20px; padding: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); transition: transform 0.3s; }
+.product-img:hover { transform: scale(1.02); }
+.product-card { background: white; border-radius: 20px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 32px; }
+.price-tag { font-size: 34px; font-weight: 900; color: #dc3545; letter-spacing: -0.5px; }
+.stock-badge { font-size: 12px; padding: 5px 14px; border-radius: 20px; font-weight: 600; }
+.add-cart-btn { background: linear-gradient(135deg, #0d6efd, #6610f2); border: none; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 700; letter-spacing: 0.3px; transition: opacity 0.2s, transform 0.1s; }
+.add-cart-btn:hover { opacity: 0.92; transform: translateY(-1px); }
+.btn-success { border-radius: 14px !important; padding: 14px !important; font-size: 15px !important; transition: opacity 0.2s, transform 0.1s !important; }
+.btn-success:hover { opacity: 0.92; transform: translateY(-1px); }
+.btn-outline-danger { border-radius: 14px !important; padding: 13px !important; }
+.seller-card { background: linear-gradient(135deg, #f0f4ff, #e8f5e9); border-radius: 14px; padding: 16px; margin-top: 16px; border: 1px solid #e0e8ff; transition: box-shadow 0.2s; }
+.seller-card:hover { box-shadow: 0 4px 16px rgba(13,110,253,0.1); }
+.avatar-circle { width: 36px; height: 36px; border-radius: 50%; background: #0d6efd; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; overflow: hidden; }
+.toast-msg { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #198754; color: white; padding: 14px 32px; border-radius: 14px; font-size: 14px; font-weight: 600; z-index: 9999; box-shadow: 0 6px 20px rgba(0,0,0,0.2); display: none; }
+.variation-btn { transition: all 0.15s; }
+.variation-btn:hover { transform: translateY(-1px); }
     </style>
 </head>
 <body>
@@ -154,70 +190,9 @@ function showLoader() {
 </div>
 
 <!-- NAVBAR -->
-<nav class="navbar navbar-light bg-white shadow-sm py-3 sticky-top">
-    <div class="container-fluid px-4">
-        <!-- LOGO -->
-        <a class="navbar-brand fw-bold text-primary fs-4" href="index.jsp">
-            <i class="bi bi-bag-heart-fill"></i> ShopEasy
-        </a>
-
-       <!-- SEARCH BAR -->
-        <form id="productSearch" class="d-flex flex-grow-1 mx-3" action="index.jsp" method="get" onsubmit="event.preventDefault(); showLoader();">
-            <div class="input-group">
-                <input type="text" class="form-control" name="search" placeholder="Search products..." style="border-radius:8px 0 0 8px;">
-                <button class="btn btn-primary" type="submit" id="searchBtn" style="border-radius:0 8px 8px 0;">
-                    <i class="bi bi-search"></i>
-                </button>
-            </div>
-        </form>
-        
-        
-       <!-- RIGHT SIDE -->
-        <div class="d-flex align-items-center gap-2">
-          <% if (loggedUser != null) { %>
-            <% if ("customer".equals(loggedRole)) { %>
-            <a href="CartServlet" class="btn btn-outline-secondary position-relative" id="cartNavBtn">
-                <i class="bi bi-cart3 fs-5"></i>
-                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="cartBadge" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
-            </a>
-            <% } %>
-            <div class="dropdown">
-                <a href="#" class="d-flex align-items-center gap-2 text-decoration-none" data-bs-toggle="dropdown">
-                    <div class="avatar-circle">
-                        <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
-                            <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
-                        <% } else { %>
-                            <%= loggedUser.substring(0, 1).toUpperCase() %>
-                        <% } %>
-                    </div>
-                    <span class="d-none d-md-inline fw-bold text-dark" style="font-size:14px; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><%= loggedUser %></span>
-                    <i class="bi bi-chevron-down text-muted" style="font-size:11px;"></i>
-                </a>
-                <ul class="dropdown-menu dropdown-menu-end shadow">
-                    <li><h6 class="dropdown-header"><%= loggedUser %></h6></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <% if ("customer".equals(loggedRole)) { %>
-                    <li><a class="dropdown-item" href="customer.jsp"><i class="bi bi-person me-2"></i> My Profile</a></li>
-                    <li><a class="dropdown-item" href="customer.jsp?tab=orders"><i class="bi bi-bag me-2"></i> My Orders</a></li>
-                    <% } else if ("seller".equals(loggedRole)) { %>
-                    <li><a class="dropdown-item" href="seller.jsp"><i class="bi bi-shop me-2"></i> Seller Dashboard</a></li>
-                    <% } %>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item text-danger" href="LogoutServlet"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
-                </ul>
-            </div>
-           
-          <% } else { %>
-            <a href="CartServlet" class="btn btn-outline-secondary position-relative">
-                <i class="bi bi-cart3 fs-5"></i>
-                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
-            </a>
-            <a href="index.jsp" class="btn btn-outline-primary"><i class="bi bi-box-arrow-in-right"></i> Login</a>
-            <a href="index.jsp" class="btn btn-primary"><i class="bi bi-person-plus"></i> Register</a>
-          <% } %>
-        </div>
-    </div>
-</nav>
+<% request.setAttribute("navType", "full"); %>
+<% request.setAttribute("navCartCount", cartCount); %>
+<%@ include file="navbar.jsp" %>
 
 <!-- BREADCRUMB -->
 <div class="bg-white border-bottom px-4 py-2">
@@ -311,7 +286,9 @@ try {
 </div>
 
 <div id="stockDisplay">
-<% if (stock > 10) { %>
+<% if (!variations.isEmpty()) { %>
+    <span class="badge bg-secondary stock-badge mb-3"><i class="bi bi-tag"></i> Select a variation to see stock</span>
+<% } else if (stock > 10) { %>
     <span class="badge bg-success stock-badge mb-3"><i class="bi bi-check-circle"></i> In Stock (<%= stock %> available)</span>
 <% } else if (stock > 0) { %>
     <span class="badge bg-warning text-dark stock-badge mb-3"><i class="bi bi-exclamation-circle"></i> Low Stock (<%= stock %> left)</span>
@@ -328,7 +305,7 @@ try {
                 <div class="seller-card">
     <a href="SellerPageServlet?id=<%= sellerId %>" class="text-decoration-none d-flex align-items-center gap-2">
         <% if (sellerPfp != null && !sellerPfp.isEmpty()) { %>
-            <img src="<%= sellerPfp %>" style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid #0d6efd;">
+        <img src="<%= sellerPfp %>" style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid #198754;">
         <% } else { %>
             <div style="width:36px; height:36px; border-radius:50%; background:#0d6efd; color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;">
                 <%= sellerName.substring(0,1).toUpperCase() %>
@@ -387,8 +364,12 @@ try {
 
 <!-- ADD TO CART -->
 <div class="mt-4">
-    <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-        <% if (stock > 0) { %>
+<% if (isOwnProduct) { %>
+    <button class="btn btn-secondary w-100 mt-2" disabled style="cursor:not-allowed; opacity:0.7;">
+        <i class="bi bi-slash-circle"></i> You cannot buy your own product
+    </button>
+<% } else if (loggedUser != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) { %>
+    <% if (stock > 0 || !variations.isEmpty()) { %>
             <!-- QUANTITY SELECTOR -->
             <div class="d-flex align-items-center gap-3 mb-3">
                 <label class="fw-bold mb-0" style="font-size:13px;">Quantity:</label>
@@ -403,7 +384,7 @@ try {
                         <i class="bi bi-plus-lg"></i>
                     </button>
                 </div>
-                <span class="text-muted" style="font-size:12px;">/ <%= stock %> available</span>
+               <span class="text-muted" style="font-size:12px;" id="availableText"><%= !variations.isEmpty() ? "Select a size first" : "/ " + stock + " available" %></span>
             </div>
             <button class="btn btn-primary add-cart-btn w-100 text-white" onclick="addToCart(<%= productId %>, <%= !variations.isEmpty() %>)"> 
                 <i class="bi bi-cart-plus"></i> Add to Cart
@@ -414,7 +395,6 @@ try {
             <button class="btn btn-outline-danger w-100 mt-2" id="wishlistBtn" onclick="toggleWishlist(<%= productId %>)">
                 <i class="bi bi-heart" id="wishlistIcon"></i> <span id="wishlistText">Add to Wishlist</span>
             </button>
-            
             <% if (!variations.isEmpty()) { %>
             <p class="text-muted mt-2 mb-0" style="font-size:11px;"><i class="bi bi-info-circle"></i> Please select your preferred options above.</p>
             <% } %>
@@ -427,8 +407,7 @@ try {
         <button class="btn btn-primary add-cart-btn w-100 text-white" data-bs-toggle="modal" data-bs-target="#loginModal">
             <i class="bi bi-box-arrow-in-right"></i> Login to Add to Cart
         </button>
-    <% } %>
-</div>
+<% } %>
             </div>
         </div>
     </div>
@@ -486,17 +465,37 @@ try {
                 <!-- Avatar -->
                 <div style="width:42px; height:42px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#0d6efd; display:flex; align-items:center; justify-content:center; color:white; font-weight:700;">
                     <% String cavatar = revRs.getString("cavatar");
-                       String cname = revRs.getString("cname"); %>
+                    String cname = revRs.getString("cname");
+                 // Mask name: each word → first letter + asterisks
+                 String maskedName = "";
+                 if (cname != null && !cname.isEmpty()) {
+                     String[] nameParts = cname.split(" ");
+                     StringBuilder sb = new StringBuilder();
+                     for (String part : nameParts) {
+                         if (part.isEmpty()) continue;
+                         if (sb.length() > 0) sb.append(" ");
+                         if (part.length() == 1) {
+                             sb.append(part); // single char like "M." — keep as is
+                         } else {
+                             sb.append(part.charAt(0));
+                             for (int ni = 1; ni < part.length(); ni++) sb.append("*");
+                         }
+                     }
+                     maskedName = sb.toString();
+                 } else {
+                     maskedName = "Anonymous";
+                 }
+                 %>
                     <% if (cavatar != null && !cavatar.isEmpty()) { %>
                         <img src="<%= cavatar %>" style="width:100%;height:100%;object-fit:cover;">
                     <% } else { %>
-                        <%= cname != null && !cname.isEmpty() ? String.valueOf(cname.charAt(0)).toUpperCase() : "U" %>
+                      <%= maskedName.charAt(0) %>
                     <% } %>
                 </div>
                 <!-- Review Content -->
                 <div class="flex-grow-1">
                     <div class="d-flex justify-content-between align-items-start">
-                        <p class="fw-bold mb-0" style="font-size:14px;"><%= cname %></p>
+                  <p class="fw-bold mb-0" style="font-size:14px;"><%= maskedName %></p>
                         <small class="text-muted"><%= revRs.getString("review_date") != null ? revRs.getString("review_date").toString().substring(0,10) : "" %></small>
                     </div>
                     <div class="d-flex gap-1 my-1">
@@ -566,10 +565,10 @@ function selectVariation(btn, type) {
 
     // Update price display
     const varPrice = btn.dataset.price ? parseFloat(btn.dataset.price) : null;
-    const varStock = btn.dataset.stock !== '' ? parseInt(btn.dataset.stock) : null;
+    const varStock = null;
     const displayPrice = varPrice !== null ? varPrice : baseOriginalPrice > 0 ? baseOriginalPrice : basePrice;
     const displayOriginal = varPrice !== null ? basePrice : basePrice;
-    const displayStock = varStock !== null ? varStock : baseStock;
+    const displayStock = baseStock;
 
     // Update price tag
     const pct = varPrice !== null && basePrice > varPrice
@@ -583,7 +582,17 @@ function selectVariation(btn, type) {
             '</div>' +
             '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
     } else {
-        priceHtml = '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
+        const baseDisc = baseOriginalPrice > 0 && baseOriginalPrice < basePrice
+            ? Math.round((basePrice - baseOriginalPrice) / basePrice * 100) : 0;
+        if (baseDisc > 0) {
+            priceHtml = '<div class="d-flex align-items-center gap-2 mb-1">' +
+                '<span class="text-muted text-decoration-line-through" style="font-size:15px;">₱' + basePrice.toFixed(2) + '</span>' +
+                '<span class="badge bg-danger" style="font-size:12px;">-' + baseDisc + '% OFF</span>' +
+                '</div>' +
+                '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
+        } else {
+            priceHtml = '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
+        }
     }
     document.getElementById('priceDisplay').innerHTML = priceHtml;
 
@@ -597,7 +606,8 @@ function selectVariation(btn, type) {
         stockHtml = '<span class="badge bg-danger stock-badge mb-3"><i class="bi bi-x-circle"></i> Out of Stock</span>';
     }
     document.getElementById('stockDisplay').innerHTML = stockHtml;
-    document.getElementById('qtyInput').max = displayStock;
+    document.getElementById('qtyInput').max = baseStock;
+    document.getElementById('availableText').textContent = '/ ' + baseStock + ' available';
 }
 
 function changeQty(delta) {
@@ -610,6 +620,12 @@ function changeQty(delta) {
 }
 
 function buyNow(productId, hasVariation) {
+    // Birthday check
+    const ageStatus = '<%=  session.getAttribute("userAgeStatus") != null ? session.getAttribute("userAgeStatus") : "unknown" %>';
+    if (ageStatus !== 'ok') {
+    	new bootstrap.Modal(document.getElementById('ageBlockModal')).show();
+        return;
+    }
     if (hasVariation) {
         const selectedId = document.getElementById('selectedVariationId').value;
         if (!selectedId) {
@@ -742,5 +758,31 @@ window.addEventListener('pageshow', function(e) {
     }
 });
 </script>
+
+<!-- Age Block Modal -->
+<div class="modal fade" id="ageBlockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-4">
+                <%
+                String _ageStatus = (String) session.getAttribute("userAgeStatus");
+                if ("no_birthday".equals(_ageStatus) || _ageStatus == null) { %>
+                    <div class="mb-3" style="font-size:3rem;">🎂</div>
+                    <h5 class="fw-bold mb-2">Birthday Required</h5>
+                    <p class="text-muted mb-4" style="font-size:14px;">Please fill in your birthday in your profile before checking out.</p>
+                    <a href="ProfileServlet" class="btn btn-primary rounded-pill px-4">
+                        <i class="bi bi-person-fill me-1"></i> Go to My Profile
+                    </a>
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 ms-2" data-bs-dismiss="modal">Cancel</button>
+                <% } else { %>
+                    <div class="mb-3" style="font-size:3rem;">🚫</div>
+                    <h5 class="fw-bold mb-2">Age Restriction</h5>
+                    <p class="text-muted mb-4" style="font-size:14px;">Sorry, you must be at least 13 years old to checkout.</p>
+                    <button type="button" class="btn btn-primary rounded-pill px-4" data-bs-dismiss="modal">Okay</button>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

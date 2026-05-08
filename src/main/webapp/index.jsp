@@ -13,10 +13,21 @@
         String sortParam = request.getParameter("sort");
 
         String catFilter = (catParam != null && !catParam.isEmpty() && !catParam.equals("0")) ? "AND p.category_id = " + Integer.parseInt(catParam) + " " : "";
-        String searchFilter = (searchParam != null && !searchParam.trim().isEmpty()) ? "AND (p.name LIKE ? OR p.description LIKE ?) " : "";
+        String searchFilter = "";
+        String[] searchWords = new String[0];
+        if (searchParam != null && !searchParam.trim().isEmpty()) {
+            searchWords = searchParam.trim().split("\\s+");
+            StringBuilder sf = new StringBuilder("AND (");
+            for (int i = 0; i < searchWords.length; i++) {
+                if (i > 0) sf.append(" OR ");
+                sf.append("p.name LIKE ? OR p.description LIKE ?");
+            }
+            sf.append(") ");
+            searchFilter = sf.toString();
+        }
         String minPriceFilter = (minPriceParam != null && !minPriceParam.isEmpty()) ? "AND p.price >= " + Double.parseDouble(minPriceParam) + " " : "";
         String maxPriceFilter = (maxPriceParam != null && !maxPriceParam.isEmpty()) ? "AND p.price <= " + Double.parseDouble(maxPriceParam) + " " : "";
-        String ratingFilter = (minRatingParam != null && !minRatingParam.isEmpty() && !minRatingParam.equals("0")) ? "HAVING avg_rating >= " + Double.parseDouble(minRatingParam) + " " : "";
+        String ratingFilter = (minRatingParam != null && !minRatingParam.isEmpty() && !minRatingParam.equals("0")) ? "AND COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) >= " + Double.parseDouble(minRatingParam) + " " : "";
 
         String orderBy = "ORDER BY RAND()";
         if ("price_asc".equals(sortParam)) orderBy = "ORDER BY p.price ASC";
@@ -29,13 +40,17 @@
         "SELECT p.*, s.business_name, " +
         "COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) AS avg_rating, " +
         "COALESCE((SELECT COUNT(*) FROM review r WHERE r.product_id = p.product_id), 0) AS review_count, " +
-        "COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold " +
+        		"COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold, " +
+        		"s.user_id AS seller_user_id " +
         "FROM product p JOIN seller s ON p.seller_id = s.seller_id " +
-        "WHERE p.status='active' AND p.stock > 0 " + catFilter + searchFilter + minPriceFilter + maxPriceFilter + ratingFilter + orderBy);
-        if (searchParam != null && !searchParam.trim().isEmpty()) {
-            String like = "%" + searchParam.trim() + "%";
-            prodPs.setString(1, like);
-            prodPs.setString(2, like);
+        "WHERE p.status='active' AND p.stock > 0 " + catFilter + searchFilter + minPriceFilter + maxPriceFilter + orderBy);
+        if (searchWords.length > 0) {
+            int idx = 1;
+            for (String word : searchWords) {
+                String like = "%" + word + "%";
+                prodPs.setString(idx++, like);
+                prodPs.setString(idx++, like);
+            }
         }
 
 
@@ -54,7 +69,20 @@ prod.put("avgRating", prodRs.getDouble("avg_rating"));
 prod.put("reviewCount", prodRs.getInt("review_count"));
 prod.put("totalSold", prodRs.getInt("total_sold"));
 prod.put("originalPrice", prodRs.getDouble("original_price"));
-            products.add(prod);
+prod.put("sellerUserId", prodRs.getInt("seller_user_id"));
+//Check if product has variations
+int pvCount = 0;
+try {
+ java.sql.Connection pvConn = com.shopeasy.DBConnection.getConnection();
+ java.sql.PreparedStatement pvPs = pvConn.prepareStatement(
+     "SELECT COUNT(*) FROM product_variation WHERE product_id=?");
+ pvPs.setInt(1, prodRs.getInt("product_id"));
+ java.sql.ResultSet pvRs = pvPs.executeQuery();
+ if (pvRs.next()) pvCount = pvRs.getInt(1);
+ pvRs.close(); pvPs.close(); pvConn.close();
+} catch (Exception ignored) {}
+prod.put("hasVariations", pvCount > 0);
+         products.add(prod);
         }
         prodRs.close();
         prodPs.close();
@@ -68,11 +96,13 @@ prod.put("originalPrice", prodRs.getDouble("original_price"));
     try {
         String sessionRole = (String) session.getAttribute("userRole");
         Integer sessionUserId = (Integer) session.getAttribute("userId");
-        if (sessionUserId != null && "customer".equals(sessionRole)) {
+        if (sessionUserId != null && ("customer".equals(sessionRole) || "both".equals(sessionRole))) {
             java.sql.Connection cartConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement cartPs = cartConn.prepareStatement(
-                "SELECT SUM(ci.quantity) FROM cart c JOIN cartitem ci ON c.cart_id = ci.cart_id WHERE c.customer_id = ?");
-            cartPs.setInt(1, sessionUserId);
+                    "SELECT SUM(ci.quantity) FROM cart c JOIN cartitem ci ON c.cart_id = ci.cart_id WHERE c.customer_id = ? AND ci.quantity > 0");
+            Integer cartCustId = (Integer) session.getAttribute("customerId");
+            if (cartCustId == null) cartCustId = sessionUserId;
+            cartPs.setInt(1, cartCustId);
             java.sql.ResultSet cartRs = cartPs.executeQuery();
             if (cartRs.next()) cartCount = cartRs.getInt(1);
             cartRs.close();
@@ -251,16 +281,16 @@ input::-webkit-contacts-auto-fill-button {
     <i class="bi bi-x-circle-fill"></i> <span id="errorText">Account not found. Please check your email or password.</span>
 </div>
 <!-- NAVIGATION BAR -->
-<nav class="navbar navbar-light bg-white shadow-sm py-3 sticky-top">
+<nav class="navbar navbar-light bg-white shadow-sm py-2 sticky-top">
     <div class="container-fluid px-4">
-        
+
         <!-- Logo -->
         <a class="navbar-brand fw-bold text-primary" href="index.jsp">
             <i class="bi bi-bag-heart-fill"></i> ShopEasy
         </a>
 
         <!-- Desktop Search Bar -->
-        <form id="desktopSearch" class="d-none d-md-flex mx-3 flex-grow-1" action="index.jsp" method="get" onsubmit="return false;">
+       <form id="desktopSearch" class="d-none d-md-flex mx-3 flex-grow-1" action="index.jsp" method="get">
             <div class="input-group">
                 <input type="text" class="form-control" name="search" placeholder="Search products..." value="<%= searchParam != null ? searchParam : "" %>">
                 <button class="btn btn-primary px-3" type="submit">
@@ -274,71 +304,113 @@ input::-webkit-contacts-auto-fill-button {
         <%
             String loggedUser = (String) session.getAttribute("userName");
             String loggedRole = (String) session.getAttribute("userRole");
+            String loggedEmail = (String) session.getAttribute("userEmail");
             if (loggedUser != null) {
         %>
-        <% if ("customer".equals(loggedRole)) { %>
-<a href="CartServlet" class="btn btn-outline-secondary position-relative">
+            <!-- Cart (customer only) -->
+     <% if ("customer".equals(loggedRole) || "both".equals(loggedRole)) { %>
+        <a href="CartServlet" class="btn btn-outline-secondary position-relative">
     <i class="bi bi-cart3 fs-5"></i>
-    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
+    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="cartBadge" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
 </a>
-<% } %>
-<div class="dropdown">
+            <% } %>
+
+            <!-- Profile Dropdown -->
             <div class="dropdown">
-                <a href="#" class="d-flex align-items-center gap-2 text-decoration-none" data-bs-toggle="dropdown">
+                <button class="btn btn-light border d-flex align-items-center gap-2 px-2 py-1 rounded-pill"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:13px;">
                     <%
-    String loggedRole2 = (String) session.getAttribute("userRole");
-String navAvatar = "seller".equals(loggedRole2) ? 
-    (String) session.getAttribute("userProfilePicture") : 
-    (String) session.getAttribute("userAvatar");
-%>
-<% if (navAvatar != null && !navAvatar.isEmpty()) { %>
-    <img src="<%= navAvatar %>" style="width:34px; height:34px; border-radius:50%; object-fit:cover; border:2px solid #0d6efd;" alt="Avatar">
-<% } else { %>
-    <div style="width:34px; height:34px; background:#0d6efd; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px;">
-        <%= loggedUser.substring(0, 1).toUpperCase() %>
-    </div>
-<% } %>
-                    <%
-    String displayName = loggedUser;
-    String businessName = (String) session.getAttribute("userBusinessName");
-    if ("seller".equals(loggedRole) && businessName != null && !businessName.isEmpty()) {
-        displayName = businessName;
-    }
-%>
-<span class="d-none d-md-inline fw-bold text-dark" style="font-size:14px; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><%= displayName %></span>
-                    <i class="bi bi-chevron-down text-muted" style="font-size:11px;"></i>
-                </a>
-                <ul class="dropdown-menu dropdown-menu-end shadow">
-                    <li><h6 class="dropdown-header"><%= displayName %></h6></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <% if ("customer".equals(loggedRole)) { %>
-                    <li><a class="dropdown-item" href="customer.jsp"><i class="bi bi-person me-2"></i> My Profile</a></li>
-                    <li><a class="dropdown-item" href="customer.jsp?tab=orders"><i class="bi bi-bag me-2"></i> My Orders</a></li>
-                    <% } else if ("seller".equals(loggedRole)) { %>
-                    <li><a class="dropdown-item" href="seller.jsp"><i class="bi bi-shop me-2"></i> Seller Dashboard</a></li>
+                        String navAvatar2 = "seller".equals(loggedRole) ?
+                            (String) session.getAttribute("userProfilePicture") :
+                            (String) session.getAttribute("userAvatar");
+                    %>
+                    <% if (navAvatar2 != null && !navAvatar2.isEmpty()) { %>
+                        <img src="<%= navAvatar2 %>" style="width:28px; height:28px; border-radius:50%; object-fit:cover;">
+                    <% } else { %>
+                        <div style="width:28px; height:28px; border-radius:50%; background:#0d6efd; color:white; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">
+                            <%= loggedUser.substring(0, 1).toUpperCase() %>
+                        </div>
                     <% } %>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item text-danger" href="#" onclick="doLogout()"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
+                    <%
+                        String displayName = loggedUser;
+                        String bizName = (String) session.getAttribute("userBusinessName");
+                        if ("seller".equals(loggedRole) && bizName != null && !bizName.isEmpty()) {
+                            displayName = bizName;
+                        }
+                    %>
+                    <span class="d-none d-sm-inline fw-semibold"><%= displayName.split(" ")[0] %></span>
+                    <i class="bi bi-chevron-down" style="font-size:10px;"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width:200px; border-radius:12px; margin-top:6px;">
+                   <li class="px-3 py-2 border-bottom">
+                        <div class="d-flex align-items-center gap-2">
+                            <%
+                            String idxAvatar = (String) session.getAttribute("userAvatar");
+                            if (idxAvatar == null || idxAvatar.isEmpty())
+                                idxAvatar = (String) session.getAttribute("userProfilePicture");
+                            String idxInitial = (displayName != null && !displayName.isEmpty()) ? String.valueOf(displayName.charAt(0)).toUpperCase() : "?";
+                            %>
+                            <% if (idxAvatar != null && !idxAvatar.isEmpty()) { %>
+                                <img src="<%= idxAvatar %>" style="width:38px; height:38px; border-radius:50%; object-fit:cover; flex-shrink:0;">
+                            <% } else { %>
+                                <div style="width:38px; height:38px; border-radius:50%; background:#0d6efd; color:white; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><%= idxInitial %></div>
+                            <% } %>
+                            <div>
+                                <p class="mb-0 fw-bold" style="font-size:13px;"><%= displayName %></p>
+                                <p class="mb-0 text-muted" style="font-size:11px;"><%= loggedEmail != null ? loggedEmail : "" %></p>
+                            </div>
+                        </div>
+                    </li>
+                    <% if ("customer".equals(loggedRole) || "both".equals(loggedRole)) { %>
+                    <li><a class="dropdown-item py-2" href="customer.jsp" style="font-size:13px;"><i class="bi bi-person me-2 text-primary"></i>My Profile</a></li>
+                    <li><a class="dropdown-item py-2" href="customer.jsp?tab=orders" style="font-size:13px;"><i class="bi bi-bag me-2 text-primary"></i>My Orders</a></li>
+                    <% } %>
+                    <% if ("seller".equals(loggedRole)) { %>
+                    <li><a class="dropdown-item py-2" href="seller.jsp" style="font-size:13px;"><i class="bi bi-shop me-2 text-warning"></i>Seller Dashboard</a></li>
+                    <% } %>
+                    <% if ("both".equals(loggedRole) || "seller".equals(loggedRole)) { %>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+                       <a class="dropdown-item py-2 text-success fw-semibold" href="#" onclick="goToSellerCenter()" style="font-size:13px;">
+                            <i class="bi bi-shop me-2"></i>Seller Center
+                        </a>
+                    </li>
+                    <% } else if ("customer".equals(loggedRole)) { %>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+                       <a class="dropdown-item py-2 text-success fw-semibold" href="#" onclick="goToBecomeSeller()" style="font-size:13px;">
+    <i class="bi bi-shop-window me-2"></i>Become a Seller
+                        </a>
+                    </li>
+                    <% } %>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+                        <a class="dropdown-item py-2 text-danger" href="#" onclick="doLogout()" style="font-size:13px;">
+                            <i class="bi bi-box-arrow-right me-2"></i>Logout
+                        </a>
+                    </li>
                 </ul>
             </div>
+
         <% } else { %>
-    <a href="#" class="btn btn-outline-secondary position-relative" data-bs-toggle="modal" data-bs-target="#loginModal">
-        <i class="bi bi-cart3 fs-5"></i>
-        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
-    </a>
-    <a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal">
-        <i class="bi bi-person"></i>
-        <span class="d-none d-md-inline"> Login</span>
-    </a>
-    <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal">
-        <i class="bi bi-person-plus"></i>
-        <span class="d-none d-md-inline"> Register</span>
-    </a>
-<% } %>
+            <!-- Not logged in -->
+         <a href="#" class="btn btn-outline-secondary position-relative" data-bs-toggle="modal" data-bs-target="#loginModal">
+    <i class="bi bi-cart3 fs-5"></i>
+    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
+</a>
+            <a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal">
+                <i class="bi bi-person"></i>
+                <span class="d-none d-md-inline"> Login</span>
+            </a>
+            <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal">
+                <i class="bi bi-person-plus"></i>
+                <span class="d-none d-md-inline"> Register</span>
+            </a>
+        <% } %>
         </div>
     </div>
 
- <!-- Mobile Search Bar -->
+    <!-- Mobile Search Bar -->
     <form id="mobileSearch" class="container-fluid px-3 d-md-none mt-2" action="index.jsp" method="get" onsubmit="return false;">
         <div class="input-group">
             <input type="text" class="form-control" name="search" placeholder="Search products..." value="<%= searchParam != null ? searchParam : "" %>">
@@ -597,11 +669,24 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
 <% } %>
 <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
                 <div class="mt-auto" onclick="event.stopPropagation();">
-                    <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-                        <button type="button" class="btn btn-primary btn-sm w-100" onclick="addToCart(<%= prod.get("id") %>)">
-    <i class="bi bi-cart-plus"></i> Add to Cart
+               <%
+    Integer sessionUid = (Integer) session.getAttribute("userId");
+    boolean isOwn = sessionUid != null && prod.get("sellerUserId") != null 
+                    && sessionUid.equals(prod.get("sellerUserId"));
+%>
+<% if (isOwn) { %>
+    <button class="btn btn-secondary btn-sm w-100" disabled style="cursor:not-allowed; opacity:0.7;">
+        <i class="bi bi-slash-circle"></i> Your Product
+    </button>
+<% } else if (loggedUser != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) { %>
+   <%
+    Object spv = prod.get("hasVariations");
+    boolean hasVar = spv != null && (boolean) spv;
+%>
+<button type="button" class="btn btn-primary btn-sm w-100" onclick="addToCart(<%= prod.get("id") %>, <%= hasVar %>)">
+    <i class="bi bi-cart-plus"></i> <%= hasVar ? "Select Options" : "Add to Cart" %>
 </button>
-                   <% } else { %>
+<% } else { %>
     <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
         <i class="bi bi-cart-plus"></i> Add to Cart
     </button>
@@ -786,9 +871,22 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
     </div>
 </footer>
 <%@ include file="modals.jsp" %>
+
+
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+
+//Auto-show seller blocked modal
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('sellerBlocked') === 'age') {
+        var el = document.getElementById('sellerBlockedModal');
+        if (el) new bootstrap.Modal(el).show();
+    }
+})();
+
 function showProduct(id, name, price, stock, seller, image, description) {
     document.getElementById('modalProductName').innerText = name;
     document.getElementById('modalPrice').innerText = '₱' + parseFloat(price).toFixed(2);
@@ -805,7 +903,7 @@ function showProduct(id, name, price, stock, seller, image, description) {
     }
 
     const cartSection = document.getElementById('modalCartSection');
-    const isLoggedIn = <%= (loggedUser != null && "customer".equals(loggedRole)) ? "true" : "false" %>;
+    const isLoggedIn = <%= (loggedUser != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) ? "true" : "false" %>;
     if (isLoggedIn) {
     	cartSection.innerHTML = `
     	    <button type="button" class="btn btn-primary w-100 fw-bold py-2" onclick="addToCart(${id})">
@@ -853,11 +951,13 @@ function showProduct(id, name, price, stock, seller, image, description) {
             alert('Password must be at least 6 characters!');
             return false;
         }
-        // Don't prevent default — let form submit normally
-        // Just show the overlay as visual feedback
+        e.preventDefault();
         var modal = bootstrap.Modal.getInstance(document.getElementById('registerModal'));
         if (modal) modal.hide();
         document.getElementById('registerLoadingOverlay').style.display = 'flex';
+        setTimeout(() => {
+            document.getElementById('registerForm').submit();
+        }, 2500);
     });
 
     window.addEventListener('load', function() {
@@ -902,7 +1002,11 @@ function showProduct(id, name, price, stock, seller, image, description) {
 
 
     <script>
-    function addToCart(productId) {
+    function addToCart(productId, hasVariations) {
+        if (hasVariations) {
+            window.location.href = 'product.jsp?id=' + productId;
+            return;
+        }
         fetch('AddToCartServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1004,10 +1108,85 @@ function showProduct(id, name, price, stock, seller, image, description) {
     
    
 <%
-    String isLoggedInFlag = (loggedUser != null && "customer".equals(loggedRole)) ? "true" : "false";
+String isLoggedInFlag = (loggedUser != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) ? "true" : "false";
 %>
 <input type="hidden" id="isLoggedInFlag" value="<%= isLoggedInFlag %>">
+<!-- Seller Welcome Toast -->
+<div id="sellerWelcomeToast" style="display:none; position:fixed; bottom:30px; left:50%; transform:translateX(-50%); z-index:9999;
+     background:#fff; border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.15); padding:20px 28px;
+     display:none; align-items:center; gap:16px; min-width:340px; border-left:5px solid #198754;">
+    <div style="width:48px; height:48px; border-radius:50%; background:#d1f2e1; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <i class="bi bi-shop-window" style="font-size:22px; color:#198754;"></i>
+    </div>
+    <div style="flex:1;">
+        <p style="margin:0; font-weight:700; font-size:14px; color:#198754;">🎉 You're now a seller!</p>
+        <p style="margin:4px 0 0; font-size:12px; color:#555;">Go to your profile → dropdown → <strong>Seller Center</strong> to start selling.</p>
+    </div>
+    <button onclick="document.getElementById('sellerWelcomeToast').style.display='none'"
+            style="background:none; border:none; font-size:18px; color:#aaa; cursor:pointer; flex-shrink:0;">✕</button>
+</div>
 
+<script>
+// Show seller welcome toast if redirected from seller application
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('sellerWelcome') === 'true') {
+        const toast = document.getElementById('sellerWelcomeToast');
+        toast.style.display = 'flex';
+        // Auto hide after 8 seconds
+        setTimeout(function() {
+            toast.style.display = 'none';
+        }, 8000);
+        // Clean URL
+        window.history.replaceState({}, '', 'index.jsp');
+    }
+})();
+</script>
+
+
+<!-- Seller Center Loading Overlay -->
+<div id="sellerCenterOverlay" style="display:none; position:fixed; inset:0; background:rgba(255,255,255,0.95);
+     z-index:9999; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
+    <div style="width:56px; height:56px; border:5px solid #e9ecef; border-top-color:#198754;
+         border-radius:50%; animation:scSpin 0.8s linear infinite;"></div>
+    <p style="font-size:16px; font-weight:600; color:#198754; margin:0;">
+        <i class="bi bi-shop me-2"></i>Opening Seller Center…
+    </p>
+    <small style="color:#888; font-size:13px;">Please wait…</small>
+</div>
+<style>
+@keyframes scSpin { to { transform: rotate(360deg); } }
+</style>
+<script>
+function goToSellerCenter() {
+    document.getElementById('sellerCenterOverlay').style.display = 'flex';
+    setTimeout(function() {
+        window.location.href = 'seller.jsp';
+    }, 1500);
+}
+
+function goToBecomeSeller() {
+	const birthday = '<%= session.getAttribute("userBirthday") != null ? session.getAttribute("userBirthday") : "" %>';
+    if (!birthday || birthday.trim() === '') {
+        new bootstrap.Modal(document.getElementById('sellerBlockedModal')).show();
+        return;
+    }
+    const birthDate = new Date(birthday);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    if (age < 18) {
+        new bootstrap.Modal(document.getElementById('sellerBlockedModal')).show();
+        return;
+    }
+    document.getElementById('sellerCenterOverlay').style.display = 'flex';
+    document.querySelector('#sellerCenterOverlay p').innerHTML = '<i class="bi bi-shop-window me-2"></i>Opening Seller Application...';
+    setTimeout(function() {
+        window.location.href = 'seller-apply.jsp';
+    }, 1500);
+}
+</script>
 
 </body>
 </html>

@@ -19,8 +19,9 @@ public class SellerProfileServlet extends HttpServlet {
 
         HttpSession session = request.getSession();
 
+        String sellerRole = (String) session.getAttribute("userRole");
         if (session.getAttribute("userId") == null || 
-            !"seller".equals(session.getAttribute("userRole"))) {
+            (!"seller".equals(sellerRole) && !"both".equals(sellerRole))) {
             response.sendRedirect("index.jsp");
             return;
         }
@@ -29,12 +30,14 @@ public class SellerProfileServlet extends HttpServlet {
 
         try {
             Connection conn = DBConnection.getConnection();
-            String sql = "SELECT * FROM seller WHERE seller_id = ?";
+            String sql = "SELECT * FROM seller WHERE user_id = ?";
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setInt(1, userId);
             ResultSet rs = ps.executeQuery();
 
+            int sellerId = -1;
             if (rs.next()) {
+                sellerId = rs.getInt("seller_id");
                 session.setAttribute("userName", rs.getString("name"));
                 session.setAttribute("userEmail", rs.getString("email"));
                 session.setAttribute("userPhone", rs.getString("phone"));
@@ -52,7 +55,7 @@ public class SellerProfileServlet extends HttpServlet {
             java.util.List<java.util.Map<String, String>> products = new java.util.ArrayList<>();
             String productSql = "SELECT p.*, c.name as category_name FROM product p LEFT JOIN category c ON p.category_id = c.category_id WHERE p.seller_id = ? ORDER BY p.product_id DESC";
             PreparedStatement productPs = conn.prepareStatement(productSql);
-            productPs.setInt(1, userId);
+            productPs.setInt(1, sellerId);
             ResultSet productRs = productPs.executeQuery();
             while (productRs.next()) {
                 java.util.Map<String, String> product = new java.util.HashMap<>();

@@ -1,18 +1,86 @@
 <%@ page session="true" %>
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%
-    if(session.getAttribute("userId") == null || !"seller".equals(session.getAttribute("userRole"))) {
+    if(session.getAttribute("userId") == null) {
         response.sendRedirect("index.jsp");
         return;
     }
+String sellerUserRole = (String) session.getAttribute("userRole");
+if (sellerUserRole == null) sellerUserRole = "customer";
+// If session says customer but DB says both/seller, refresh from DB
+if ("customer".equals(sellerUserRole)) {
+    try {
+        java.sql.Connection roleConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement rolePs = roleConn.prepareStatement("SELECT role FROM users WHERE user_id = ?");
+        rolePs.setInt(1, (int) session.getAttribute("userId"));
+        java.sql.ResultSet roleRs = rolePs.executeQuery();
+        if (roleRs.next()) sellerUserRole = roleRs.getString("role");
+        roleRs.close(); rolePs.close(); roleConn.close();
+        session.setAttribute("userRole", sellerUserRole);
+    } catch (Exception ex) { ex.printStackTrace(); }
+}
+if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
+    response.sendRedirect("customer.jsp");
+    return;
+}
+   
     String sellerName = (String) session.getAttribute("userName");
     String sellerEmail = (String) session.getAttribute("userEmail");
     String sellerPhone = (String) session.getAttribute("userPhone");
     String sellerUsername = (String) session.getAttribute("userUsername");
     String sellerBusinessName = (String) session.getAttribute("userBusinessName");
+    if (sellerBusinessName == null) sellerBusinessName = "";
+   
+    String sellerBizNameEncoded = sellerBusinessName.replace(" ", "+");
     String sellerBusinessType = (String) session.getAttribute("userBusinessType");
+    String sellerShopDescription = (String) session.getAttribute("shopDescription");
+    String sellerShopAddress = (String) session.getAttribute("shopLocation");
+
+    // Load from DB if session is empty
+    if ((sellerShopDescription == null || sellerShopDescription.isEmpty()) ||
+        (sellerBusinessType == null || sellerBusinessType.isEmpty())) {
+        try {
+            java.sql.Connection loadConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement loadPs = loadConn.prepareStatement(
+                "SELECT business_type, shop_description, shop_location FROM seller WHERE user_id=?");
+            loadPs.setInt(1, (int) session.getAttribute("userId"));
+            java.sql.ResultSet loadRs = loadPs.executeQuery();
+            if (loadRs.next()) {
+                if (sellerBusinessType == null || sellerBusinessType.isEmpty())
+                    sellerBusinessType = loadRs.getString("business_type");
+                if (sellerShopDescription == null || sellerShopDescription.isEmpty())
+                    sellerShopDescription = loadRs.getString("shop_description");
+                if (sellerShopAddress == null || sellerShopAddress.isEmpty())
+                    sellerShopAddress = loadRs.getString("shop_location");
+            }
+            loadRs.close(); loadPs.close(); loadConn.close();
+        } catch (Exception ex) { ex.printStackTrace(); }
+    }
+    if (sellerShopDescription == null) sellerShopDescription = "";
+    if (sellerShopAddress == null) sellerShopAddress = "";
+    if (sellerBusinessType == null) sellerBusinessType = "";
     String sellerPicture = (String) session.getAttribute("userProfilePicture");
+    if (sellerPicture == null || sellerPicture.isEmpty()) {
+        sellerPicture = (String) session.getAttribute("userAvatar");
+    }
     String sellerBanner = (String) session.getAttribute("userBannerPicture");
+    String sellerShopLogo = (String) session.getAttribute("userShopLogo");
+    if (sellerShopLogo == null) sellerShopLogo = "";
+ // Load shop_logo from DB if session is empty
+    if (sellerShopLogo.isEmpty()) {
+        try {
+            java.sql.Connection logoConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement logoPs = logoConn.prepareStatement(
+                "SELECT shop_logo FROM seller WHERE user_id=?");
+            logoPs.setInt(1, (int) session.getAttribute("userId"));
+            java.sql.ResultSet logoRs = logoPs.executeQuery();
+            if (logoRs.next() && logoRs.getString("shop_logo") != null) {
+                sellerShopLogo = logoRs.getString("shop_logo");
+                session.setAttribute("userShopLogo", sellerShopLogo);
+            }
+            logoRs.close(); logoPs.close(); logoConn.close();
+        } catch (Exception ex) { ex.printStackTrace(); }
+    }
     
 
     if(sellerName == null) sellerName = "";
@@ -57,93 +125,109 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
-        body { background: #f4f6fb; }
-        .sidebar {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-            padding: 24px 0;
-            position: sticky;
-            top: 20px;
-        }
-        .sidebar-avatar {
-            width: 80px; height: 80px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 3px solid #198754;
-        }
-        .sidebar-nav a {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 24px;
-            color: #555;
-            text-decoration: none;
-            font-size: 14px;
-            transition: 0.2s;
-            border-left: 3px solid transparent;
-        }
-        .sidebar-nav a:hover, .sidebar-nav a.active {
-            background: #e8f5e9;
-            color: #198754;
-            border-left-color: #198754;
-            font-weight: 600;
-        }
-        .sidebar-nav a i { font-size: 16px; width: 20px; }
-        .card-section {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-            padding: 24px;
-            margin-bottom: 20px;
-        }
-        .section-title {
-            font-size: 16px;
-            font-weight: 700;
-            color: #1a1a2e;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e8f5e9;
-        }
-        .avatar-upload {
-            position: relative;
-            width: 100px;
-            height: 100px;
-            margin: 0 auto 16px;
-        }
-        .avatar-upload img {
-            width: 100px; height: 100px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 3px solid #198754;
-        }
-        .avatar-upload .upload-btn {
-            position: absolute;
-            bottom: 0; right: 0;
-            background: #198754;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 28px; height: 28px;
-            font-size: 12px;
-            cursor: pointer;
-        }
-        .stat-box {
-            background: #f0fff4;
-            border-radius: 12px;
-            padding: 14px;
-            text-align: center;
-        }
-        .stat-box .stat-num { font-size: 24px; font-weight: 700; color: #198754; }
-        .stat-box .stat-label { font-size: 12px; color: #666; }
-        .product-row {
-            border: 1px solid #e8f5e9;
-            border-radius: 12px;
-            padding: 14px;
-            margin-bottom: 12px;
-            transition: 0.2s;
-        }
-        .product-row:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  
+.navbar-shopeasy { z-index: 100 !important; }
+
+        body { background: #eef1f7; }
+.sidebar {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    padding: 24px 0;
+    position: sticky;
+    top: 20px;
+    overflow: hidden;
+}
+.sidebar-avatar {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid white;
+    box-shadow: 0 4px 12px rgba(25,135,84,0.3);
+}
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 24px;
+    color: #555;
+    text-decoration: none;
+    font-size: 14px;
+    transition: 0.2s;
+    border-left: 3px solid transparent;
+}
+.sidebar-nav a:hover, .sidebar-nav a.active {
+    background: linear-gradient(90deg, #e8f5e9, #f0fff4);
+    color: #198754;
+    border-left-color: #198754;
+    font-weight: 600;
+}
+.sidebar-nav a i { font-size: 16px; width: 20px; }
+.card-section {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+    padding: 28px;
+    margin-bottom: 20px;
+}
+.section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e8f5e9;
+}
+.avatar-upload {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 16px;
+}
+.avatar-upload img {
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid white;
+    box-shadow: 0 4px 12px rgba(25,135,84,0.25);
+}
+.avatar-upload .upload-btn {
+    position: absolute;
+    bottom: 2px; right: 2px;
+    background: #198754;
+    color: white;
+    border: 2px solid white;
+    border-radius: 50%;
+    width: 30px; height: 30px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: 0.2s;
+}
+.avatar-upload .upload-btn:hover { background: #157347; transform: scale(1.1); }
+.stat-box {
+    background: linear-gradient(135deg, #f0fff4, #e8f5e9);
+    border-radius: 16px;
+    padding: 16px;
+    text-align: center;
+    border: 1px solid #c8e6c9;
+    transition: 0.2s;
+}
+.stat-box:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(25,135,84,0.12); }
+.stat-box .stat-num { font-size: 26px; font-weight: 800; color: #198754; }
+.stat-box .stat-label { font-size: 12px; color: #666; font-weight: 500; }
+       .product-row {
+    border: 1px solid #e8f5e9;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: 0.2s;
+    background: #fafffe;
+}
+.product-row:hover { box-shadow: 0 4px 16px rgba(25,135,84,0.1); border-color: #a5d6a7; }
         .product-img {
             width: 60px; height: 60px;
             border-radius: 8px;
@@ -240,18 +324,70 @@
 </div>
 
 <!-- NAVBAR -->
-<nav class="navbar navbar-light navbar-shopeasy py-2 mb-4">
-    <div class="container-fluid px-3">
-        <a class="navbar-brand fw-bold text-success" href="index.jsp">
+<nav class="navbar navbar-light navbar-shopeasy py-2 mb-4 shadow-sm sticky-top bg-white">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand fw-bold text-success" href="index.jsp" style="font-size:1.5rem;">
             <i class="bi bi-bag-heart-fill"></i> ShopEasy
         </a>
         <div class="d-flex align-items-center gap-3">
-            <a href="index.jsp" class="text-decoration-none fw-bold text-success" style="font-size:14px;">
-    <i class="bi bi-house-fill"></i> Home
+      <a href="index.jsp" class="btn btn-outline-secondary d-flex align-items-center gap-1">
+    <i class="bi bi-house"></i> Home
 </a>
-            <a href="#" onclick="doLogout()" class="btn btn-outline-danger btn-sm">
-    <i class="bi bi-box-arrow-right"></i> Logout
+<a href="SellerPageServlet?id=<%= (Integer) session.getAttribute("sellerId") %>" 
+   class="btn btn-outline-success d-flex align-items-center gap-1">
+    <i class="bi bi-shop"></i> View My Shop
 </a>
+            <!-- PROFILE DROPDOWN -->
+            <div class="dropdown">
+                <button class="btn btn-light border d-flex align-items-center gap-2 px-2 py-1 rounded-pill" 
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:13px;">
+                    <%
+                    String sellerNavAvatar = (sellerPicture != null && !sellerPicture.isEmpty()) ? sellerPicture : (String) session.getAttribute("userAvatar");
+                        String sellerNavName = (String) session.getAttribute("userName");
+                        String sellerNavInitial = (sellerNavName != null && !sellerNavName.isEmpty()) ? String.valueOf(sellerNavName.charAt(0)).toUpperCase() : "S";
+                        if (sellerNavAvatar != null && !sellerNavAvatar.isEmpty()) {
+                    %>
+                        <img src="<%= sellerNavAvatar %>" style="width:28px; height:28px; border-radius:50%; object-fit:cover;">
+                    <% } else { %>
+                       <div style="width:28px; height:28px; border-radius:50%; background:#0d6efd; color:white; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;"><%= sellerNavInitial %></div>
+                    <% } %>
+                 <span class="d-none d-sm-inline fw-semibold"><%= (sellerNavName != null && !sellerNavName.isEmpty()) ? sellerNavName.split(" ")[0] : "Me" %></span>
+                    <i class="bi bi-chevron-down" style="font-size:10px;"></i>
+                </button>
+               <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width:220px; border-radius:12px; margin-top:6px;">
+                    <li class="px-3 py-2 border-bottom">
+                        <div class="d-flex align-items-center gap-2">
+                            <% if (sellerPicture != null && !sellerPicture.isEmpty()) { %>
+                                <img src="<%= sellerPicture %>" style="width:38px; height:38px; border-radius:50%; object-fit:cover; flex-shrink:0;">
+                            <% } else { %>
+                                <div style="width:38px; height:38px; border-radius:50%; background:#0d6efd; color:white; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;">  
+                                    <%= sellerName != null && !sellerName.isEmpty() ? String.valueOf(sellerName.charAt(0)).toUpperCase() : "S" %>
+                                </div>
+                            <% } %>
+                            <div>
+                                <p class="mb-0 fw-bold" style="font-size:13px;"><%= sellerName %></p>
+                                <p class="mb-0 text-muted" style="font-size:11px;"><%= sellerEmail %></p>
+                            </div>
+                        </div>
+                    </li>
+                 <li><a class="dropdown-item py-2" href="seller.jsp?tab=sales" style="font-size:13px;"><i class="bi bi-speedometer2 me-2 text-success"></i>Dashboard</a></li>
+                    <li><a class="dropdown-item py-2" href="seller.jsp?tab=products" style="font-size:13px;"><i class="bi bi-box me-2 text-success"></i>Manage Products</a></li>
+                    <li><a class="dropdown-item py-2" href="seller.jsp?tab=orders" style="font-size:13px;"><i class="bi bi-bag me-2 text-success"></i>Orders</a></li>
+                    <li><a class="dropdown-item py-2" href="seller.jsp" style="font-size:13px;"><i class="bi bi-shop-window me-2 text-success"></i>Shop Settings</a></li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+                        <a class="dropdown-item py-2 text-primary fw-semibold" href="index.jsp" style="font-size:13px;">
+                            <i class="bi bi-house me-2"></i>Back to Shopping
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+                        <a class="dropdown-item py-2 text-danger" href="#" onclick="doLogout()" style="font-size:13px;">
+                            <i class="bi bi-box-arrow-right me-2"></i>Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
 </nav>
@@ -263,19 +399,22 @@
         <div class="col-md-3">
             <div class="sidebar">
                 <div class="text-center px-3 mb-3">
-                    <% if(sellerPicture != null && !sellerPicture.isEmpty()) { %>
-                        <img src="<%= sellerPicture %>" class="sidebar-avatar mb-2" alt="Avatar" id="sidebarAvatar">
-                    <% } else { %>
-                        <img src="https://ui-avatars.com/api/?name=<%= sellerName.replace(" ", "+") %>&background=198754&color=fff&size=80" class="sidebar-avatar mb-2" alt="Avatar" id="sidebarAvatar">
-                    <% } %>
+        <div style="display:inline-block;">
+    <%
+        String sidebarAvatarSrc = !sellerShopLogo.isEmpty() ? sellerShopLogo
+            : "https://ui-avatars.com/api/?name=" + sellerBizNameEncoded + "&background=198754&color=fff&size=80";
+    %>
+    <img src="<%= sidebarAvatarSrc %>" 
+         class="sidebar-avatar mb-2" alt="Avatar" id="sidebarAvatar">
+</div>
                     <p class="fw-bold mb-0" style="font-size:15px;"><%= sellerBusinessName.isEmpty() ? sellerName : sellerBusinessName %></p>
                     <p class="text-muted mb-0" style="font-size:12px;"><%= sellerEmail %></p>
                     <span class="badge bg-success mt-1" style="font-size:10px;">Seller</span>
                 </div>
                 <hr class="mx-3">
                 <div class="sidebar-nav">
-                  <a href="#" class="<%= request.getParameter("tab") == null ? "active" : "" %>" onclick="showTab('home', this)">
-    <i class="bi bi-shop"></i> Shop Settings
+                <a href="#" class="<%= request.getParameter("tab") == null ? "active" : "" %>" onclick="showTab('home', this)">
+    <i class="bi bi-shop-window"></i> Shop Settings
 </a>
 
                     <a href="#" onclick="showTab('products', this)">
@@ -285,20 +424,21 @@
    class="<%= "orders".equals(request.getParameter("tab")) ? "active" : "" %>">
     <i class="bi bi-bag"></i> Orders Received
 </a>
-                    <a href="#" onclick="showTab('sales', this)">
-                        <i class="bi bi-graph-up"></i> Sales & Analytics
+                   <a href="#" onclick="showTab('sales', this)">
+                        <i class="bi bi-speedometer2"></i> Dashboard
                     </a>
                     <a href="#" onclick="showTab('reviews', this)">
                         <i class="bi bi-star"></i> Reviews
                     </a>
-                    <a href="#" onclick="showTab('security', this)">
-                        <i class="bi bi-shield-lock"></i> Security
-                    </a>
-                    <a href="#" onclick="showTab('notifications', this)">
+                  
+                 <a href="#" onclick="showTab('notifications', this)">
                         <i class="bi bi-bell"></i> Notifications
                         <% if (sellerUnreadCount > 0) { %>
                         <span class="badge bg-danger ms-auto" style="font-size:10px;"><%= sellerUnreadCount %></span>
                         <% } %>
+                    </a>
+                    <a href="#" onclick="showTab('payout', this)">
+                        <i class="bi bi-wallet2"></i> Payout
                     </a>
                 </div>
             </div>
@@ -310,9 +450,18 @@
     <!-- STATS ROW -->
     <%
     int sellerStatProducts = 0, sellerStatOrders = 0;
+    int sellerStatPending = 0, sellerStatLowStock = 0, sellerStatCompleted = 0;
     double sellerStatRevenue = 0;
     try {
-        int sId = (int) session.getAttribute("userId");
+    	int sUserId = (int) session.getAttribute("userId");
+    	// Get actual seller_id from DB
+    	int sId = sUserId; // fallback
+    	java.sql.PreparedStatement sIdPs = com.shopeasy.DBConnection.getConnection().prepareStatement(
+    	    "SELECT seller_id FROM seller WHERE user_id=?");
+    	sIdPs.setInt(1, sUserId);
+    	java.sql.ResultSet sIdRs = sIdPs.executeQuery();
+    	if (sIdRs.next()) sId = sIdRs.getInt(1);
+    	sIdRs.close(); sIdPs.close();
         java.sql.Connection sStatConn = com.shopeasy.DBConnection.getConnection();
 
         // Product count
@@ -323,7 +472,7 @@
         if (sStatRs1.next()) sellerStatProducts = sStatRs1.getInt(1);
         sStatRs1.close(); sStatPs1.close();
 
-        // Order count
+        // Total Order count
         java.sql.PreparedStatement sStatPs2 = sStatConn.prepareStatement(
             "SELECT COUNT(DISTINCT o.order_id) FROM orders o JOIN order_items oi ON o.order_id=oi.order_id WHERE oi.seller_id=?");
         sStatPs2.setInt(1, sId);
@@ -339,68 +488,115 @@
         if (sStatRs3.next()) sellerStatRevenue = sStatRs3.getDouble(1);
         sStatRs3.close(); sStatPs3.close();
 
+        // Pending orders
+        java.sql.PreparedStatement sStatPs4 = sStatConn.prepareStatement(
+            "SELECT COUNT(DISTINCT o.order_id) FROM orders o JOIN order_items oi ON o.order_id=oi.order_id WHERE oi.seller_id=? AND o.status='Pending'");
+        sStatPs4.setInt(1, sId);
+        java.sql.ResultSet sStatRs4 = sStatPs4.executeQuery();
+        if (sStatRs4.next()) sellerStatPending = sStatRs4.getInt(1);
+        sStatRs4.close(); sStatPs4.close();
+
+        // Low stock (stock <= 5)
+        java.sql.PreparedStatement sStatPs5 = sStatConn.prepareStatement(
+            "SELECT COUNT(*) FROM product WHERE seller_id=? AND status='active' AND stock <= 5");
+        sStatPs5.setInt(1, sId);
+        java.sql.ResultSet sStatRs5 = sStatPs5.executeQuery();
+        if (sStatRs5.next()) sellerStatLowStock = sStatRs5.getInt(1);
+        sStatRs5.close(); sStatPs5.close();
+
+        // Completed orders
+        java.sql.PreparedStatement sStatPs6 = sStatConn.prepareStatement(
+            "SELECT COUNT(DISTINCT o.order_id) FROM orders o JOIN order_items oi ON o.order_id=oi.order_id WHERE oi.seller_id=? AND o.status='Completed'");
+        sStatPs6.setInt(1, sId);
+        java.sql.ResultSet sStatRs6 = sStatPs6.executeQuery();
+        if (sStatRs6.next()) sellerStatCompleted = sStatRs6.getInt(1);
+        sStatRs6.close(); sStatPs6.close();
+
         sStatConn.close();
     } catch (Exception ex) { ex.printStackTrace(); }
 %>
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-2">
             <div class="stat-box">
                 <div class="stat-num"><%= sellerStatProducts %></div>
                 <div class="stat-label">Products</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-2">
             <div class="stat-box">
                 <div class="stat-num"><%= sellerStatOrders %></div>
-                <div class="stat-label">Orders</div>
+                <div class="stat-label">Total Orders</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-2">
             <div class="stat-box">
                 <div class="stat-num">₱<%= String.format("%.0f", sellerStatRevenue) %></div>
                 <div class="stat-label">Revenue</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="stat-box">
-                <%
-double sellerAvgRating = 0.0;
-try {
-    java.sql.Connection ratingConn = com.shopeasy.DBConnection.getConnection();
-    java.sql.PreparedStatement ratingPs = ratingConn.prepareStatement(
-        "SELECT AVG(r.rating) FROM review r " +
-        "JOIN product p ON r.product_id = p.product_id " +
-        "WHERE p.seller_id = ?");
-    ratingPs.setInt(1, (int) session.getAttribute("userId"));
-    java.sql.ResultSet ratingRs = ratingPs.executeQuery();
-    if (ratingRs.next()) sellerAvgRating = ratingRs.getDouble(1);
-    ratingRs.close(); ratingPs.close(); ratingConn.close();
-} catch (Exception ex) { ex.printStackTrace(); }
-%>
-<div class="stat-num"><%= String.format("%.1f", sellerAvgRating) %></div>
-<div class="stat-label">Rating</div>
+        <div class="col-6 col-md-2">
+            <div class="stat-box" style="border-top: 3px solid #ffc107;">
+                <div class="stat-num text-warning"><%= sellerStatPending %></div>
+                <div class="stat-label">Pending</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="stat-box" style="border-top: 3px solid #198754;">
+                <div class="stat-num text-success"><%= sellerStatCompleted %></div>
+                <div class="stat-label">Completed</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="stat-box" style="border-top: 3px solid #dc3545;">
+                <div class="stat-num text-danger"><%= sellerStatLowStock %></div>
+                <div class="stat-label">Low Stock</div>
             </div>
         </div>
     </div>
+      
 
     <!-- SHOP SETTINGS -->
     <div class="card-section mb-4" id="section-shop" style="display:none;">
-    <p class="section-title"><i class="bi bi-shop-window text-success"></i> Shop Settings</p>
+
+    <!-- Facebook-style: Banner with overlapping logo -->
+    <div style="position:relative; margin-bottom:70px;">
+        <!-- Banner -->
+        <div class="shop-banner" id="shopBannerPreviewDiv" style="height:160px; border-radius:12px; overflow:hidden; <%= !sellerBanner.isEmpty() ? "background:url('" + sellerBanner + "') center/cover no-repeat;" : "background:linear-gradient(135deg, #198754, #20c997);" %>">
+        </div>
+      <!-- Logo overlapping banner -->
+        <div style="position:absolute; bottom:-50px; left:24px; display:flex; align-items:flex-end; gap:16px;">
+            <div style="position:relative;">
+                <img src="<%= !sellerShopLogo.isEmpty() ? sellerShopLogo : "https://ui-avatars.com/api/?name=" + sellerBizNameEncoded + "&background=198754&color=fff&size=100" %>"
+     alt="Shop Logo" id="shopLogoPreview"
+                     style="width:90px; height:90px; border-radius:50%; object-fit:cover; border:4px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); cursor:pointer;"
+                     onclick="document.getElementById('shopLogoInput').click()">
+                <button type="button" onclick="document.getElementById('shopLogoInput').click()"
+                        style="position:absolute; bottom:2px; right:2px; width:28px; height:28px; border-radius:50%; background:#198754; border:2px solid #fff; color:white; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                    <i class="bi bi-camera"></i>
+                </button>
+                <input type="file" id="shopLogoInput" style="display:none" accept="image/*" onchange="openShopLogoCrop(this)">
+            </div>
+            <div style="padding-bottom:4px;">
+                <p class="fw-bold mb-0" style="font-size:17px; color:#111;"><%= sellerBusinessName %></p>
+                <p class="text-muted mb-0" style="font-size:12px; color:#666;"><%= sellerEmail %></p>
+            </div>
+        </div>
+        <!-- Banner edit buttons top right -->
+        <div style="position:absolute; top:10px; right:10px; display:flex; gap:6px;">
+            <button type="button" id="editBannerBtn2" onclick="document.getElementById('bannerInput').click()"
+                    style="background:rgba(0,0,0,0.5); color:#fff; border:none; border-radius:6px; padding:5px 10px; font-size:12px; cursor:pointer;">
+                <i class="bi bi-camera"></i> Edit Banner
+            </button>
+            <button type="button" id="removeBannerBtn2" onclick="removeBanner()"
+                    style="background:rgba(220,53,69,0.8); color:#fff; border:none; border-radius:6px; padding:5px 10px; font-size:12px; cursor:pointer; <%= sellerBanner.isEmpty() ? "display:none;" : "" %>">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </div>
+    <p class="section-title mt-2"><i class="bi bi-shop-window text-success"></i> Shop Settings</p>
         <form action="UpdateSellerServlet" method="post">
             <input type="hidden" name="action" value="shop">
             
-            <div class="shop-banner" id="shopBannerDiv" style="<%= !sellerBanner.isEmpty() ? "background:url('" + sellerBanner + "') center/cover no-repeat;" : "background:linear-gradient(135deg, #198754, #20c997);" %>">
-               <button type="button" class="edit-banner-btn" id="editBannerBtn" onclick="document.getElementById('bannerInput').click()">
-    <i class="bi bi-camera"></i> Edit Banner
-</button>
-<button type="button" class="edit-banner-btn" id="removeBannerBtn" style="right:110px; <%= sellerBanner.isEmpty() ? "display:none;" : "" %>" onclick="removeBanner()">
-    <i class="bi bi-trash"></i> Remove
-</button>
-                <div class="shop-banner-text">
-                    <p class="mb-0 fw-bold fs-5"><%= sellerBusinessName.isEmpty() ? sellerName : sellerBusinessName %></p>
-                    <p class="mb-0" style="font-size:12px;">Quality products at great prices</p>
-                </div>
-            </div>
             
             
 
@@ -411,22 +607,19 @@ try {
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-bold" style="font-size:13px;">Business Type</label>
-                    <select class="form-select" name="businessType" id="shopBusinessType" disabled>
-                        <option value="Retail" <%= "Retail".equals(sellerBusinessType) ? "selected" : "" %>>Retail</option>
-                        <option value="Wholesale" <%= "Wholesale".equals(sellerBusinessType) ? "selected" : "" %>>Wholesale</option>
-                        <option value="Food & Beverage" <%= "Food & Beverage".equals(sellerBusinessType) ? "selected" : "" %>>Food & Beverage</option>
-                        <option value="Fashion & Apparel" <%= "Fashion & Apparel".equals(sellerBusinessType) ? "selected" : "" %>>Fashion & Apparel</option>
-                        <option value="Electronics" <%= "Electronics".equals(sellerBusinessType) ? "selected" : "" %>>Electronics</option>
-                        <option value="Others" <%= "Others".equals(sellerBusinessType) ? "selected" : "" %>>Others</option>
+                   <select class="form-select" name="businessType" id="shopBusinessType" disabled>
+                        <option value="Individual Seller" <%= "Individual Seller".equals(sellerBusinessType) ? "selected" : "" %>>🧑 Individual Seller</option>
+                        <option value="Small Business" <%= "Small Business".equals(sellerBusinessType) ? "selected" : "" %>>🏪 Small Business</option>
+                        <option value="Registered Business" <%= "Registered Business".equals(sellerBusinessType) ? "selected" : "" %>>🏢 Registered Business</option>
                     </select>
                 </div>
                 <div class="col-12">
                     <label class="form-label fw-bold" style="font-size:13px;">Shop Description</label>
-                    <textarea class="form-control" rows="3" name="shopDescription" id="shopDescription" disabled><%= session.getAttribute("userShopDescription") != null ? session.getAttribute("userShopDescription") : "" %></textarea>
+                  <textarea class="form-control" rows="3" name="shopDescription" id="shopDescription" disabled><%= sellerShopDescription %></textarea>
                 </div>
                 <div class="col-12">
                     <label class="form-label fw-bold" style="font-size:13px;">Business Address</label>
-                    <input type="text" class="form-control" name="address" id="shopAddress" value="<%= session.getAttribute("userAddress") != null ? session.getAttribute("userAddress") : "" %>" disabled>
+                    <input type="text" class="form-control" name="address" id="shopAddress" value="<%= sellerShopAddress %>" disabled>
                 </div>
                 <div class="col-12 text-end">
                     <button type="button" class="btn btn-outline-success px-4" id="editShopBtn" onclick="enableShopEdit()">
@@ -451,71 +644,11 @@ try {
     <input type="hidden" id="bannerData" name="bannerPicture" value="">
     <input type="hidden" id="removeBannerFlag" name="removeBanner" value="false">
 </form>
-    <!-- PERSONAL INFORMATION -->
-   <div class="card-section mb-4" id="section-profile" style="display:none;">
-    <p class="section-title"><i class="bi bi-person-fill text-success"></i> Personal Information</p>
-        <form id="profileForm" action="UpdateSellerServlet" method="post">
-            <input type="hidden" name="action" value="profile">
-            <input type="hidden" name="profilePicture" id="profilePictureInput">
-            <div class="text-center mb-4">
-                <div class="avatar-upload">
-                    <img src="<%= (sellerPicture != null && !sellerPicture.isEmpty()) ? sellerPicture : "https://ui-avatars.com/api/?name=" + sellerName.replace(" ", "+") + "&background=198754&color=fff&size=100" %>"
-                         alt="Avatar" id="avatarPreview">
-                    <button type="button" class="upload-btn" id="avatarUploadBtn" onclick="document.getElementById('avatarInput').click()">
-                        <i class="bi bi-camera"></i>
-                    </button>
-                    <input type="file" id="avatarInput" style="display:none" accept="image/*" onchange="previewAvatar(this)">
-                </div>
-                <p class="text-muted" style="font-size:12px;">Click the camera icon to change profile picture</p>
-            </div>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Full Name</label>
-                    <input type="text" class="form-control" name="fullname" id="profFullname" value="<%= sellerName %>" disabled>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Username</label>
-                    <input type="text" class="form-control" name="username" id="profUsername" value="<%= sellerUsername %>" disabled>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Email</label>
-                    <input type="email" class="form-control" name="email" id="profEmail" value="<%= sellerEmail %>" disabled>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Phone Number</label>
-                    <div class="input-group">
-                        <span class="input-group-text">+63</span>
-                        <input type="tel" class="form-control" name="phone" id="profPhone" value="<%= sellerPhone %>" disabled>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Birthday</label>
-                    <input type="date" class="form-control" name="birthday" id="profBirthday" value="<%= session.getAttribute("userBirthday") != null ? session.getAttribute("userBirthday") : "" %>" disabled>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Gender</label>
-                    <select class="form-select" name="gender" id="profGender" disabled>
-                        <option value="">Select Gender</option>
-                        <option value="Male" <%= "Male".equals(session.getAttribute("userGender")) ? "selected" : "" %>>Male</option>
-                        <option value="Female" <%= "Female".equals(session.getAttribute("userGender")) ? "selected" : "" %>>Female</option>
-                        <option value="Other" <%= "Other".equals(session.getAttribute("userGender")) ? "selected" : "" %>>Other</option>
-                        <option value="Prefer not to say" <%= "Prefer not to say".equals(session.getAttribute("userGender")) ? "selected" : "" %>>Prefer not to say</option>
-                    </select>
-                </div>
-                <div class="col-12 text-end">
-                    <button type="button" class="btn btn-outline-success px-4" id="editProfileBtn" onclick="enableProfileEdit()">
-                        <i class="bi bi-pencil"></i> Edit Profile
-                    </button>
-                    <button type="submit" class="btn btn-success px-4" id="saveProfileBtn" style="display:none;">
-                        <i class="bi bi-check2"></i> Save Changes
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary px-4" id="cancelProfileBtn" style="display:none;" onclick="cancelProfileEdit()">
-                        <i class="bi bi-x"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        </form>
-    </div>
+
+   <form id="shopLogoForm" action="UpdateSellerServlet" method="post" style="display:none;">
+    <input type="hidden" name="action" value="shopLogo">
+    <input type="hidden" id="shopLogoData" name="shopLogo" value="">
+</form>
 
     <!-- OTHER TABS (keep these hidden for sidebar nav) -->
     <div id="tab-products" class="tab-content-section" style="display:none;">
@@ -540,15 +673,20 @@ try {
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold" style="font-size:13px;">Category</label>
-                        <select name="categoryId" class="form-select" required>
-                            <option value="">Select category</option>
-                            <option value="1">Electronics</option>
-                            <option value="2">Fashion</option>
-                            <option value="3">Home</option>
-                            <option value="4">Gaming</option>
-                            <option value="5">Health</option>
-                            <option value="6">Others</option>
-                        </select>
+                       <select name="categoryId" class="form-select" required>
+    <option value="">Select category</option>
+    <%
+        java.sql.Connection catConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement catPs = catConn.prepareStatement("SELECT category_id, name FROM category ORDER BY name");
+        java.sql.ResultSet catRs = catPs.executeQuery();
+        while (catRs.next()) {
+    %>
+        <option value="<%= catRs.getInt("category_id") %>"><%= catRs.getString("name") %></option>
+    <%
+        }
+        catRs.close(); catPs.close(); catConn.close();
+    %>
+</select>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold" style="font-size:13px;">Price (₱)</label>
@@ -609,7 +747,14 @@ try {
         <%
     java.util.List<java.util.Map<String, String>> products = new java.util.ArrayList<>();
     try {
-        int sellerIdForProducts = (int) session.getAttribute("userId");
+    	int sellerIdForProducts = 0;
+        try {
+            java.sql.PreparedStatement sidPsP = com.shopeasy.DBConnection.getConnection().prepareStatement("SELECT seller_id FROM seller WHERE user_id=?");
+            sidPsP.setInt(1, (int) session.getAttribute("userId"));
+            java.sql.ResultSet sidRsP = sidPsP.executeQuery();
+            if (sidRsP.next()) sellerIdForProducts = sidRsP.getInt(1);
+            sidRsP.close(); sidPsP.close();
+        } catch (Exception ex) { sellerIdForProducts = (int) session.getAttribute("userId"); }
         java.sql.Connection prodConn = com.shopeasy.DBConnection.getConnection();
         java.sql.PreparedStatement prodPs = prodConn.prepareStatement(
             "SELECT p.*, c.name as category_name FROM product p " +
@@ -627,6 +772,7 @@ try {
             product.put("stock", prodRs.getString("stock"));
             product.put("image", prodRs.getString("image"));
             product.put("category_name", prodRs.getString("category_name"));
+            product.put("category_id", prodRs.getString("category_id"));
             product.put("status", prodRs.getString("status"));
             products.add(product);
         }
@@ -681,11 +827,11 @@ try {
 
                 <div class="d-flex flex-column gap-1">
     <button class="btn btn-outline-primary btn-sm" 
-       onclick="editProduct('<%= product.get("product_id") %>', '<%= product.get("name") %>', '<%= product.get("price") %>', '<%= product.get("stock") %>', '<%= product.get("description") != null ? product.get("description").replace("'", "\\'") : "" %>', '<%= product.get("category_name") %>', '<%= product.get("original_price") != null ? product.get("original_price") : "" %>')">
+    onclick="editProduct('<%= product.get("product_id") %>', '<%= product.get("name") != null ? product.get("name").replace("'", "\\'") : "" %>', '<%= product.get("price") %>', '<%= product.get("stock") %>', '<%= product.get("description") != null ? product.get("description").replace("'", "\\'").replace("\n", "\\n").replace("\r", "") : "" %>', '<%= product.get("category_name") %>', '<%= product.get("original_price") != null ? product.get("original_price") : "" %>', '<%= product.get("category_id") != null ? product.get("category_id") : "" %>')">
         <i class="bi bi-pencil"></i>
     </button>
     <button class="btn btn-outline-danger btn-sm"
-        onclick="deleteProduct('<%= product.get("product_id") %>', '<%= product.get("name") %>')">
+        onclick="deleteProduct('<%= product.get("product_id") %>', '<%= product.get("name") != null ? new String(product.get("name").getBytes("ISO-8859-1"), "UTF-8") : "" %>')">
         <i class="bi bi-trash"></i>
     </button>
 </div>
@@ -706,6 +852,7 @@ try {
 
 
 <div id="tab-orders" class="tab-content-section" style="display:none;">
+  
     <%-- Fetch orders with items --%>
     <%
         String orderTabFilter = request.getParameter("orderTab");
@@ -715,7 +862,14 @@ try {
         sOrdSdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Manila"));
         java.util.List<java.util.Map<String, Object>> sellerOrders = new java.util.ArrayList<>();
         try {
-            int sOrdSellerId = (int) session.getAttribute("userId");
+        	int sOrdSellerId = 0;
+            try {
+                java.sql.PreparedStatement sidPsO = com.shopeasy.DBConnection.getConnection().prepareStatement("SELECT seller_id FROM seller WHERE user_id=?");
+                sidPsO.setInt(1, (int) session.getAttribute("userId"));
+                java.sql.ResultSet sidRsO = sidPsO.executeQuery();
+                if (sidRsO.next()) sOrdSellerId = sidRsO.getInt(1);
+                sidRsO.close(); sidPsO.close();
+            } catch (Exception ex) { sOrdSellerId = (int) session.getAttribute("userId"); }
             java.sql.Connection sOrdConn = com.shopeasy.DBConnection.getConnection();
 
             String sOrdSql = "SELECT DISTINCT o.order_id, o.status, o.order_date, o.total_amount AS total_price, " +
@@ -988,15 +1142,21 @@ try {
 
     <div id="tab-sales" class="tab-content-section" style="display:none;">
         <div class="card-section">
-            <p class="section-title"><i class="bi bi-graph-up-arrow text-success"></i> Sales & Analytics</p>
+            <p class="section-title"><i class="bi bi-speedometer2 text-success"></i> Dashboard</p>
             <%
             try {
                 java.sql.Connection saConn = com.shopeasy.DBConnection.getConnection();
-                int sellerId = (int) session.getAttribute("userId");
+                int userId = (int) session.getAttribute("userId");
+                int sellerId = -1;
+                java.sql.PreparedStatement sidPs = saConn.prepareStatement("SELECT seller_id FROM seller WHERE user_id=?");
+                sidPs.setInt(1, userId);
+                java.sql.ResultSet sidRs = sidPs.executeQuery();
+                if (sidRs.next()) sellerId = sidRs.getInt("seller_id");
+                sidRs.close(); sidPs.close();
 
                 // Total Revenue
                 java.sql.PreparedStatement revPs = saConn.prepareStatement(
-                    "SELECT COALESCE(SUM(oi.quantity * oi.price),0) as total_revenue, " +
+                		"SELECT COALESCE(SUM(oi.subtotal),0) as total_revenue, " +
                     "COUNT(DISTINCT o.order_id) as total_orders, " +
                     "SUM(oi.quantity) as total_items " +
                     "FROM order_items oi " +
@@ -1014,7 +1174,7 @@ try {
 
                 // Top 5 Products
                 java.sql.PreparedStatement topPs = saConn.prepareStatement(
-                    "SELECT p.name, SUM(oi.quantity) as sold, SUM(oi.quantity * oi.price) as revenue " +
+                		"SELECT p.name, SUM(oi.quantity) as sold, SUM(oi.subtotal) as revenue " +
                     "FROM order_items oi " +
                     "JOIN orders o ON oi.order_id = o.order_id " +
                     "JOIN product p ON oi.product_id = p.product_id " +
@@ -1026,7 +1186,7 @@ try {
                 // Monthly Sales (last 6 months)
                 java.sql.PreparedStatement monthPs = saConn.prepareStatement(
                     "SELECT DATE_FORMAT(o.order_date, '%b %Y') as month, " +
-                    "SUM(oi.quantity * oi.price) as revenue " +
+                    		"SUM(oi.subtotal) as revenue " +
                     "FROM order_items oi " +
                     "JOIN orders o ON oi.order_id = o.order_id " +
                     "JOIN product p ON oi.product_id = p.product_id " +
@@ -1082,6 +1242,140 @@ try {
                 </div>
             </div>
 
+<%-- TODAY'S SUMMARY + RECENT ORDERS + LOW STOCK --%>
+            <%
+            try {
+                java.sql.Connection dashConn = com.shopeasy.DBConnection.getConnection();
+                int dashSellerId = (int) session.getAttribute("sellerId");
+
+                // Today's orders
+                java.sql.PreparedStatement todayPs = dashConn.prepareStatement(
+                    "SELECT COUNT(DISTINCT o.order_id) as today_orders, " +
+                    		"COALESCE(SUM(oi.subtotal),0) as today_revenue " +
+                    "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id " +
+                    "JOIN product p ON oi.product_id=p.product_id " +
+                    "WHERE p.seller_id=? AND DATE(o.order_date)=CURDATE()");
+                todayPs.setInt(1, dashSellerId);
+                java.sql.ResultSet todayRs = todayPs.executeQuery();
+                int todayOrders = 0; double todayRevenue = 0;
+                if (todayRs.next()) {
+                    todayOrders = todayRs.getInt("today_orders");
+                    todayRevenue = todayRs.getDouble("today_revenue");
+                }
+                todayRs.close(); todayPs.close();
+
+                // Recent 5 orders
+                java.sql.PreparedStatement recentPs = dashConn.prepareStatement(
+                    "SELECT DISTINCT o.order_id, c.name as customer_name, o.status, o.order_date, " +
+                    		"COALESCE(SUM(oi2.subtotal),0) as order_total " +
+                    "FROM orders o " +
+                    "JOIN order_items oi ON o.order_id=oi.order_id " +
+                    "JOIN product p ON oi.product_id=p.product_id " +
+                    "JOIN order_items oi2 ON o.order_id=oi2.order_id " +
+                    "LEFT JOIN customer c ON o.customer_id=c.customer_id " +
+                    "WHERE p.seller_id=? " +
+                    "GROUP BY o.order_id, c.name, o.status, o.order_date " +
+                    "ORDER BY o.order_date DESC LIMIT 5");
+                recentPs.setInt(1, dashSellerId);
+                java.sql.ResultSet recentRs = recentPs.executeQuery();
+                java.util.List<java.util.Map<String,Object>> recentOrders = new java.util.ArrayList<>();
+                while (recentRs.next()) {
+                    java.util.Map<String,Object> ro = new java.util.HashMap<>();
+                    ro.put("id", recentRs.getInt("order_id"));
+                    ro.put("customer", recentRs.getString("customer_name"));
+                    ro.put("status", recentRs.getString("status"));
+                    ro.put("date", recentRs.getString("order_date"));
+                    ro.put("total", recentRs.getDouble("order_total"));
+                    recentOrders.add(ro);
+                }
+                recentRs.close(); recentPs.close();
+
+                // Low stock products (stock <= 5)
+                java.sql.PreparedStatement lowPs = dashConn.prepareStatement(
+                		"SELECT name, stock FROM product WHERE seller_id=? AND status='active' AND stock <= 10 ORDER BY stock ASC LIMIT 5");
+                lowPs.setInt(1, dashSellerId);
+                java.sql.ResultSet lowRs = lowPs.executeQuery();
+                java.util.List<java.util.Map<String,Object>> lowStockList = new java.util.ArrayList<>();
+                while (lowRs.next()) {
+                    java.util.Map<String,Object> ls = new java.util.HashMap<>();
+                    ls.put("name", lowRs.getString("name"));
+                    ls.put("stock", lowRs.getInt("stock"));
+                    lowStockList.add(ls);
+                }
+                lowRs.close(); lowPs.close();
+                dashConn.close();
+            %>
+
+            <!-- TODAY'S SUMMARY -->
+            <p class="fw-bold mb-2" style="font-size:14px;"><i class="bi bi-calendar-check text-success me-1"></i> Today's Summary</p>
+            <div class="row g-3 mb-4">
+                <div class="col-6">
+                    <div class="p-3 rounded-3 text-center" style="background:#f0fdf4; border:1px solid #bbf7d0;">
+                        <p class="mb-1 text-muted" style="font-size:11px;">ORDERS TODAY</p>
+                        <h3 class="fw-bold text-success mb-0"><%= todayOrders %></h3>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="p-3 rounded-3 text-center" style="background:#eff6ff; border:1px solid #bfdbfe;">
+                        <p class="mb-1 text-muted" style="font-size:11px;">REVENUE TODAY</p>
+                        <h3 class="fw-bold text-primary mb-0">₱<%= String.format("%.0f", todayRevenue) %></h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RECENT ORDERS -->
+            <p class="fw-bold mb-2" style="font-size:14px;"><i class="bi bi-clock-history text-success me-1"></i> Recent Orders</p>
+            <div class="mb-4">
+            <% if (recentOrders.isEmpty()) { %>
+                <div class="text-center text-muted py-3" style="font-size:13px;">
+                    <i class="bi bi-inbox" style="font-size:24px;"></i><br>No orders yet.
+                </div>
+            <% } else { for (java.util.Map<String,Object> ro : recentOrders) {
+                String roStatus = (String) ro.get("status");
+                String roBadge = "Pending".equals(roStatus) ? "bg-warning text-dark" :
+                                 "Completed".equals(roStatus) ? "bg-success" :
+                                 "Cancelled".equals(roStatus) ? "bg-danger" : "bg-secondary";
+            %>
+                <div class="d-flex align-items-center justify-content-between p-2 mb-2 rounded-3"
+                     style="background:#f8f9fa; border:1px solid #e9ecef; font-size:13px;">
+                    <div>
+                        <span class="fw-bold">#<%= ro.get("id") %></span>
+                        <span class="text-muted ms-2"><%= ro.get("customer") != null ? ro.get("customer") : "Customer" %></span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-success fw-bold">₱<%= String.format("%.0f", (double)ro.get("total")) %></span>
+                        <span class="badge <%= roBadge %>" style="font-size:10px;"><%= roStatus %></span>
+                    </div>
+                </div>
+            <% } } %>
+            </div>
+
+            <!-- LOW STOCK ALERT -->
+            <p class="fw-bold mb-2" style="font-size:14px;"><i class="bi bi-exclamation-triangle text-danger me-1"></i> Low Stock Alert</p>
+            <div class="mb-4">
+            <% if (lowStockList.isEmpty()) { %>
+                <div class="text-center text-muted py-3" style="font-size:13px;">
+                    <i class="bi bi-check-circle text-success" style="font-size:24px;"></i><br>All products have sufficient stock!
+                </div>
+            <% } else { %>
+            <% for (java.util.Map<String,Object> ls : lowStockList) {
+                int stock = (int) ls.get("stock");
+                String stockColor = stock == 0 ? "#dc3545" : stock <= 2 ? "#fd7e14" : "#ffc107";
+            %>
+                <div class="d-flex align-items-center justify-content-between p-2 mb-2 rounded-3"
+                     style="background:#fff5f5; border:1px solid #fecaca; font-size:13px;">
+                    <span class="fw-semibold"><%= ls.get("name") %></span>
+                    <span class="fw-bold" style="color:<%= stockColor %>;">
+                        <%= stock == 0 ? "OUT OF STOCK" : stock + " left" %>
+                    </span>
+                </div>
+          <% } } %>
+            </div>
+
+            <% } catch (Exception dashEx) { dashEx.printStackTrace(); } %>
+
+           
+            
             <!-- Monthly Revenue Chart -->
             <p class="fw-bold mb-2" style="font-size:14px;"><i class="bi bi-graph-up text-success me-1"></i> Monthly Revenue (Last 6 Months)</p>
             <div style="height:250px;" class="mb-4">
@@ -1154,21 +1448,23 @@ try {
         try {
             java.sql.Connection srConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement srPs = srConn.prepareStatement(
-                "SELECT r.rating, r.comment, r.photo, p.name AS pname, p.image AS pimage, " +
-                "c.name AS cname " +
+            		"SELECT r.rating, r.comment, r.photo, p.product_id, p.name AS pname, p.image AS pimage, " +
+            				"c.name AS cname " +
                 "FROM review r " +
                 "JOIN product p ON r.product_id = p.product_id " +
                 "JOIN customer c ON r.customer_id = c.customer_id " +
                 "WHERE p.seller_id = ? ORDER BY r.review_id DESC");
-            srPs.setInt(1, (int) session.getAttribute("userId"));
+            srPs.setInt(1, (int) session.getAttribute("sellerId"));
             java.sql.ResultSet srRs = srPs.executeQuery();
             while (srRs.next()) {
                 hasSellerReviews = true;
         %>
         <div class="d-flex gap-3 p-3 mb-3 border rounded-3">
             <% if (srRs.getString("pimage") != null && !srRs.getString("pimage").isEmpty()) { %>
-                <img src="<%= srRs.getString("pimage") %>"
-                     style="width:60px; height:60px; object-fit:cover; border-radius:8px;">
+               <a href="product.jsp?id=<%= srRs.getInt("product_id") %>">
+    <img src="<%= srRs.getString("pimage") %>"
+         style="width:60px; height:60px; object-fit:cover; border-radius:8px; cursor:pointer;">
+</a>
             <% } else { %>
                 <div style="width:60px; height:60px; background:#f0f0f0; border-radius:8px;
                      display:flex; align-items:center; justify-content:center;">
@@ -1176,7 +1472,9 @@ try {
                 </div>
             <% } %>
             <div class="flex-grow-1">
-                <p class="mb-0 fw-bold" style="font-size:14px;"><%= srRs.getString("pname") %></p>
+              <p class="mb-0 fw-bold" style="font-size:14px;">
+   <%= srRs.getString("pname") %>
+</p>
                 <p class="mb-0 text-muted" style="font-size:12px;">
                     <i class="bi bi-person-circle"></i> <%= srRs.getString("cname") %>
                 </p>
@@ -1208,54 +1506,7 @@ try {
     </div>
 </div>
 
-    <div id="tab-security" class="tab-content-section" style="display:none;">
-        <div class="card-section">
-            <p class="section-title"><i class="bi bi-shield-lock-fill text-success"></i> Security Settings</p>
-
-            <div id="securitySuccess" class="alert alert-success py-2 mb-3" style="display:none; font-size:13px;">
-                <i class="bi bi-check-circle-fill"></i> <span id="securitySuccessText">Password updated successfully!</span>
-            </div>
-            <div id="securityError" class="alert alert-danger py-2 mb-3" style="display:none; font-size:13px;">
-                <i class="bi bi-x-circle-fill"></i> <span id="securityErrorText">Error updating password.</span>
-            </div>
-
-            <div class="row g-3">
-                <div class="col-12">
-                    <label class="form-label fw-bold" style="font-size:13px;">Current Password</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" id="currentPw" class="form-control" placeholder="Enter current password" autocomplete="new-password">
-                        <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('currentPw', this)"><i class="bi bi-eye"></i></button>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">New Password</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" id="newPw" class="form-control" placeholder="Enter new password" autocomplete="new-password" oninput="checkStrength(this.value)">
-                        <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('newPw', this)"><i class="bi bi-eye"></i></button>
-                    </div>
-                    <div id="strengthBar" class="password-strength bg-secondary" style="width:0%"></div>
-                    <small id="strengthText" class="text-muted"></small>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Confirm New Password</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                       <input type="password" id="confirmPw" class="form-control" placeholder="Confirm new password" autocomplete="new-password">
-                    </div>
-                </div>
-                <div class="col-12 d-flex gap-2 align-items-center flex-wrap">
-                    <button class="btn btn-success px-4" id="updatePwBtn" onclick="updatePassword()">
-                        <i class="bi bi-shield-check"></i> Update Password
-                    </button>
-                    <a href="#" class="text-success" style="font-size:13px;" onclick="openForgotFromSecurity()">
-                        <i class="bi bi-question-circle"></i> Forgot current password?
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+    
 
    
     <div id="tab-notifications" class="tab-content-section" style="display:none;">
@@ -1306,16 +1557,99 @@ try {
                     <span class="badge bg-success" style="font-size:9px;">New</span>
                     <% } %>
                 </div>
-                <% } %>
+        <% } %>
             <% } %>
+</div>
+   </div>
+</div><!-- end tab-notifications -->
+
+        <div id="tab-payout" class="tab-content-section" style="display:none;">
+    <div class="card-section">
+        <p class="section-title"><i class="bi bi-wallet2 text-success"></i> Payout</p>
+
+        <!-- Available Balance -->
+        <div class="p-4 rounded-3 mb-4 text-center" style="background:linear-gradient(135deg,#0d6efd,#6610f2); color:white;">
+            <p class="mb-1" style="font-size:13px; opacity:0.85;">Available Balance</p>
+          <%
+double payoutBalance = 0.0;
+try {
+    Integer payoutSellerId = (Integer) session.getAttribute("sellerId");
+    if (payoutSellerId != null) {
+        java.sql.Connection payoutConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement payoutPs = payoutConn.prepareStatement(
+            "SELECT COALESCE(SUM(oi.subtotal),0) FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE oi.seller_id=? AND o.status='Completed'");
+        payoutPs.setInt(1, payoutSellerId);
+        java.sql.ResultSet payoutRs = payoutPs.executeQuery();
+        if (payoutRs.next()) payoutBalance = payoutRs.getDouble(1);
+        payoutRs.close(); payoutPs.close(); payoutConn.close();
+    }
+} catch (Exception ex) { ex.printStackTrace(); }
+%>
+<h2 class="fw-bold mb-0">₱<%= String.format("%.2f", payoutBalance) %></h2>
+            <p class="mb-0 mt-1" style="font-size:11px; opacity:0.7;">From completed orders</p>
+        </div>
+
+        <!-- Payout Method -->
+        <p class="fw-bold mb-3" style="font-size:14px;"><i class="bi bi-credit-card me-1"></i> Select Payout Method</p>
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="payout-method-card border rounded-3 p-3 text-center" onclick="selectPayoutMethod(this, 'GCash')"
+                     style="cursor:pointer; border-color:#1a73e8 !important; background:#f0f7ff; transition:0.2s;">
+                    <div style="font-size:28px; margin-bottom:6px;">📱</div>
+                    <p class="fw-bold mb-0" style="font-size:13px; color:#1a73e8;">GCash</p>
+                    <p class="text-muted mb-0" style="font-size:11px;">Instant transfer</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="payout-method-card border rounded-3 p-3 text-center" onclick="selectPayoutMethod(this, 'Maya')"
+                     style="cursor:pointer; transition:0.2s;">
+                    <div style="font-size:28px; margin-bottom:6px;">💚</div>
+                    <p class="fw-bold mb-0" style="font-size:13px; color:#00b14f;">Maya</p>
+                    <p class="text-muted mb-0" style="font-size:11px;">Instant transfer</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="payout-method-card border rounded-3 p-3 text-center" onclick="selectPayoutMethod(this, 'Bank')"
+                     style="cursor:pointer; transition:0.2s;">
+                    <div style="font-size:28px; margin-bottom:6px;">🏦</div>
+                    <p class="fw-bold mb-0" style="font-size:13px; color:#333;">Bank Transfer</p>
+                    <p class="text-muted mb-0" style="font-size:11px;">1-3 banking days</p>
+                </div>
             </div>
         </div>
-    </div>
 
+        <!-- Account Number Input -->
+        <div id="payoutDetails" style="display:none;" class="mb-4">
+            <label class="form-label fw-bold" style="font-size:13px;" id="payoutLabel">Account Number</label>
+            <input type="text" class="form-control" id="payoutAccount" placeholder="Enter account number">
+            <div class="mt-3">
+                <label class="form-label fw-bold" style="font-size:13px;">Amount to Withdraw</label>
+                <div class="input-group">
+                    <span class="input-group-text">₱</span>
+                    <input type="number" class="form-control" id="payoutAmount" placeholder="0.00" min="1">
+                </div>
+                <p class="text-muted mt-1" style="font-size:11px;"><i class="bi bi-info-circle"></i> Minimum withdrawal: ₱50.00</p>
+            </div>
+        </div>
+
+        <button class="btn w-100 fw-bold py-2" id="payoutBtn" onclick="submitPayout()"
+                style="background:linear-gradient(135deg,#198754,#0d6efd); color:white; border-radius:12px; display:none;">
+            <i class="bi bi-send me-1"></i> Request Payout
+        </button>
+
+        <!-- Payout History -->
+        <hr class="my-4">
+        <p class="fw-bold mb-3" style="font-size:14px;"><i class="bi bi-clock-history me-1 text-success"></i> Payout History</p>
+        <div class="text-center text-muted py-3" style="font-size:13px;">
+            <i class="bi bi-inbox" style="font-size:28px; opacity:0.4;"></i>
+            <p class="mt-2 mb-0">No payout requests yet.</p>
+        </div>
 </div>
-    </div>
-
-
+    </div><!-- end card-section -->
+</div><!-- end tab-payout -->
+        </div><!-- end col-md-9 -->
+    </div><!-- end row -->
+</div><!-- end container -->
 <!-- TOAST -->
 <div id="toast" style="display:none; position:fixed; bottom:24px; right:24px; background:#198754; color:white; padding:12px 20px; border-radius:10px; font-size:14px; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
     <i class="bi bi-check-circle me-2"></i><span id="toastMsg"></span>
@@ -1323,11 +1657,36 @@ try {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+
+
+function selectPayoutMethod(el, method) {
+    document.querySelectorAll('.payout-method-card').forEach(c => {
+        c.style.background = '';
+        c.style.borderColor = '#dee2e6';
+        c.style.boxShadow = '';
+    });
+    el.style.borderColor = '#198754';
+    el.style.boxShadow = '0 0 0 3px rgba(25,135,84,0.15)';
+    el.style.background = '#f0fdf4';
+    const labels = { GCash: 'GCash Number', Maya: 'Maya Number', Bank: 'Bank Account Number' };
+    document.getElementById('payoutLabel').innerText = labels[method] || 'Account Number';
+    document.getElementById('payoutDetails').style.display = 'block';
+    document.getElementById('payoutBtn').style.display = 'block';
+    document.getElementById('payoutAccount').placeholder = 'Enter your ' + labels[method];
+}
+function submitPayout() {
+    const account = document.getElementById('payoutAccount').value.trim();
+    const amount = parseFloat(document.getElementById('payoutAmount').value);
+    if (!account) { alert('Please enter your account number!'); return; }
+    if (!amount || amount < 50) { alert('Minimum withdrawal is ₱50.00!'); return; }
+    alert('Payout request submitted! Processing within 1-3 business days.');
+}
+
     // SIDEBAR NAV — hide shop+profile sections, show selected tab
     function showTab(tab, el) {
         // Hide shop and profile sections
         document.getElementById('section-shop').style.display = 'none';
-        document.getElementById('section-profile').style.display = 'none';
+        
         document.getElementById('section-stats').style.display = 'none';
         // Hide all other tabs
         document.querySelectorAll('.tab-content-section').forEach(t => t.style.display = 'none');
@@ -1340,7 +1699,7 @@ try {
             // If no tab found, show shop+profile (home view)
             document.getElementById('section-stats').style.display = 'flex';
             document.getElementById('section-shop').style.display = 'block';
-            document.getElementById('section-profile').style.display = 'block';
+            
         }
         el.classList.add('active');
         event.preventDefault();
@@ -1352,18 +1711,18 @@ try {
     document.getElementById('editShopBtn').style.display = 'none';
     document.getElementById('saveShopBtn').style.display = 'inline-block';
     document.getElementById('cancelShopBtn').style.display = 'inline-block';
-    document.getElementById('editBannerBtn').style.display = 'block';
-    document.getElementById('removeBannerBtn').style.display = 'block';
+    document.getElementById('editBannerBtn2').style.display = 'block';
+    document.getElementById('removeBannerBtn2').style.display = 'block';
 }
     function cancelShopEdit() {
         document.querySelectorAll('#section-shop input, #section-shop select, #section-shop textarea').forEach(el => el.disabled = true);
         document.getElementById('editShopBtn').style.display = 'inline-block';
         document.getElementById('saveShopBtn').style.display = 'none';
         document.getElementById('cancelShopBtn').style.display = 'none';
-        document.getElementById('editBannerBtn').style.display = 'none';
+        document.getElementById('editBannerBtn2').style.display = 'none';
         // Revert banner preview if not saved
         document.getElementById('bannerData').value = '';
-        document.getElementById('removeBannerBtn').style.display = 'none';
+        document.getElementById('removeBannerBtn2').style.display = 'none';
         document.getElementById('removeBannerFlag').value = 'false';
     }
 
@@ -1407,6 +1766,16 @@ try {
     let cropSize = 300;
 
     function previewAvatar(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                openCropModal(e.target.result);
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function openAvatarCrop(input) {
         if (input.files && input.files[0]) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -1538,7 +1907,7 @@ try {
         ctx.drawImage(cropImg, cropOffX, cropOffY, cropImg.width * cropScale, cropImg.height * cropScale);
 
         const result = output.toDataURL('image/png');
-        document.getElementById('avatarPreview').src = result;
+     // avatarPreview removed
         document.getElementById('sidebarAvatar').src = result;
         document.getElementById('avatarData').value = result;
         closeCropModal();
@@ -1705,8 +2074,8 @@ try {
 
         const result = output.toDataURL('image/png');
         document.getElementById('bannerData').value = result;
-        document.getElementById('editBannerBtn').style.display = 'block';
-        document.getElementById('removeBannerBtn').style.display = 'block';
+        document.getElementById('editBannerBtn2').style.display = 'block';
+        document.getElementById('removeBannerBtn2').style.display = 'block';
         closeBannerCropModal();
 
         document.getElementById('savingOverlay').style.display = 'flex';
@@ -1760,13 +2129,16 @@ window.addEventListener('load', function() {
     if (tab === 'orders') {
         const ordersTab = document.getElementById('tab-orders');
         if (ordersTab) ordersTab.style.display = 'block';
+    } else if (tab === 'sales') {
+        const link = document.querySelector('.sidebar-nav a[onclick*="sales"]');
+        if (link) link.click();
     } else if (tab) {
         const link = document.querySelector('.sidebar-nav a[onclick*="' + tab + '"]');
         if (link) link.click();
     } else {
         document.getElementById('section-stats').style.display = 'flex';
         document.getElementById('section-shop').style.display = 'block';
-        document.getElementById('section-profile').style.display = 'block';
+        
     }
 });
     function doLogout() {
@@ -1775,11 +2147,7 @@ window.addEventListener('load', function() {
         setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
     }
     
-    document.getElementById('profileForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        document.getElementById('savingOverlay').style.display = 'flex';
-        setTimeout(() => { this.submit(); }, 1500);
-    });
+   
 
     document.querySelector('form[action="UpdateSellerServlet"]').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -1962,13 +2330,14 @@ window.addEventListener('load', function() {
         window.location.href = 'DeleteProductServlet?productId=' + id + '&tab=products&msg=deleted';
     }
 
-    function editProduct(id, name, price, stock, description, category, originalPrice) {
+    function editProduct(id, name, price, stock, description, category, originalPrice, categoryId) {
         document.getElementById('editProductId').value = id;
         document.getElementById('editProductName').value = name;
         document.getElementById('editProductPrice').value = price;
         document.getElementById('editProductStock').value = stock;
         document.getElementById('editProductDesc').value = description;
         document.getElementById('editOriginalPrice').value = originalPrice || '';
+        if (categoryId) document.getElementById('editCategoryId').value = categoryId;
 
         // Load existing variations via fetch
         const container = document.getElementById('editVariationsContainer');
@@ -1981,7 +2350,10 @@ window.addEventListener('load', function() {
             })
             .catch(() => { container.innerHTML = ''; });
 
-        document.getElementById('editProductModal').style.display = 'flex';
+        const eModal = document.getElementById('editProductModal');
+        eModal.style.display = 'flex';
+        eModal.scrollTop = 0;
+        document.querySelector('.navbar-shopeasy').style.zIndex = '0';
     }
 
     function addEditVariationRow(v) {
@@ -2015,6 +2387,7 @@ window.addEventListener('load', function() {
     
     function closeEditModal() {
         document.getElementById('editProductModal').style.display = 'none';
+        document.querySelector('.navbar-shopeasy').style.zIndex = '';
     }
     function updateOrderStatus(orderId, newStatus) {
         const actionLabels = {
@@ -2164,9 +2537,13 @@ window.addEventListener('load', function() {
     </div>
 </div>
 <!-- EDIT PRODUCT MODAL -->
-<div id="editProductModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
-    <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:500px;">
-        <p class="fw-bold mb-3"><i class="bi bi-pencil-fill text-success"></i> Edit Product</p>
+<div id="editProductModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center; overflow-y:auto;" onclick="if(event.target===this)closeEditModal()">
+
+<div style="background:white; border-radius:20px; padding:32px; width:92%; max-width:580px; margin:0 auto 40px auto; box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+<div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+    <h5 class="fw-bold mb-0"><i class="bi bi-pencil-fill text-success me-2"></i>Edit Product</h5>
+    <button type="button" onclick="closeEditModal()" style="background:none; border:none; font-size:20px; color:#aaa; cursor:pointer;">&times;</button>
+</div>
         <form action="EditProductServlet" method="post">
             <input type="hidden" name="productId" id="editProductId">
             <div class="row g-3">
@@ -2186,6 +2563,23 @@ window.addEventListener('load', function() {
    <label class="form-label fw-bold" style="font-size:13px;">Discounted Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional</span></label>
     <input type="number" name="originalPrice" id="editOriginalPrice" class="form-control" step="0.01" min="0">
 </div>
+                <div class="col-12">
+                    <label class="form-label fw-bold" style="font-size:13px;">Category</label>
+                    <select name="categoryId" id="editCategoryId" class="form-select" required>
+                        <option value="">Select category</option>
+                        <%
+                            java.sql.Connection editCatConn = com.shopeasy.DBConnection.getConnection();
+                            java.sql.PreparedStatement editCatPs = editCatConn.prepareStatement("SELECT category_id, name FROM category ORDER BY name");
+                            java.sql.ResultSet editCatRs = editCatPs.executeQuery();
+                            while (editCatRs.next()) {
+                        %>
+                            <option value="<%= editCatRs.getInt("category_id") %>"><%= editCatRs.getString("name") %></option>
+                        <%
+                            }
+                            editCatRs.close(); editCatPs.close(); editCatConn.close();
+                        %>
+                    </select>
+                </div>
                 <div class="col-12">
                     <label class="form-label fw-bold" style="font-size:13px;">Description</label>
                     <textarea name="description" id="editProductDesc" class="form-control" rows="3"></textarea>
@@ -2237,10 +2631,7 @@ window.addEventListener('load', function() {
 
 <%@ include file="modals.jsp" %>
 <script>
-function openForgotFromSecurity() {
-    var modal = new bootstrap.Modal(document.getElementById('forgotPasswordModal'));
-    modal.show();
-}
+
 
 function updatePassword() {
     const current = document.getElementById('currentPw').value.trim();
@@ -2422,7 +2813,132 @@ function submitSellerCancel() {
     })
     .catch(err => alert('Error: ' + err));
 }
+//SHOP LOGO CROP
+let shopLogoImg = new Image();
+let shopLogoOffX = 0, shopLogoOffY = 0;
+let shopLogoIsDragging = false;
+let shopLogoStartX, shopLogoStartY;
+let shopLogoScale = 1;
+const SHOP_LOGO_SIZE = 300;
 
+function openShopLogoCrop(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('shopLogoCropModal').style.display = 'flex';
+            shopLogoScale = 1;
+            shopLogoImg = new Image();
+            shopLogoImg.onload = function() {
+                const fitScale = Math.max(SHOP_LOGO_SIZE / shopLogoImg.width, SHOP_LOGO_SIZE / shopLogoImg.height);
+                shopLogoScale = fitScale;
+                document.getElementById('shopLogoCropZoom').min = fitScale;
+                document.getElementById('shopLogoCropZoom').value = fitScale;
+                shopLogoOffX = (SHOP_LOGO_SIZE - shopLogoImg.width * shopLogoScale) / 2;
+                shopLogoOffY = (SHOP_LOGO_SIZE - shopLogoImg.height * shopLogoScale) / 2;
+                drawShopLogoCrop();
+            };
+            shopLogoImg.src = e.target.result;
+            const canvas = document.getElementById('shopLogoCropCanvas');
+            canvas.width = SHOP_LOGO_SIZE;
+            canvas.height = SHOP_LOGO_SIZE;
+            const newCanvas = canvas.cloneNode(true);
+            canvas.parentNode.replaceChild(newCanvas, canvas);
+            const c = document.getElementById('shopLogoCropCanvas');
+            c.addEventListener('mousedown', (e) => { shopLogoIsDragging = true; shopLogoStartX = e.clientX - shopLogoOffX; shopLogoStartY = e.clientY - shopLogoOffY; });
+            c.addEventListener('mousemove', (e) => { if (!shopLogoIsDragging) return; shopLogoOffX = e.clientX - shopLogoStartX; shopLogoOffY = e.clientY - shopLogoStartY; clampShopLogo(); drawShopLogoCrop(); });
+            c.addEventListener('mouseup', () => shopLogoIsDragging = false);
+            c.addEventListener('mouseleave', () => shopLogoIsDragging = false);
+            document.getElementById('shopLogoCropZoom').oninput = function() {
+                const oldScale = shopLogoScale;
+                shopLogoScale = parseFloat(this.value);
+                shopLogoOffX = SHOP_LOGO_SIZE/2 - (SHOP_LOGO_SIZE/2 - shopLogoOffX) * (shopLogoScale / oldScale);
+                shopLogoOffY = SHOP_LOGO_SIZE/2 - (SHOP_LOGO_SIZE/2 - shopLogoOffY) * (shopLogoScale / oldScale);
+                clampShopLogo();
+                drawShopLogoCrop();
+            };
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function clampShopLogo() {
+    const w = shopLogoImg.width * shopLogoScale;
+    const h = shopLogoImg.height * shopLogoScale;
+    if (shopLogoOffX > 0) shopLogoOffX = 0;
+    if (shopLogoOffY > 0) shopLogoOffY = 0;
+    if (shopLogoOffX + w < SHOP_LOGO_SIZE) shopLogoOffX = SHOP_LOGO_SIZE - w;
+    if (shopLogoOffY + h < SHOP_LOGO_SIZE) shopLogoOffY = SHOP_LOGO_SIZE - h;
+}
+
+function drawShopLogoCrop() {
+    const canvas = document.getElementById('shopLogoCropCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = SHOP_LOGO_SIZE; canvas.height = SHOP_LOGO_SIZE;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, SHOP_LOGO_SIZE, SHOP_LOGO_SIZE);
+    ctx.drawImage(shopLogoImg, shopLogoOffX, shopLogoOffY, shopLogoImg.width * shopLogoScale, shopLogoImg.height * shopLogoScale);
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, SHOP_LOGO_SIZE, SHOP_LOGO_SIZE);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath(); ctx.arc(SHOP_LOGO_SIZE/2, SHOP_LOGO_SIZE/2, SHOP_LOGO_SIZE/2 - 2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = '#198754'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(SHOP_LOGO_SIZE/2, SHOP_LOGO_SIZE/2, SHOP_LOGO_SIZE/2 - 2, 0, Math.PI * 2); ctx.stroke();
+}
+
+function applyShopLogoCrop() {
+    const output = document.createElement('canvas');
+    output.width = 300; output.height = 300;
+    const ctx = output.getContext('2d');
+    ctx.beginPath(); ctx.arc(150, 150, 150, 0, Math.PI * 2); ctx.clip();
+    ctx.drawImage(shopLogoImg, shopLogoOffX, shopLogoOffY, shopLogoImg.width * shopLogoScale, shopLogoImg.height * shopLogoScale);
+    const result = output.toDataURL('image/png');
+    document.getElementById('shopLogoPreview').src = result;
+    document.getElementById('sidebarAvatar').src = result;
+    document.getElementById('shopLogoData').value = result;
+    closeShopLogoCropModal();
+    document.getElementById('savingOverlay').style.display = 'flex';
+    setTimeout(() => {
+        const result2 = document.getElementById('shopLogoData').value;
+        fetch('UpdateSellerServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=shopLogo&shopLogo=' + encodeURIComponent(result2)
+        }).then(() => {
+            document.getElementById('savingOverlay').style.display = 'none';
+            document.getElementById('successBarMsg').textContent = 'Shop logo updated! ✅';
+            document.getElementById('successBar').style.display = 'block';
+            setTimeout(() => document.getElementById('successBar').style.display = 'none', 3000);
+        });
+    }, 1500);
+}
+
+function closeShopLogoCropModal() {
+    document.getElementById('shopLogoCropModal').style.display = 'none';
+}
 </script>
+<!-- SHOP LOGO CROP MODAL -->
+<div class="crop-modal-overlay" id="shopLogoCropModal">
+    <div class="crop-container">
+        <p class="fw-bold mb-3 text-center" style="font-size:15px;"><i class="bi bi-crop text-success"></i> Crop Shop Logo</p>
+        <div style="width:300px; height:300px; margin:0 auto; overflow:hidden; border-radius:8px;">
+            <canvas id="shopLogoCropCanvas"></canvas>
+        </div>
+        <div class="mt-3 d-flex justify-content-between align-items-center">
+            <div>
+                <label style="font-size:12px;" class="text-muted">Zoom</label>
+                <input type="range" id="shopLogoCropZoom" min="0.5" max="3" step="0.01" value="1" style="width:120px;">
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" onclick="closeShopLogoCropModal()">
+                    <i class="bi bi-x"></i> Cancel
+                </button>
+                <button class="btn btn-success btn-sm" onclick="applyShopLogoCrop()">
+                    <i class="bi bi-check2"></i> Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>

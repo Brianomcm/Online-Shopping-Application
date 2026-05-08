@@ -46,7 +46,7 @@ public class UpdateSellerServlet extends HttpServlet {
                 if (profilePicture == null || profilePicture.isEmpty())
                     profilePicture = (String) session.getAttribute("userProfilePicture");
 
-                String sql = "UPDATE seller SET name=?, username=?, phone=?, birthday=?, gender=?, profile_picture=? WHERE seller_id=?";
+                String sql = "UPDATE seller SET name=?, username=?, phone=?, birthday=?, gender=?, profile_picture=? WHERE user_id=?";
                 PreparedStatement ps = conn.prepareStatement(sql);
                 ps.setString(1, fullname);
                 ps.setString(2, username);
@@ -78,7 +78,7 @@ public class UpdateSellerServlet extends HttpServlet {
                 if (address == null || address.trim().isEmpty())
                     address = (String) session.getAttribute("userAddress");
 
-                String sql = "UPDATE seller SET business_name=?, business_type=?, shop_description=?, address=? WHERE seller_id=?";
+                String sql = "UPDATE seller SET business_name=?, business_type=?, shop_description=?, address=? WHERE user_id=?";
                 PreparedStatement ps = conn.prepareStatement(sql);
                 ps.setString(1, businessName);
                 ps.setString(2, businessType);
@@ -92,10 +92,11 @@ public class UpdateSellerServlet extends HttpServlet {
                 session.setAttribute("userBusinessType", businessType);
                 session.setAttribute("userShopDescription", shopDescription);
                 session.setAttribute("userAddress", address);
+
             } else if ("avatar".equals(action)) {
                 String profilePicture = request.getParameter("profilePicture");
                 if (profilePicture != null && !profilePicture.isEmpty()) {
-                    String sql = "UPDATE seller SET profile_picture=? WHERE seller_id=?";
+                    String sql = "UPDATE seller SET profile_picture=? WHERE user_id=?";
                     PreparedStatement ps = conn.prepareStatement(sql);
                     ps.setString(1, profilePicture);
                     ps.setInt(2, userId);
@@ -104,8 +105,24 @@ public class UpdateSellerServlet extends HttpServlet {
                     session.setAttribute("userProfilePicture", profilePicture);
                 }
                 conn.close();
-                response.sendRedirect("SellerProfileServlet?updated=true&msg=avatar");
+                response.sendRedirect("seller.jsp?updated=true&msg=avatar");
                 return;
+
+            } else if ("shopLogo".equals(action)) {
+                String shopLogo = request.getParameter("shopLogo");
+                if (shopLogo != null && !shopLogo.isEmpty()) {
+                    String sql = "UPDATE seller SET shop_logo=? WHERE user_id=?";
+                    PreparedStatement ps = conn.prepareStatement(sql);
+                    ps.setString(1, shopLogo);
+                    ps.setInt(2, userId);
+                    ps.executeUpdate();
+                    ps.close();
+                    session.setAttribute("userShopLogo", shopLogo);
+                }
+                conn.close();
+                response.sendRedirect("seller.jsp?updated=true&msg=shopLogo");
+                return;
+
             } else if ("banner".equals(action)) {
                 String bannerPicture = request.getParameter("bannerPicture");
                 String removeBanner = request.getParameter("removeBanner");
@@ -116,7 +133,7 @@ public class UpdateSellerServlet extends HttpServlet {
                     bannerPicture = (String) session.getAttribute("userBannerPicture");
                 }
 
-                String sql = "UPDATE seller SET banner_picture=? WHERE seller_id=?";
+                String sql = "UPDATE seller SET banner_picture=? WHERE user_id=?";
                 PreparedStatement ps = conn.prepareStatement(sql);
                 ps.setString(1, bannerPicture);
                 ps.setInt(2, userId);
@@ -130,16 +147,16 @@ public class UpdateSellerServlet extends HttpServlet {
                 }
 
                 conn.close();
-                response.sendRedirect("SellerProfileServlet?updated=true&msg=banner");
+                response.sendRedirect("seller.jsp?updated=true&msg=banner");
                 return;
             }
 
             conn.close();
-            response.sendRedirect("SellerProfileServlet?updated=true&msg=" + action);
+            response.sendRedirect("seller.jsp?updated=true&msg=" + action);
 
         } catch (Exception e) {
             e.printStackTrace();
-            response.sendRedirect("SellerProfileServlet?error=true");
+            response.sendRedirect("seller.jsp?error=true");
         }
     }
 }

@@ -42,8 +42,10 @@ public class SellerPageServlet extends HttpServlet {
             seller.put("business_name", rs.getString("business_name"));
             seller.put("shop_description", rs.getString("shop_description"));
             seller.put("profile_picture", rs.getString("profile_picture"));
+            seller.put("shop_logo", rs.getString("shop_logo"));
             seller.put("banner_picture", rs.getString("banner_picture"));
             seller.put("address", rs.getString("address"));
+            seller.put("user_id", rs.getString("user_id"));
             rs.close(); ps.close();
             
          // Get store average rating

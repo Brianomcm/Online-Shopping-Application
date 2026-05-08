@@ -20,11 +20,12 @@ public class AddToCartServlet extends HttpServlet {
         Integer userId = (Integer) session.getAttribute("userId");
         String role = (String) session.getAttribute("userRole");
 
-        if (userId == null || !"customer".equals(role)) {
-            response.setContentType("application/json");
-            response.getWriter().print("{\"success\":false,\"message\":\"Not logged in\"}");
-            return;
-        }
+        if (userId == null || role == null ||
+                (!role.equals("customer") && !role.equals("both"))) {
+                response.setContentType("application/json");
+                response.getWriter().print("{\"success\":false,\"message\":\"Not logged in\"}");
+                return;
+            }
 
         String productIdParam  = request.getParameter("productId");
         String variationIdParam = request.getParameter("variationId");
@@ -50,7 +51,9 @@ public class AddToCartServlet extends HttpServlet {
             int cartId = -1;
             PreparedStatement ps = conn.prepareStatement(
                 "SELECT cart_id FROM cart WHERE customer_id=?");
-            ps.setInt(1, userId);
+            Integer customerId = (Integer) session.getAttribute("customerId");
+            if (customerId == null) customerId = userId;
+            ps.setInt(1, customerId);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 cartId = rs.getInt("cart_id");
@@ -58,7 +61,7 @@ public class AddToCartServlet extends HttpServlet {
                 PreparedStatement ins = conn.prepareStatement(
                     "INSERT INTO cart (customer_id) VALUES (?)",
                     PreparedStatement.RETURN_GENERATED_KEYS);
-                ins.setInt(1, userId);
+                ins.setInt(1, customerId);
                 ins.executeUpdate();
                 ResultSet keys = ins.getGeneratedKeys();
                 if (keys.next()) cartId = keys.getInt(1);

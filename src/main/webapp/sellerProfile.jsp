@@ -9,14 +9,25 @@
     String loggedUser = (String) session.getAttribute("userName");
     String loggedRole = (String) session.getAttribute("userRole");
     String userAvatar = (String) session.getAttribute("userAvatar");
+    // Check if logged-in user is the owner of this shop
+    boolean isOwnShop = false;
+    try {
+        Integer sessionUserId = (Integer) session.getAttribute("userId");
+        String shopSellerUserId = seller.get("user_id");
+        if (sessionUserId != null && shopSellerUserId != null) {
+            isOwnShop = sessionUserId.equals(Integer.parseInt(shopSellerUserId));
+        }
+    } catch (Exception ignored) {}
     int cartCount = 0;
     try {
         Integer sessionUserId = (Integer) session.getAttribute("userId");
-        if (sessionUserId != null && "customer".equals(loggedRole)) {
+        if (sessionUserId != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) {
             java.sql.Connection cartConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement cartPs = cartConn.prepareStatement(
                 "SELECT SUM(ci.quantity) FROM cart c JOIN cartitem ci ON c.cart_id = ci.cart_id WHERE c.customer_id = ?");
-            cartPs.setInt(1, sessionUserId);
+            Integer spCustId = (Integer) session.getAttribute("customerId");
+            if (spCustId == null) spCustId = sessionUserId;
+            cartPs.setInt(1, spCustId);
             java.sql.ResultSet cartRs = cartPs.executeQuery();
             if (cartRs.next()) cartCount = cartRs.getInt(1);
             cartRs.close(); cartPs.close(); cartConn.close();
@@ -26,7 +37,9 @@
     String businessName = seller.get("business_name");
     if (businessName == null || businessName.isEmpty()) businessName = seller.get("name");
     String bannerPic = seller.get("banner_picture");
-    String profilePic = seller.get("profile_picture");
+    String profilePic = (seller.get("shop_logo") != null && !seller.get("shop_logo").isEmpty())
+            ? seller.get("shop_logo")
+            : seller.get("profile_picture");
     String shopDesc = seller.get("shop_description");
     String address = seller.get("address");
 %>
@@ -48,19 +61,21 @@
     object-position: center;
     display: block;
 }
-        .shop-logo {
-            width: 90px; height: 90px;
-            border-radius: 50%;
-            border: 4px solid white;
-            object-fit: cover;
-            margin-top: -45px;
-            background: white;
-        }
+   .shop-logo {
+        width: 90px; height: 90px;
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 4px 12px rgba(25,135,84,0.3);
+        object-fit: cover;
+        margin-top: -45px;
+        background: white;
+    }
         .shop-logo-placeholder {
-            width: 90px; height: 90px;
-            border-radius: 50%;
-            border: 4px solid white;
-            background: #0d6efd;
+        width: 90px; height: 90px;
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 4px 12px rgba(25,135,84,0.3);
+        background: #198754;
             color: white;
             font-size: 32px;
             font-weight: 700;
@@ -80,41 +95,27 @@
 <div id="cartToast" class="toast-msg"><i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒</div>
 
 <!-- NAVBAR -->
-<nav class="navbar navbar-light bg-white shadow-sm py-3 sticky-top">
-    <div class="container-fluid px-4">
-        <a class="navbar-brand fw-bold text-primary fs-4" href="index.jsp">
-            <i class="bi bi-bag-heart-fill"></i> ShopEasy
-        </a>
-        <form class="d-flex flex-grow-1 mx-3" action="index.jsp" method="get">
-            <div class="input-group">
-                <input type="text" class="form-control" name="search" placeholder="Search products..." style="border-radius:8px 0 0 8px;">
-                <button class="btn btn-primary" type="submit" style="border-radius:0 8px 8px 0;"><i class="bi bi-search"></i></button>
-            </div>
-        </form>
-        <div class="d-flex align-items-center gap-2">
-            <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
-                <a href="CartServlet" class="btn btn-outline-secondary position-relative">
-                    <i class="bi bi-cart3 fs-5"></i>
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;"><%= cartCount > 0 ? cartCount : "0" %></span>
-                </a>
-                <div class="avatar-circle">
-                    <% if (userAvatar != null && !userAvatar.isEmpty()) { %>
-                        <img src="<%= userAvatar %>" style="width:100%;height:100%;object-fit:cover;">
-                    <% } else { %>
-                        <%= loggedUser.substring(0, 1).toUpperCase() %>
-                    <% } %>
-                </div>
-            <% } else { %>
-                <a href="CartServlet" class="btn btn-outline-secondary position-relative">
-                    <i class="bi bi-cart3 fs-5"></i>
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">0</span>
-                </a>
-                <a href="index.jsp" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal"><i class="bi bi-box-arrow-in-right"></i> Login</a>
-                <a href="index.jsp" class="btn btn-primary"><i class="bi bi-person-plus"></i> Register</a>
-            <% } %>
-        </div>
-    </div>
-</nav>
+<%
+    int spCartCount = 0;
+    try {
+        Integer spUserId = (Integer) session.getAttribute("userId");
+        String spRole = (String) session.getAttribute("userRole");
+        if (spUserId != null && ("customer".equals(spRole) || "both".equals(spRole))) {
+            java.sql.Connection spCartConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement spCartPs = spCartConn.prepareStatement(
+                "SELECT SUM(ci.quantity) FROM cart c JOIN cartitem ci ON c.cart_id = ci.cart_id WHERE c.customer_id = ? AND ci.quantity > 0");
+            Integer spCustId = (Integer) session.getAttribute("customerId");
+            if (spCustId == null) spCustId = spUserId;
+            spCartPs.setInt(1, spCustId);
+            java.sql.ResultSet spCartRs = spCartPs.executeQuery();
+            if (spCartRs.next()) spCartCount = spCartRs.getInt(1);
+            spCartRs.close(); spCartPs.close(); spCartConn.close();
+        }
+    } catch (Exception spEx) { spEx.printStackTrace(); }
+    request.setAttribute("navType", "full");
+    request.setAttribute("navCartCount", spCartCount);
+%>
+<%@ include file="navbar.jsp" %>
 
 <!-- BREADCRUMB -->
 <div class="bg-white border-bottom px-4 py-2">
@@ -182,7 +183,7 @@
     <hr>
 
     <!-- PRODUCTS -->
-    <h5 class="fw-bold mb-3"><i class="bi bi-grid text-primary"></i> Products (<%= products != null ? products.size() : 0 %>)</h5>
+   <h5 class="fw-bold mb-3"><i class="bi bi-grid text-primary"></i> <%= isOwnShop ? "Your Products" : "Products" %> (<%= products != null ? products.size() : 0 %>)</h5>
     <div class="row g-3 mb-5">
         <% if (products == null || products.isEmpty()) { %>
             <div class="col-12 text-center py-5 text-muted">
@@ -231,14 +232,18 @@
 <p class="text-muted mb-2" style="font-size:11px;">Stock: <%= prod.get("stock") %></p>
 
                         <div onclick="event.stopPropagation();">
-                            <% if (loggedUser != null && "customer".equals(loggedRole)) { %>
+                          <% if (isOwnShop) { %>
+                                <button class="btn btn-secondary btn-sm w-100" disabled style="cursor:not-allowed; opacity:0.7;">
+                                    <i class="bi bi-slash-circle"></i> Your Product
+                                </button>
+                            <% } else if (loggedUser != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) { %>
                                 <button class="btn btn-primary btn-sm w-100" onclick="addToCart(<%= prod.get("product_id") %>)">
                                     <i class="bi bi-cart-plus"></i> Add to Cart
                                 </button>
                             <% } else { %>
                                 <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-    <i class="bi bi-cart-plus"></i> Add to Cart
-</button>
+                                    <i class="bi bi-cart-plus"></i> Add to Cart
+                                </button>
                             <% } %>
                         </div>
                     </div>
@@ -249,33 +254,7 @@
     </div>
 </div>
 <!-- LOGIN MODAL -->
-<div class="modal fade" id="loginModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
-        <div class="modal-content rounded-4">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold">
-                    <i class="bi bi-bag-heart-fill text-primary"></i> Login to ShopEasy
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body px-4 pb-4">
-                <form action="LoginServlet" method="post" onsubmit="return handleLoginSubmit(event, this)">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Email</label>
-                        <input type="text" name="email" class="form-control" placeholder="Enter email" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Password</label>
-                        <input type="password" name="password" class="form-control" placeholder="Enter password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
-                        <i class="bi bi-box-arrow-in-right"></i> Login
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
+
 
 <!-- LOGIN LOADING OVERLAY -->
 <div id="loginLoadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
@@ -304,5 +283,10 @@ function addToCart(productId) {
     .catch(err => console.error(err));
 }
 </script>
+<div id="logoutOverlay" style="display:none; position:fixed; inset:0; background:rgba(255,255,255,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
+    <div class="spinner-border text-primary"></div>
+    <p class="mt-2 fw-bold text-primary">Logging out...</p>
+</div>
+<%@ include file="modals.jsp" %>
 </body>
 </html>

@@ -16,7 +16,8 @@ public class EditProductServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         HttpSession session = request.getSession();
-        if (session.getAttribute("userId") == null || !"seller".equals(session.getAttribute("userRole"))) {
+        String editRole = (String) session.getAttribute("userRole");
+        if (session.getAttribute("userId") == null || (!"seller".equals(editRole) && !"both".equals(editRole))) {
             response.sendRedirect("index.jsp");
             return;
         }
@@ -26,6 +27,7 @@ public class EditProductServlet extends HttpServlet {
         String stock        = request.getParameter("stock");
         String description  = request.getParameter("description");
         String originalPrice = request.getParameter("originalPrice");
+        String categoryId = request.getParameter("categoryId");
 
         // Variation arrays
         String[] varIds     = request.getParameterValues("editVarId[]");
@@ -37,7 +39,7 @@ public class EditProductServlet extends HttpServlet {
 
             // 1. Update product basic info
             PreparedStatement ps = conn.prepareStatement(
-            	    "UPDATE product SET name=?, price=?, original_price=?, stock=?, description=? WHERE product_id=?");
+            		"UPDATE product SET name=?, price=?, original_price=?, stock=?, description=?, category_id=? WHERE product_id=?");
             	ps.setString(1, productName);
             	ps.setDouble(2, Double.parseDouble(price));
             	if (originalPrice != null && !originalPrice.isEmpty()) {
@@ -47,7 +49,12 @@ public class EditProductServlet extends HttpServlet {
             	}
             	ps.setInt(4, Integer.parseInt(stock));
             	ps.setString(5, description);
-            	ps.setInt(6, Integer.parseInt(productId));
+            	if (categoryId != null && !categoryId.isEmpty()) {
+            	    ps.setInt(6, Integer.parseInt(categoryId));
+            	} else {
+            	    ps.setNull(6, java.sql.Types.INTEGER);
+            	}
+            	ps.setInt(7, Integer.parseInt(productId));
             	
             	ps.executeUpdate();
             	ps.close();

@@ -18,12 +18,13 @@ public class AddProductServlet extends HttpServlet {
             throws ServletException, IOException {
 
         HttpSession session = request.getSession();
-        if (session.getAttribute("userId") == null || !"seller".equals(session.getAttribute("userRole"))) {
+        String role = (String) session.getAttribute("userRole");
+        if (session.getAttribute("userId") == null || (!"seller".equals(role) && !"both".equals(role))) {
             response.sendRedirect("index.jsp");
             return;
         }
 
-        int sellerId = (int) session.getAttribute("userId");
+        int userId = (int) session.getAttribute("userId");
         String productName   = request.getParameter("productName");
         String description   = request.getParameter("description");
         String price         = request.getParameter("price");
@@ -38,6 +39,22 @@ public class AddProductServlet extends HttpServlet {
 
         try {
             Connection conn = DBConnection.getConnection();
+
+            // 0. Get seller_id from seller table using user_id
+            int sellerId = -1;
+            PreparedStatement sellerPs = conn.prepareStatement("SELECT seller_id FROM seller WHERE user_id = ?");
+            sellerPs.setInt(1, userId);
+            ResultSet sellerRs = sellerPs.executeQuery();
+            if (sellerRs.next()) {
+                sellerId = sellerRs.getInt("seller_id");
+            }
+            sellerRs.close();
+            sellerPs.close();
+
+            if (sellerId == -1) {
+                response.sendRedirect("SellerProfileServlet?error=true");
+                return;
+            }
 
             // 1. Insert product and get generated product_id
             String sql = "INSERT INTO product (seller_id, category_id, name, description, price, original_price, stock, image, status) "
@@ -72,8 +89,8 @@ public class AddProductServlet extends HttpServlet {
 
             // 3. Insert variations if any
             if (newProductId > 0 && variationTypes != null && variationValues != null) {
-                String varSql = "INSERT INTO product_variation (product_id, variation_type, variation_value) "
-                              + "VALUES (?, ?, ?)";
+            	String varSql = "INSERT INTO product_variation (product_id, variation_type, variation_value, stock) "
+                        + "VALUES (?, ?, ?, NULL)";
                 PreparedStatement varPs = conn.prepareStatement(varSql);
                 for (int i = 0; i < variationTypes.length; i++) {
                     String type  = variationTypes[i];

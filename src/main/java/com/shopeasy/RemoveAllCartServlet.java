@@ -18,7 +18,8 @@ public class RemoveAllCartServlet extends HttpServlet {
             response.sendRedirect("index.jsp");
             return;
         }
-        int customerId = (int) session.getAttribute("userId");
+        Integer customerId = (Integer) session.getAttribute("customerId");
+        if (customerId == null) customerId = (int) session.getAttribute("userId");
         try {
             Connection conn = DBConnection.getConnection();
             PreparedStatement ps = conn.prepareStatement(

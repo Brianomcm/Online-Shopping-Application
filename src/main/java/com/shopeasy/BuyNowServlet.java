@@ -27,7 +27,8 @@ public class BuyNowServlet extends HttpServlet {
             return;
         }
 
-        int customerId = (int) session.getAttribute("userId");
+        Integer customerId = (Integer) session.getAttribute("customerId");
+        if (customerId == null) customerId = (int) session.getAttribute("userId");
         String productIdParam = request.getParameter("productId");
         String variationIdParam = request.getParameter("variationId");
         String quantityParam = request.getParameter("quantity");

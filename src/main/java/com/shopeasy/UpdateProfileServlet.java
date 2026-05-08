@@ -51,7 +51,7 @@ public class UpdateProfileServlet extends HttpServlet {
              profilePicture = (String) session.getAttribute("userAvatar");
          }
 
-         String sql = "UPDATE customer SET name=?, username=?, phone=?, birthday=?, gender=?, profile_picture=? WHERE customer_id=?";
+         String sql = "UPDATE customer SET name=?, username=?, phone=?, birthday=?, gender=?, profile_picture=? WHERE user_id=?";
          PreparedStatement ps = conn.prepareStatement(sql);
          ps.setString(1, fullname);
          ps.setString(2, username);
@@ -68,6 +68,22 @@ public class UpdateProfileServlet extends HttpServlet {
             session.setAttribute("userUsername", username);
             session.setAttribute("userPhone", phone);
             session.setAttribute("userBirthday", birthday);
+            // Set age status + lock birthday
+            if (birthday == null || birthday.isEmpty()) {
+                session.setAttribute("userAgeStatus", "no_birthday");
+            } else {
+                java.time.LocalDate dob = java.time.LocalDate.parse(birthday);
+                int age = java.time.Period.between(dob, java.time.LocalDate.now()).getYears();
+                if (age < 13) session.setAttribute("userAgeStatus", "too_young");
+                else session.setAttribute("userAgeStatus", "ok");
+                // Lock birthday (one-time only)
+                Connection lockConn = DBConnection.getConnection();
+                PreparedStatement lockPs = lockConn.prepareStatement(
+                    "UPDATE customer SET birthday_locked=1 WHERE user_id=?");
+                lockPs.setInt(1, userId);
+                lockPs.executeUpdate();
+                lockPs.close(); lockConn.close();
+            }
             session.setAttribute("userGender", gender);
             if (profilePicture != null && !profilePicture.isEmpty()) {
                 session.setAttribute("userAvatar", profilePicture);

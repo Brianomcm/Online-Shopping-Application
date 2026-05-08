@@ -21,7 +21,17 @@ public class ReviewServlet extends HttpServlet {
             return;
         }
 
-        int customerId = (int) session.getAttribute("userId");
+        int userId = (int) session.getAttribute("userId");
+        int customerId = userId; // fallback
+        try {
+            Connection cidConn = DBConnection.getConnection();
+            PreparedStatement cidPs = cidConn.prepareStatement(
+                "SELECT customer_id FROM customer WHERE user_id=?");
+            cidPs.setInt(1, userId);
+            java.sql.ResultSet cidRs = cidPs.executeQuery();
+            if (cidRs.next()) customerId = cidRs.getInt(1);
+            cidRs.close(); cidPs.close(); cidConn.close();
+        } catch (Exception ex) { ex.printStackTrace(); }
 
         String productIdParam = request.getParameter("productId");
         String orderIdParam = request.getParameter("orderId");
@@ -84,9 +94,9 @@ public class ReviewServlet extends HttpServlet {
                 PreparedStatement sellerPs = conn.prepareStatement(
                     "SELECT s.seller_id, c.name AS cname FROM product p " +
                     "JOIN seller s ON p.seller_id = s.seller_id " +
-                    "JOIN customer c ON c.customer_id = ? " +
+                    "JOIN customer c ON c.user_id = ? " +
                     "WHERE p.product_id = ?");
-                sellerPs.setInt(1, customerId);
+                sellerPs.setInt(1, userId);
                 sellerPs.setInt(2, productId);
                 ResultSet sellerRs = sellerPs.executeQuery();
                 if (sellerRs.next()) {

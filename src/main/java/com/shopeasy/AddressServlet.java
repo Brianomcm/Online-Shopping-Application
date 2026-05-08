@@ -17,7 +17,8 @@ public class AddressServlet extends HttpServlet {
             throws ServletException, IOException {
 
         HttpSession session = request.getSession();
-        int userId = (int) session.getAttribute("userId");
+        Integer userId = (Integer) session.getAttribute("customerId");
+        if (userId == null) userId = (int) session.getAttribute("userId");
         String action = request.getParameter("action");
 
         try {

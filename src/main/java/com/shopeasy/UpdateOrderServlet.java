@@ -36,14 +36,15 @@ public class UpdateOrderServlet extends HttpServlet {
 
             // Notify customer
             PreparedStatement custPs = conn.prepareStatement(
-                "SELECT customer_id FROM orders WHERE order_id=?");
+                    "SELECT o.customer_id, c.user_id FROM orders o JOIN customer c ON c.customer_id = o.customer_id WHERE o.order_id=?");
             custPs.setInt(1, orderId);
             java.sql.ResultSet custRs = custPs.executeQuery();
             if (custRs.next()) {
                 int custId = custRs.getInt("customer_id");
                 PreparedStatement notifPs = conn.prepareStatement(
                     "INSERT INTO notifications (user_id, user_type, message) VALUES (?, 'customer', ?)");
-                notifPs.setInt(1, custId);
+                int custUserId = custRs.getInt("user_id");
+                notifPs.setInt(1, custUserId);
                 notifPs.setString(2, "Your order #" + orderId + " status has been updated to: " + status);
                 notifPs.executeUpdate();
                 notifPs.close();

@@ -1,5 +1,6 @@
 <%@ page session="true" %>
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ page import="java.sql.Connection, java.sql.PreparedStatement, java.sql.ResultSet, com.shopeasy.DBConnection" %>
 <%
     if(session.getAttribute("userId") == null) {
         response.sendRedirect("index.jsp");
@@ -482,7 +483,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
 
         // Revenue
         java.sql.PreparedStatement sStatPs3 = sStatConn.prepareStatement(
-            "SELECT SUM(oi.subtotal) FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE oi.seller_id=? AND o.status='Completed'");
+        		"SELECT SUM(oi.subtotal) FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE oi.seller_id=? AND o.status='Completed' AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
         sStatPs3.setInt(1, sId);
         java.sql.ResultSet sStatRs3 = sStatPs3.executeQuery();
         if (sStatRs3.next()) sellerStatRevenue = sStatRs3.getDouble(1);
@@ -880,14 +881,16 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
             	    "JOIN order_items oi ON o.order_id = oi.order_id " +
             	    "JOIN customer c ON o.customer_id = c.customer_id " +
             	    "WHERE oi.seller_id = ? ";
-            if (!"All".equals(orderTabFilter)) {
+            if ("Refund Requests".equals(orderTabFilter)) {
+                sOrdSql += "AND o.order_id IN (SELECT order_id FROM refund_requests WHERE status='Pending') ";
+            } else if (!"All".equals(orderTabFilter)) {
                 sOrdSql += "AND o.status = ? ";
             }
             sOrdSql += "ORDER BY o.order_id DESC";
 
             java.sql.PreparedStatement sOrdPs = sOrdConn.prepareStatement(sOrdSql);
             sOrdPs.setInt(1, sOrdSellerId);
-            if (!"All".equals(orderTabFilter)) sOrdPs.setString(2, orderTabFilter);
+            if (!"All".equals(orderTabFilter) && !"Refund Requests".equals(orderTabFilter)) sOrdPs.setString(2, orderTabFilter);
             java.sql.ResultSet sOrdRs = sOrdPs.executeQuery();
 
             while (sOrdRs.next()) {
@@ -941,7 +944,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
 
     <%-- Status Filter Tabs --%>
     <ul class="nav nav-tabs mb-4" id="orderStatusTabs">
-        <% String[] sOrderStatuses = {"All","Pending","Processing","Shipped","Completed","Cancelled","Cancellation Requested"};
+        <%String[] sOrderStatuses = {"All","Pending","Processing","Shipped","Completed","Cancelled","Cancellation Requested","Refund Requests"};
            for (String st : sOrderStatuses) { %>
             <li class="nav-item">
                 <a class="nav-link <%= st.equals(orderTabFilter) ? "active fw-semibold" : "" %>"
@@ -1008,8 +1011,8 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
 <% } %>
                     <hr class="my-2">
                     <p class="mb-0" style="font-size:12px;">
-                        <i class="bi bi-wallet2 me-1"></i>
-                        <span class="fw-semibold">Payment:</span> <%= ord.get("payment") %>
+                     <i class="bi bi-wallet2 me-1"></i>
+<span class="fw-semibold">Payment:</span> <%= "Wallet".equals(ord.get("payment")) ? "ShopEasy Wallet" : ord.get("payment") %>
                     </p>
                 </div>
 
@@ -1125,6 +1128,57 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
             <strong>Reason:</strong> <%= cancelledReason %>
         </div>
     <% } %>
+<% } else if ("Completed".equals(sStatus)) { %>
+    <%
+        String selRefundStatus = null;
+        int selRefundId = 0;
+        String selRefundReason = "", selRefundDesc = "", selRefundProof = "";
+        try {
+            java.sql.Connection srConn2 = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement srPs2 = srConn2.prepareStatement(
+                "SELECT refund_id, reason, description, proof_image, status FROM refund_requests WHERE order_id=?");
+            srPs2.setInt(1, (int) ord.get("id"));
+            java.sql.ResultSet srRs2 = srPs2.executeQuery();
+            if (srRs2.next()) {
+                selRefundId = srRs2.getInt("refund_id");
+                selRefundReason = srRs2.getString("reason") != null ? srRs2.getString("reason") : "";
+                selRefundDesc = srRs2.getString("description") != null ? srRs2.getString("description") : "";
+                selRefundProof = srRs2.getString("proof_image") != null ? srRs2.getString("proof_image") : "";
+                selRefundStatus = srRs2.getString("status");
+            }
+            srRs2.close(); srPs2.close(); srConn2.close();
+        } catch (Exception srEx) { srEx.printStackTrace(); }
+    %>
+    <% if (selRefundStatus == null) { %>
+        <span class="text-muted" style="font-size:12px;">
+            <i class="bi bi-check2-all"></i> Completed
+        </span>
+    <% } else if ("Pending".equals(selRefundStatus)) { %>
+        <div class="p-2 rounded-3 mb-2 w-100" style="background:#fff8e1; border:1px solid #ffc107; font-size:12px;">
+            <p class="fw-bold mb-1" style="color:#fd7e14;"><i class="bi bi-arrow-counterclockwise me-1"></i>Refund Request</p>
+            <p class="mb-1"><strong>Reason:</strong> <%= selRefundReason %></p>
+            <% if (!selRefundDesc.isEmpty()) { %><p class="mb-1"><strong>Description:</strong> <%= selRefundDesc %></p><% } %>
+            <% if (!selRefundProof.isEmpty()) { %>
+                <img src="<%= selRefundProof %>" style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:1px solid #dee2e6; margin-bottom:6px;">
+            <% } %>
+        </div>
+        <button class="btn btn-success btn-sm fw-semibold w-100 mb-1"
+            onclick="sellerRefundAction(<%= selRefundId %>, 'approve')">
+            <i class="bi bi-check-circle"></i> Approve Refund
+        </button>
+        <button class="btn btn-outline-danger btn-sm w-100"
+            onclick="sellerRefundAction(<%= selRefundId %>, 'reject')">
+            <i class="bi bi-x-circle"></i> Reject Refund
+        </button>
+  <% } else if ("Refunded".equals(selRefundStatus)) { %>
+        <span class="badge px-3 py-2" style="font-size:12px; background:#6c757d; color:white;">
+            <i class="bi bi-arrow-counterclockwise"></i> Refunded
+        </span>
+    <% } else if ("Rejected".equals(selRefundStatus)) { %>
+        <span class="badge bg-danger px-3 py-2" style="font-size:12px;">
+            <i class="bi bi-x-circle"></i> Refund Rejected
+        </span>
+    <% } %>
 <% } else { %>
     <span class="text-muted" style="font-size:12px;">
         <i class="bi bi-check2-all"></i> <%= sStatus %>
@@ -1162,7 +1216,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                     "FROM order_items oi " +
                     "JOIN orders o ON oi.order_id = o.order_id " +
                     "JOIN product p ON oi.product_id = p.product_id " +
-                    "WHERE p.seller_id = ? AND o.status = 'Completed'");
+                		"WHERE p.seller_id = ? AND o.status = 'Completed' AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
                 revPs.setInt(1, sellerId);
                 java.sql.ResultSet revRs = revPs.executeQuery();
                 double totalRevenue = 0; int totalOrders = 0; int totalItems = 0;
@@ -1179,6 +1233,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                     "JOIN orders o ON oi.order_id = o.order_id " +
                     "JOIN product p ON oi.product_id = p.product_id " +
                     "WHERE p.seller_id = ? AND o.status = 'Completed' " +
+                    "AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded') " +
                     "GROUP BY p.product_id, p.name ORDER BY sold DESC LIMIT 5");
                 topPs.setInt(1, sellerId);
                 java.sql.ResultSet topRs = topPs.executeQuery();
@@ -1190,9 +1245,10 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                     "FROM order_items oi " +
                     "JOIN orders o ON oi.order_id = o.order_id " +
                     "JOIN product p ON oi.product_id = p.product_id " +
-                    "WHERE p.seller_id = ? AND o.status = 'Completed' " +
-                    "AND o.order_date IS NOT NULL " +
-                    "GROUP BY DATE_FORMAT(o.order_date, '%b %Y'), YEAR(o.order_date), MONTH(o.order_date) " +
+                    		"WHERE p.seller_id = ? AND o.status = 'Completed' " +
+                            "AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded') " +
+                            "AND o.order_date IS NOT NULL " +
+                            "GROUP BY DATE_FORMAT(o.order_date, '%b %Y'), YEAR(o.order_date), MONTH(o.order_date) " +
                     "ORDER BY YEAR(o.order_date), MONTH(o.order_date)");
                 monthPs.setInt(1, sellerId);
                 java.sql.ResultSet monthRs = monthPs.executeQuery();
@@ -1254,7 +1310,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                     		"COALESCE(SUM(oi.subtotal),0) as today_revenue " +
                     "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id " +
                     "JOIN product p ON oi.product_id=p.product_id " +
-                    "WHERE p.seller_id=? AND DATE(o.order_date)=CURDATE()");
+                		"WHERE p.seller_id=? AND DATE(o.order_date)=CURDATE() AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
                 todayPs.setInt(1, dashSellerId);
                 java.sql.ResultSet todayRs = todayPs.executeQuery();
                 int todayOrders = 0; double todayRevenue = 0;
@@ -1350,29 +1406,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
             <% } } %>
             </div>
 
-            <!-- LOW STOCK ALERT -->
-            <p class="fw-bold mb-2" style="font-size:14px;"><i class="bi bi-exclamation-triangle text-danger me-1"></i> Low Stock Alert</p>
-            <div class="mb-4">
-            <% if (lowStockList.isEmpty()) { %>
-                <div class="text-center text-muted py-3" style="font-size:13px;">
-                    <i class="bi bi-check-circle text-success" style="font-size:24px;"></i><br>All products have sufficient stock!
-                </div>
-            <% } else { %>
-            <% for (java.util.Map<String,Object> ls : lowStockList) {
-                int stock = (int) ls.get("stock");
-                String stockColor = stock == 0 ? "#dc3545" : stock <= 2 ? "#fd7e14" : "#ffc107";
-            %>
-                <div class="d-flex align-items-center justify-content-between p-2 mb-2 rounded-3"
-                     style="background:#fff5f5; border:1px solid #fecaca; font-size:13px;">
-                    <span class="fw-semibold"><%= ls.get("name") %></span>
-                    <span class="fw-bold" style="color:<%= stockColor %>;">
-                        <%= stock == 0 ? "OUT OF STOCK" : stock + " left" %>
-                    </span>
-                </div>
-          <% } } %>
-            </div>
-
-            <% } catch (Exception dashEx) { dashEx.printStackTrace(); } %>
+          <% } catch (Exception dashEx) { dashEx.printStackTrace(); } %>
 
            
             
@@ -1571,49 +1605,80 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
         <div class="p-4 rounded-3 mb-4 text-center" style="background:linear-gradient(135deg,#0d6efd,#6610f2); color:white;">
             <p class="mb-1" style="font-size:13px; opacity:0.85;">Available Balance</p>
           <%
-double payoutBalance = 0.0;
-try {
-    Integer payoutSellerId = (Integer) session.getAttribute("sellerId");
-    if (payoutSellerId != null) {
-        java.sql.Connection payoutConn = com.shopeasy.DBConnection.getConnection();
-        java.sql.PreparedStatement payoutPs = payoutConn.prepareStatement(
-            "SELECT COALESCE(SUM(oi.subtotal),0) FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE oi.seller_id=? AND o.status='Completed'");
+          double payoutBalance = 0.0;
+          double totalRevenue = 0.0;
+          double totalPaidOut = 0.0;
+          try {
+              Integer payoutSellerId = (Integer) session.getAttribute("sellerId");
+              if (payoutSellerId != null) {
+              	java.sql.Connection payoutConn = com.shopeasy.DBConnection.getConnection();
+                  // Get total revenue from completed orders
+                 java.sql.PreparedStatement payoutPs = payoutConn.prepareStatement(
+                		  "SELECT COALESCE(SUM(oi.subtotal),0) FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE oi.seller_id=? AND o.status='Completed' AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
         payoutPs.setInt(1, payoutSellerId);
         java.sql.ResultSet payoutRs = payoutPs.executeQuery();
-        if (payoutRs.next()) payoutBalance = payoutRs.getDouble(1);
-        payoutRs.close(); payoutPs.close(); payoutConn.close();
+        totalRevenue = payoutRs.next() ? payoutRs.getDouble(1) : 0.0;
+        payoutRs.close(); payoutPs.close();
+        java.sql.PreparedStatement paidPs = payoutConn.prepareStatement(
+            "SELECT COALESCE(SUM(amount),0) FROM payout_requests WHERE seller_id=? AND status='Completed'");
+        paidPs.setInt(1, payoutSellerId);
+        java.sql.ResultSet paidRs = paidPs.executeQuery();
+        totalPaidOut = paidRs.next() ? paidRs.getDouble(1) : 0.0;
+        paidRs.close(); paidPs.close(); payoutConn.close();
+        payoutBalance = totalRevenue - totalPaidOut;
+        if (payoutBalance < 0) payoutBalance = 0.0;
     }
 } catch (Exception ex) { ex.printStackTrace(); }
 %>
-<h2 class="fw-bold mb-0">₱<%= String.format("%.2f", payoutBalance) %></h2>
-            <p class="mb-0 mt-1" style="font-size:11px; opacity:0.7;">From completed orders</p>
+<h2 class="fw-bold mb-0" style="font-size:38px;">₱<%= String.format("%.2f", payoutBalance) %></h2>
+<p class="mb-0 mt-1" style="font-size:12px; opacity:0.75;">Available for withdrawal</p>
+<div class="d-flex justify-content-center gap-4 mt-3" style="font-size:11px; opacity:0.85;">
+    <div>
+        <i class="bi bi-arrow-down-circle me-1"></i>Total Earned
+        <div class="fw-bold" style="font-size:13px;">₱<%= String.format("%.2f", totalRevenue) %></div>
+    </div>
+    <div style="width:1px; background:rgba(255,255,255,0.3);"></div>
+    <div>
+        <i class="bi bi-arrow-up-circle me-1"></i>Total Withdrawn
+        <div class="fw-bold" style="font-size:13px;">₱<%= String.format("%.2f", totalPaidOut) %></div>
+    </div>
+</div>
         </div>
 
-        <!-- Payout Method -->
+   <!-- Payout Method -->
         <p class="fw-bold mb-3" style="font-size:14px;"><i class="bi bi-credit-card me-1"></i> Select Payout Method</p>
         <div class="row g-3 mb-4">
             <div class="col-md-4">
                 <div class="payout-method-card border rounded-3 p-3 text-center" onclick="selectPayoutMethod(this, 'GCash')"
-                     style="cursor:pointer; border-color:#1a73e8 !important; background:#f0f7ff; transition:0.2s;">
-                    <div style="font-size:28px; margin-bottom:6px;">📱</div>
+                     style="cursor:pointer; transition:0.2s;">
+                    <div style="width:48px; height:48px; background:#e8f0fe; border-radius:12px; display:flex; align-items:center; justify-content:center; margin:0 auto 10px;">
+                        <i class="bi bi-phone-fill" style="font-size:22px; color:#1a73e8;"></i>
+                    </div>
                     <p class="fw-bold mb-0" style="font-size:13px; color:#1a73e8;">GCash</p>
-                    <p class="text-muted mb-0" style="font-size:11px;">Instant transfer</p>
+                  <p class="text-muted mb-0" style="font-size:11px;"><i class="bi bi-lightning-fill text-warning" style="font-size:10px;"></i> Instant transfer</p>
+                    <p class="text-muted mb-0" style="font-size:11px; color:#dc3545 !important;">Fee: ₱12</p>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="payout-method-card border rounded-3 p-3 text-center" onclick="selectPayoutMethod(this, 'Maya')"
                      style="cursor:pointer; transition:0.2s;">
-                    <div style="font-size:28px; margin-bottom:6px;">💚</div>
+                    <div style="width:48px; height:48px; background:#e6f9f0; border-radius:12px; display:flex; align-items:center; justify-content:center; margin:0 auto 10px;">
+                        <i class="bi bi-credit-card-fill" style="font-size:22px; color:#00b14f;"></i>
+                    </div>
                     <p class="fw-bold mb-0" style="font-size:13px; color:#00b14f;">Maya</p>
-                    <p class="text-muted mb-0" style="font-size:11px;">Instant transfer</p>
+                    <p class="text-muted mb-0" style="font-size:11px;"><i class="bi bi-lightning-fill text-warning" style="font-size:10px;"></i> Instant transfer</p>
+                    <p style="font-size:11px; color:#dc3545; margin-bottom:0;">Fee: ₱12</p>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="payout-method-card border rounded-3 p-3 text-center" onclick="selectPayoutMethod(this, 'Bank')"
                      style="cursor:pointer; transition:0.2s;">
-                    <div style="font-size:28px; margin-bottom:6px;">🏦</div>
-                    <p class="fw-bold mb-0" style="font-size:13px; color:#333;">Bank Transfer</p>
-                    <p class="text-muted mb-0" style="font-size:11px;">1-3 banking days</p>
+                    <div style="width:48px; height:48px; background:#f0f0f0; border-radius:12px; display:flex; align-items:center; justify-content:center; margin:0 auto 10px;">
+                        <i class="bi bi-bank2" style="font-size:22px; color:#555;"></i>
+                    </div>
+                    <p class="fw-bold mb-0" style="font-size:13px; color:#444;">Bank Transfer</p>
+                   <p class="text-muted mb-0" style="font-size:11px;"><i class="bi bi-clock" style="font-size:10px;"></i> 1-3 banking days</p>
+                    <p class="text-muted mb-0" style="font-size:11px; color:#dc3545 !important;">Fee: ₱18</p>
                 </div>
             </div>
         </div>
@@ -1626,9 +1691,11 @@ try {
                 <label class="form-label fw-bold" style="font-size:13px;">Amount to Withdraw</label>
                 <div class="input-group">
                     <span class="input-group-text">₱</span>
-                    <input type="number" class="form-control" id="payoutAmount" placeholder="0.00" min="1">
+                  <input type="number" class="form-control" id="payoutAmount" placeholder="0.00" min="1"
+    oninput="validatePayoutAmount(this)">
                 </div>
-                <p class="text-muted mt-1" style="font-size:11px;"><i class="bi bi-info-circle"></i> Minimum withdrawal: ₱50.00</p>
+              <p class="text-muted mt-1" style="font-size:11px;"><i class="bi bi-info-circle"></i> Minimum withdrawal: ₱50.00</p>
+<p id="amountError" style="display:none; color:#dc3545; font-size:11px; margin-top:4px;"><i class="bi bi-exclamation-circle"></i> Amount exceeds your available balance!</p>
             </div>
         </div>
 
@@ -1637,19 +1704,162 @@ try {
             <i class="bi bi-send me-1"></i> Request Payout
         </button>
 
-        <!-- Payout History -->
-        <hr class="my-4">
-        <p class="fw-bold mb-3" style="font-size:14px;"><i class="bi bi-clock-history me-1 text-success"></i> Payout History</p>
-        <div class="text-center text-muted py-3" style="font-size:13px;">
-            <i class="bi bi-inbox" style="font-size:28px; opacity:0.4;"></i>
-            <p class="mt-2 mb-0">No payout requests yet.</p>
+     <!-- Payout History -->
+<hr class="my-4">
+<p class="fw-bold mb-3" style="font-size:14px;"><i class="bi bi-clock-history me-1 text-success"></i> Payout History</p>
+<%
+try {
+    Integer phSellerId = (Integer) session.getAttribute("sellerId");
+    if (phSellerId != null) {
+        Connection phConn = DBConnection.getConnection();
+        PreparedStatement phPs = phConn.prepareStatement(
+            "SELECT payout_id, method, account_number, amount, status, requested_at " +
+            "FROM payout_requests WHERE seller_id=? ORDER BY requested_at DESC LIMIT 20");
+        phPs.setInt(1, phSellerId);
+        ResultSet phRs = phPs.executeQuery();
+        boolean hasHistory = false;
+        while (phRs.next()) {
+            hasHistory = true;
+            String phStatus = phRs.getString("status");
+            String phBadge = "warning";
+            if ("Completed".equals(phStatus)) phBadge = "success";
+            else if ("Rejected".equals(phStatus)) phBadge = "danger";
+%>
+<div class="border rounded-3 px-4 py-3 mb-3" style="background:#fafffe; font-size:13px;">
+    <div class="d-flex justify-content-between align-items-start">
+        <div class="d-flex align-items-center gap-3">
+        <%
+                String phMethod = phRs.getString("method");
+                String phIconColor = "GCash".equals(phMethod) ? "#1a73e8" : "Maya".equals(phMethod) ? "#00b14f" : "#555";
+                String phIconBg = "GCash".equals(phMethod) ? "#e8f0fe" : "Maya".equals(phMethod) ? "#e6f9f0" : "#f0f0f0";
+                String phIcon = "GCash".equals(phMethod) ? "bi-phone-fill" : "Maya".equals(phMethod) ? "bi-credit-card-fill" : "bi-bank2";
+            %>
+            <div style="width:44px; height:44px; border-radius:12px; background:<%= phIconBg %>; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <i class="bi <%= phIcon %>" style="font-size:20px; color:<%= phIconColor %>;"></i>
+            </div>
+            <div>
+                <p class="fw-bold mb-0" style="font-size:14px;"><%= phRs.getString("method") %></p>
+                <p class="text-muted mb-0" style="font-size:12px;"><%= phRs.getString("account_number") %></p>
+                <p class="text-muted mb-0" style="font-size:11px;"><i class="bi bi-clock me-1"></i><%= phRs.getTimestamp("requested_at").toString().substring(0,16) %></p>
+            </div>
         </div>
+        <div class="text-end">
+            <p class="fw-bold mb-1" style="font-size:16px; color:#198754;">₱<%= String.format("%.2f", phRs.getDouble("amount")) %></p>
+            <span class="badge bg-<%= phBadge %> px-3 py-1" style="font-size:11px; border-radius:20px;"><%= phStatus %></span>
+        </div>
+    </div>
+</div>
+<%
+        }
+        phRs.close(); phPs.close(); phConn.close();
+        if (!hasHistory) {
+%>
+<div class="text-center text-muted py-3" style="font-size:13px;">
+    <i class="bi bi-inbox" style="font-size:28px; opacity:0.4;"></i>
+    <p class="mt-2 mb-0">No payout requests yet.</p>
+</div>
+<% } } } catch (Exception phEx) { phEx.printStackTrace(); } %>
 </div>
     </div><!-- end card-section -->
 </div><!-- end tab-payout -->
         </div><!-- end col-md-9 -->
     </div><!-- end row -->
 </div><!-- end container -->
+<!-- PAYOUT CONFIRMATION MODAL -->
+<div class="modal fade" id="payoutConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body p-4">
+                <div class="text-center mb-4">
+                    <div style="width:60px; height:60px; background:#f0fdf4; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 12px;">
+                        <i class="bi bi-send-fill" style="font-size:24px; color:#198754;"></i>
+                    </div>
+                    <h5 class="fw-bold mb-1">Confirm Payout</h5>
+                    <p class="text-muted mb-0" style="font-size:13px;">Please review your payout details before proceeding.</p>
+                </div>
+
+                <div class="rounded-3 p-3 mb-3" style="background:#f8f9fa; border:1px solid #e9ecef;">
+                    <div class="d-flex justify-content-between mb-2" style="font-size:13px;">
+                        <span class="text-muted">Method</span>
+                        <span class="fw-bold" id="confirmMethodText"></span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2" style="font-size:13px;">
+                        <span class="text-muted">Account</span>
+                        <span class="fw-bold" id="confirmAccountText"></span>
+                    </div>
+                  <hr class="my-2">
+                    <div class="d-flex justify-content-between mb-2" style="font-size:13px;">
+                        <span class="text-muted">Service Fee</span>
+                        <span class="fw-bold text-danger" id="confirmFeeText"></span>
+                    </div>
+                    <div class="d-flex justify-content-between" style="font-size:16px;">
+                        <span class="fw-bold">You'll Receive</span>
+                        <span class="fw-bold text-success" id="confirmAmountText"></span>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">
+                        <i class="bi bi-x me-1"></i> Cancel
+                    </button>
+                    <button class="btn btn-success w-100 fw-bold" onclick="bootstrap.Modal.getInstance(document.getElementById('payoutConfirmModal')).hide(); setTimeout(proceedPayout, 300);">
+                        <i class="bi bi-check2 me-1"></i> Proceed
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PAYOUT LOADING MODAL -->
+<div class="modal fade" id="payoutLoadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content rounded-4 border-0 shadow text-center p-4">
+            <div class="spinner-border text-success mx-auto mb-3" style="width:48px; height:48px;"></div>
+            <h6 class="fw-bold mb-1">Processing Payout</h6>
+            <p class="text-muted mb-0" style="font-size:13px;">Please wait while we process your request...</p>
+        </div>
+    </div>
+</div>
+
+<!-- PAYOUT SUCCESS MODAL (GCash / Maya) -->
+<div class="modal fade" id="payoutSuccessModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-5">
+                <div style="width:70px; height:70px; background:linear-gradient(135deg,#198754,#20c997); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+                    <i class="bi bi-check-lg" style="font-size:34px; color:white;"></i>
+                </div>
+                <h5 class="fw-bold mb-1">Payout Successful! 🎉</h5>
+                <p class="text-muted mb-1" style="font-size:14px;">
+                    <span id="successAmountText" class="fw-bold text-success"></span> has been sent to your <span id="successMethodText"></span> account.
+                </p>
+                <p class="text-muted" style="font-size:12px;">Transfer is instant. Check your app for confirmation.</p>
+           <button class="btn btn-success px-4 mt-2" onclick="bootstrap.Modal.getInstance(document.getElementById('payoutSuccessModal')).hide(); setTimeout(()=>window.location.href='seller.jsp?tab=payout',300)">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PAYOUT BANK MODAL -->
+<div class="modal fade" id="payoutBankModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-5">
+                <div style="width:70px; height:70px; background:linear-gradient(135deg,#0d6efd,#6610f2); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+                    <i class="bi bi-bank" style="font-size:30px; color:white;"></i>
+                </div>
+                <h5 class="fw-bold mb-1">Request Submitted!</h5>
+                <p class="text-muted mb-1" style="font-size:14px;">
+                    <span id="bankAmountText" class="fw-bold text-primary"></span> bank transfer is now being processed.
+                </p>
+                <p class="text-muted" style="font-size:12px;">Expected arrival: <strong>1-3 banking days</strong>. We'll notify you once it's completed.</p>
+             <button class="btn btn-primary px-4 mt-2" onclick="bootstrap.Modal.getInstance(document.getElementById('payoutBankModal')).hide(); setTimeout(()=>window.location.href='seller.jsp?tab=payout',300)">Got It</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast" style="display:none; position:fixed; bottom:24px; right:24px; background:#198754; color:white; padding:12px 20px; border-radius:10px; font-size:14px; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
     <i class="bi bi-check-circle me-2"></i><span id="toastMsg"></span>
@@ -1659,7 +1869,10 @@ try {
 <script>
 
 
+let selectedPayoutMethod = '';
+
 function selectPayoutMethod(el, method) {
+    selectedPayoutMethod = method;
     document.querySelectorAll('.payout-method-card').forEach(c => {
         c.style.background = '';
         c.style.borderColor = '#dee2e6';
@@ -1674,12 +1887,93 @@ function selectPayoutMethod(el, method) {
     document.getElementById('payoutBtn').style.display = 'block';
     document.getElementById('payoutAccount').placeholder = 'Enter your ' + labels[method];
 }
+
+function validatePayoutAmount(input) {
+    const balance = <%= payoutBalance %>;
+    const val = parseFloat(input.value);
+    const fee = (selectedPayoutMethod === 'Bank') ? 18 : 12;
+    const minAmount = 50 + fee;
+    if (val > balance) {
+        input.style.borderColor = '#dc3545';
+        input.style.background = '#fff5f5';
+        document.getElementById('amountError').innerText = 'Amount exceeds your available balance!';
+        document.getElementById('amountError').style.display = 'block';
+    } else if (val < minAmount && val > 0) {
+        input.style.borderColor = '#dc3545';
+        input.style.background = '#fff5f5';
+        document.getElementById('amountError').innerText = 'Minimum withdrawal is ₱' + minAmount + ' (includes ₱' + fee + ' fee)';
+        document.getElementById('amountError').style.display = 'block';
+    } else {
+        input.style.borderColor = '';
+        input.style.background = '';
+        document.getElementById('amountError').style.display = 'none';
+    }
+}
 function submitPayout() {
     const account = document.getElementById('payoutAccount').value.trim();
     const amount = parseFloat(document.getElementById('payoutAmount').value);
+    const balance = <%= payoutBalance %>;
+    const method = selectedPayoutMethod;
+    const fee = (method === 'Bank') ? 18 : 12;
+    const receive = amount - fee;
+    const minAmount = 50 + fee;
     if (!account) { alert('Please enter your account number!'); return; }
-    if (!amount || amount < 50) { alert('Minimum withdrawal is ₱50.00!'); return; }
-    alert('Payout request submitted! Processing within 1-3 business days.');
+    if (!amount || amount < minAmount) { alert('Minimum withdrawal is ₱' + minAmount + ' (includes ₱' + fee + ' fee)!'); return; }
+    if (amount > balance) { alert('Amount exceeds your available balance!'); return; }
+  
+    // Show confirmation modal first
+    document.getElementById('confirmMethodText').innerText = method;
+    document.getElementById('confirmAccountText').innerText = account;
+    document.getElementById('confirmFeeText').innerText = '₱' + fee.toFixed(2);
+    document.getElementById('confirmAmountText').innerText = '₱' + receive.toFixed(2);
+    new bootstrap.Modal(document.getElementById('payoutConfirmModal')).show();
+}
+
+function proceedPayout() {
+    bootstrap.Modal.getInstance(document.getElementById('payoutConfirmModal')).hide();
+    const account = document.getElementById('payoutAccount').value.trim();
+    const amount = parseFloat(document.getElementById('payoutAmount').value);
+    const method = selectedPayoutMethod;
+    const fee = (method === 'Bank') ? 18 : 12;
+    const receive = amount - fee;
+    setTimeout(() => {
+    new bootstrap.Modal(document.getElementById('payoutLoadingModal')).show();
+
+    fetch('PayoutServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'method=' + encodeURIComponent(method) +
+              '&account=' + encodeURIComponent(account) +
+              '&amount=' + encodeURIComponent(receive)
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('payoutLoadingModal')).hide();
+                alert(data.message || 'Error processing payout.');
+                return;
+            }
+            const isInstant = (method === 'GCash' || method === 'Maya');
+            const delay = isInstant ? 2500 : 3000;
+            setTimeout(() => {
+                bootstrap.Modal.getInstance(document.getElementById('payoutLoadingModal')).hide();
+                setTimeout(() => {
+                    if (isInstant) {
+                    	document.getElementById('successMethodText').innerText = method;
+                        document.getElementById('successAmountText').innerText = '₱' + receive.toFixed(2);
+                        new bootstrap.Modal(document.getElementById('payoutSuccessModal')).show();
+                    } else {
+                        document.getElementById('bankAmountText').innerText = '₱' + receive.toFixed(2);
+                        new bootstrap.Modal(document.getElementById('payoutBankModal')).show();
+                    }
+                }, 300);
+            }, delay);
+        })
+        .catch(() => {
+            bootstrap.Modal.getInstance(document.getElementById('payoutLoadingModal')).hide();
+            alert('Server error. Please try again.');
+        });
+    }, 300);
 }
 
     // SIDEBAR NAV — hide shop+profile sections, show selected tab
@@ -2127,8 +2421,13 @@ window.addEventListener('load', function() {
 
     const tab = params.get('tab');
     if (tab === 'orders') {
+        document.getElementById('section-shop').style.display = 'none';
+        document.getElementById('section-stats').style.display = 'none';
+        document.querySelectorAll('.tab-content-section').forEach(t => t.style.display = 'none');
         const ordersTab = document.getElementById('tab-orders');
         if (ordersTab) ordersTab.style.display = 'block';
+        const ordersLink = document.querySelector('.sidebar-nav a[href*="orders"]');
+        if (ordersLink) ordersLink.classList.add('active');
     } else if (tab === 'sales') {
         const link = document.querySelector('.sidebar-nav a[onclick*="sales"]');
         if (link) link.click();
@@ -2794,7 +3093,7 @@ function submitSellerCancel() {
     
     const fullReason = reason === 'Other' && other 
         ? other 
-        : reason + (other ? ' — ' + other : '') + ' (Cancelled by Seller)';
+        		: reason + (other ? ' - ' + other : '') + ' (Cancelled by Seller)';
 
     fetch('UpdateOrderServlet', {
         method: 'POST',
@@ -2915,6 +3214,35 @@ function applyShopLogoCrop() {
 function closeShopLogoCropModal() {
     document.getElementById('shopLogoCropModal').style.display = 'none';
 }
+
+function sellerRefundAction(refundId, action) {
+    const label = action === 'approve'
+        ? 'Approve this refund? Amount will be deducted from your revenue.'
+        : 'Reject this refund request?';
+    if (!confirm(label)) return;
+
+    fetch('RefundServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'action=' + action + '&refundId=' + refundId
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('successBarMsg').textContent =
+                action === 'approve' ? 'Refund approved! ✅' : 'Refund rejected. ✅';
+            document.getElementById('successBar').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('successBar').style.display = 'none';
+                location.reload();
+            }, 1500);
+        } else {
+            alert(data.message || 'Error processing refund.');
+        }
+    })
+    .catch(() => alert('Server error. Please try again.'));
+}
+
 </script>
 <!-- SHOP LOGO CROP MODAL -->
 <div class="crop-modal-overlay" id="shopLogoCropModal">

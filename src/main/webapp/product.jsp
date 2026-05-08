@@ -141,11 +141,11 @@ storeRatRs.close(); storeRatPs.close(); conn.close();
 .product-card { background: white; border-radius: 20px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 32px; }
 .price-tag { font-size: 34px; font-weight: 900; color: #dc3545; letter-spacing: -0.5px; }
 .stock-badge { font-size: 12px; padding: 5px 14px; border-radius: 20px; font-weight: 600; }
-.add-cart-btn { background: linear-gradient(135deg, #0d6efd, #6610f2); border: none; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 700; letter-spacing: 0.3px; transition: opacity 0.2s, transform 0.1s; }
-.add-cart-btn:hover { opacity: 0.92; transform: translateY(-1px); }
-.btn-success { border-radius: 14px !important; padding: 14px !important; font-size: 15px !important; transition: opacity 0.2s, transform 0.1s !important; }
-.btn-success:hover { opacity: 0.92; transform: translateY(-1px); }
-.btn-outline-danger { border-radius: 14px !important; padding: 13px !important; }
+.add-cart-btn { background: #3d7edd; border: none; border-radius: 8px; padding: 13px; font-size: 15px; font-weight: 600; transition: background 0.2s; }
+.add-cart-btn:hover { background: #2d6ec8; }
+.btn-success { background: #3a9e6e !important; border-color: #3a9e6e !important; border-radius: 8px !important; padding: 13px !important; font-size: 15px !important; font-weight: 600 !important; transition: background 0.2s !important; }
+.btn-success:hover { background: #2e8a5c !important; border-color: #2e8a5c !important; }
+#wishlistBtn { border-radius: 8px !important; padding: 13px !important; font-size: 15px !important; font-weight: 600 !important; transition: background 0.2s, color 0.2s !important; }
 .seller-card { background: linear-gradient(135deg, #f0f4ff, #e8f5e9); border-radius: 14px; padding: 16px; margin-top: 16px; border: 1px solid #e0e8ff; transition: box-shadow 0.2s; }
 .seller-card:hover { box-shadow: 0 4px 16px rgba(13,110,253,0.1); }
 .avatar-circle { width: 36px; height: 36px; border-radius: 50%; background: #0d6efd; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; overflow: hidden; }
@@ -386,15 +386,18 @@ try {
                 </div>
                <span class="text-muted" style="font-size:12px;" id="availableText"><%= !variations.isEmpty() ? "Select a size first" : "/ " + stock + " available" %></span>
             </div>
-            <button class="btn btn-primary add-cart-btn w-100 text-white" onclick="addToCart(<%= productId %>, <%= !variations.isEmpty() %>)"> 
-                <i class="bi bi-cart-plus"></i> Add to Cart
-            </button>
-            <button class="btn btn-success w-100 mt-2 fw-bold" onclick="buyNow(<%= productId %>, <%= !variations.isEmpty() %>)">
-                <i class="bi bi-lightning-fill"></i> Buy Now
-            </button>
-            <button class="btn btn-outline-danger w-100 mt-2" id="wishlistBtn" onclick="toggleWishlist(<%= productId %>)">
-                <i class="bi bi-heart" id="wishlistIcon"></i> <span id="wishlistText">Add to Wishlist</span>
-            </button>
+            <div class="d-flex gap-2 mb-2">
+    <button class="btn btn-primary add-cart-btn w-100 text-white" onclick="addToCart(<%= productId %>, <%= !variations.isEmpty() %>)"> 
+        <i class="bi bi-cart-plus"></i> Add to Cart
+    </button>
+    <button class="btn btn-success w-100 fw-bold" onclick="buyNow(<%= productId %>, <%= !variations.isEmpty() %>)">
+        <i class="bi bi-lightning-fill"></i> Buy Now
+    </button>
+</div>
+<button class="btn w-100" id="wishlistBtn" onclick="toggleWishlist(<%= productId %>)"
+    style="font-size:16px; font-weight:700; border:2px solid #dc3545; color:#dc3545; background:white; padding:14px; border-radius:10px; transition:all 0.25s ease;">
+    <i class="bi bi-heart" id="wishlistIcon"></i> <span id="wishlistText">Add to Wishlist</span>
+</button>
             <% if (!variations.isEmpty()) { %>
             <p class="text-muted mt-2 mb-0" style="font-size:11px;"><i class="bi bi-info-circle"></i> Please select your preferred options above.</p>
             <% } %>
@@ -724,13 +727,17 @@ function toggleWishlist(productId) {
             if (data.action === 'added') {
                 icon.className = 'bi bi-heart-fill';
                 text.textContent = 'Wishlisted';
-                document.getElementById('wishlistBtn').classList.add('btn-danger');
-                document.getElementById('wishlistBtn').classList.remove('btn-outline-danger');
+                const wb = document.getElementById('wishlistBtn');
+                wb.style.background = '#dc3545';
+                wb.style.color = 'white';
+                icon.className = 'bi bi-heart-fill';
             } else {
                 icon.className = 'bi bi-heart';
                 text.textContent = 'Add to Wishlist';
-                document.getElementById('wishlistBtn').classList.remove('btn-danger');
-                document.getElementById('wishlistBtn').classList.add('btn-outline-danger');
+                const wb = document.getElementById('wishlistBtn');
+                wb.style.background = 'white';
+                wb.style.color = '#dc3545';
+                icon.className = 'bi bi-heart';
             }
         }
     });
@@ -744,8 +751,9 @@ window.addEventListener('load', function() {
         if (data.wishlisted) {
             document.getElementById('wishlistIcon').className = 'bi bi-heart-fill';
             document.getElementById('wishlistText').textContent = 'Wishlisted';
-            document.getElementById('wishlistBtn').classList.add('btn-danger');
-            document.getElementById('wishlistBtn').classList.remove('btn-outline-danger');
+            const wbLoad = document.getElementById('wishlistBtn');
+            wbLoad.style.background = '#dc3545';
+            wbLoad.style.color = 'white';
         }
     });
 });

@@ -205,7 +205,33 @@ if (cartTotal == null) cartTotal = 0.0;
                         <i class="bi bi-circle text-muted ms-auto" id="check_Card"></i>
                     </div>
                 </div>
+               <%
+                double checkoutWalletBal = 0;
+                try {
+                    Integer ckCustId = (Integer) session.getAttribute("customerId");
+                    if (ckCustId == null) ckCustId = (int) session.getAttribute("userId");
+                    java.sql.Connection ckWConn = com.shopeasy.DBConnection.getConnection();
+                    java.sql.PreparedStatement ckWPs = ckWConn.prepareStatement(
+                        "SELECT wallet_balance FROM customer WHERE customer_id=?");
+                    ckWPs.setInt(1, ckCustId);
+                    java.sql.ResultSet ckWRs = ckWPs.executeQuery();
+                    if (ckWRs.next()) checkoutWalletBal = ckWRs.getDouble("wallet_balance");
+                    ckWRs.close(); ckWPs.close(); ckWConn.close();
+                } catch (Exception ckWEx) { ckWEx.printStackTrace(); }
+                %>
+               <div class="payment-option <%= checkoutWalletBal >= cartTotal ? "" : "opacity-50" %>"
+     onclick="<%= checkoutWalletBal >= cartTotal ? "selectPayment(this, 'Wallet')" : "alert('Insufficient wallet balance for this order.')" %>">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="bi bi-wallet2 fs-4 text-primary"></i>
+                        <div>
+                            <p class="mb-0 fw-bold" style="font-size:14px;">ShopEasy Wallet</p>
+                            <p class="mb-0 text-muted" style="font-size:12px;">Balance: ₱<%= String.format("%.2f", checkoutWalletBal) %></p>
+                        </div>
+                        <i class="bi bi-circle text-muted ms-auto" id="check_Wallet"></i>
+                    </div>
+                </div>
                 <input type="hidden" id="selectedPayment" value="COD">
+                <input type="hidden" id="walletBalance" value="<%= checkoutWalletBal %>">
             </div>
 
             <!-- ORDER ITEMS -->
@@ -251,9 +277,13 @@ if (cartTotal == null) cartTotal = 0.0;
                     <span class="text-success">Free</span>
                 </div>
                 <hr>
+               <div id="walletDiscountRow" class="d-flex justify-content-between mb-2 text-success" style="display:none !important; font-size:13px;">
+                    <span><i class="bi bi-wallet2 me-1"></i>Wallet Applied</span>
+                    <span id="walletDiscountAmt">-₱0.00</span>
+                </div>
                 <div class="d-flex justify-content-between fw-bold fs-5 mb-4">
                     <span>Total</span>
-                    <span class="text-primary">₱<%= String.format("%.2f", cartTotal) %></span>
+                    <span class="text-primary" id="finalTotalDisplay">₱<%= String.format("%.2f", cartTotal) %></span>
                 </div>
                 <button class="btn btn-primary place-order-btn w-100 text-white" onclick="placeOrder()">
                     <i class="bi bi-bag-check"></i> Place Order
@@ -283,17 +313,30 @@ if (cartTotal == null) cartTotal = 0.0;
 <script>
     let selectedPayment = 'COD';
 
+    const cartTotal = <%= cartTotal %>;
+
     function selectPayment(el, method) {
-        document.querySelectorAll('.payment-option').forEach(o => {
-            o.classList.remove('selected');
-        });
-        document.querySelectorAll('[id^="check_"]').forEach(i => {
-            i.className = 'bi bi-circle text-muted ms-auto';
-        });
+        document.querySelectorAll('.payment-option').forEach(o => o.classList.remove('selected'));
+        document.querySelectorAll('[id^="check_"]').forEach(i => i.className = 'bi bi-circle text-muted ms-auto');
         el.classList.add('selected');
         document.getElementById('check_' + method).className = 'bi bi-check-circle-fill text-primary ms-auto';
         selectedPayment = method;
         document.getElementById('selectedPayment').value = method;
+
+        const walletBal = parseFloat(document.getElementById('walletBalance').value) || 0;
+        const discountRow = document.getElementById('walletDiscountRow');
+        const finalDisplay = document.getElementById('finalTotalDisplay');
+
+        if (method === 'Wallet') {
+            const deduct = Math.min(walletBal, cartTotal);
+            const finalAmt = Math.max(0, cartTotal - deduct);
+            discountRow.style.display = 'flex';
+            document.getElementById('walletDiscountAmt').innerText = '-₱' + deduct.toFixed(2);
+            finalDisplay.innerText = '₱' + finalAmt.toFixed(2);
+        } else {
+            discountRow.style.display = 'none';
+            finalDisplay.innerText = '₱' + cartTotal.toFixed(2);
+        }
     }
 
     function placeOrder() {
@@ -320,6 +363,8 @@ if (cartTotal == null) cartTotal = 0.0;
                   '&shipAddress=' + encodeURIComponent(address) +
                   '&shipPhone=' + encodeURIComponent(phone) +
                   '&paymentMethod=' + encodeURIComponent(selectedPayment) +
+                  '&useWallet=' + (selectedPayment === 'Wallet' ? 'true' : 'false') +
+                  '&walletDeduct=' + (selectedPayment === 'Wallet' ? Math.min(parseFloat(document.getElementById('walletBalance').value)||0, cartTotal).toFixed(2) : '0') +
                   '&isBuyNow=<%= isBuyNow ? "true" : "false" %>'
         }).then(res => res.json())
           .then(data => {

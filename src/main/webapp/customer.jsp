@@ -378,6 +378,7 @@ request.setAttribute("navBackUrl", "index.jsp");
                     <a href="#" onclick="showTab('address', this)"><i class="bi bi-geo-alt"></i> Addresses</a>
                     <a href="#" onclick="showTab('wishlist', this)"><i class="bi bi-heart"></i> Wishlist</a>
                     <a href="#" onclick="showTab('security', this)"><i class="bi bi-shield-lock"></i> Security</a>
+                    <a href="#" onclick="showTab('wallet', this)"><i class="bi bi-wallet2"></i> My Wallet</a>
                     <a href="#" onclick="showTab('notifications', this)"><i class="bi bi-bell"></i> Notifications
                         <% if (unreadCount > 0) { %>
                         <span class="badge bg-danger ms-auto" style="font-size:10px;"><%= unreadCount %></span>
@@ -424,7 +425,8 @@ request.setAttribute("navBackUrl", "index.jsp");
     </div>
     <div class="col-6 col-md-3">
         <div class="stat-box"><div class="stat-num"><%= statCancelled %></div><div class="stat-label">Cancelled</div></div>
-    </div>
+   </div>
+</div><!-- end stats row -->
 
             <!-- MY PROFILE TAB -->
 <div id="tab-profile" class="tab-content-section active">
@@ -560,7 +562,8 @@ request.setAttribute("navBackUrl", "index.jsp");
     <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Shipped', this)">To Receive</a></li>
     <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Completed', this)">Completed</a></li>
     <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancellation Requested', this)">Cancel Requests</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancelled', this)">Cancelled</a></li>
+   <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancelled', this)">Cancelled</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Refund', this)">Returns/Refunds</a></li>
 </ul>
               <% if (myOrders.isEmpty()) { %>
                         <div class="text-center py-4 text-muted">
@@ -569,7 +572,7 @@ request.setAttribute("navBackUrl", "index.jsp");
                         </div>
                     <% } else { %>
                         <% for (java.util.Map<String, Object> ord : myOrders) { %>
-                        <div class="order-item order-card" data-status="<%= ord.get("status") %>" data-payment="<%= ord.get("payment") %>">
+                  <div class="order-item order-card" data-status="<%= ord.get("status") %>" data-payment="<%= ord.get("payment") %>" data-refund-status="">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
                                     <p class="mb-0 fw-bold" style="font-size:14px;">Order #SE-<%= ord.get("id") %></p>
@@ -700,15 +703,66 @@ request.setAttribute("navBackUrl", "index.jsp");
                 rvChkRs.close(); rvChkPs.close(); rvChkConn.close();
             } catch (Exception rvEx) { rvEx.printStackTrace(); }
         %>
-        <% if (hasReview) { %>
-            <span class="badge bg-success px-3 py-2" style="font-size:12px;">
-                <i class="bi bi-check-circle"></i> Reviewed
-            </span>
-       <% } else { %>
+<% if (hasReview) { %>
+        <span class="badge bg-success px-3 py-2" style="font-size:12px;">
+            <i class="bi bi-check-circle"></i> Reviewed
+        </span>
+   <% } else { %>
 <button class="btn btn-warning btn-sm text-dark fw-semibold"
     onclick="openReviewModal(<%= ord.get("id") %>, <%= firstProductId %>)">
     <i class="bi bi-star-fill"></i> Write a Review
 </button>
+<% } %>
+<%
+    // Check refund status + eligibility
+    String refundStatus = null;
+    boolean refundEligible = false;
+    try {
+        java.sql.Connection rfConn = com.shopeasy.DBConnection.getConnection();
+        // Check existing refund
+        java.sql.PreparedStatement rfPs = rfConn.prepareStatement(
+            "SELECT status FROM refund_requests WHERE order_id=? AND customer_id=?");
+        Integer rfCustId = (Integer) session.getAttribute("customerId");
+        if (rfCustId == null) rfCustId = (int) session.getAttribute("userId");
+        rfPs.setInt(1, (Integer) ord.get("id"));
+        rfPs.setInt(2, rfCustId);
+        java.sql.ResultSet rfRs = rfPs.executeQuery();
+        if (rfRs.next()) refundStatus = rfRs.getString("status");
+        rfRs.close(); rfPs.close();
+        // Check 7-day window
+        java.sql.PreparedStatement dayPs = rfConn.prepareStatement(
+            "SELECT DATEDIFF(NOW(), order_date) FROM orders WHERE order_id=?");
+        dayPs.setInt(1, (Integer) ord.get("id"));
+        java.sql.ResultSet dayRs = dayPs.executeQuery();
+        int daysSince = dayRs.next() ? dayRs.getInt(1) : 999;
+        dayRs.close(); dayPs.close(); rfConn.close();
+        refundEligible = (daysSince <= 7);
+    } catch (Exception rfEx) { rfEx.printStackTrace(); }
+%>
+<% if (refundStatus != null) { %>
+   <% if ("Pending".equals(refundStatus)) { %>
+    <span class="badge px-3 py-2" style="font-size:12px; background:#ffc107; color:#333;">
+        <i class="bi bi-hourglass-split"></i> Refund Pending
+    </span>
+    <button class="btn btn-outline-secondary btn-sm fw-semibold ms-1"
+        onclick="cancelRefundRequest(<%= ord.get("id") %>)">
+        <i class="bi bi-x-circle"></i> Cancel Return
+    </button>
+ <% } else if ("Refunded".equals(refundStatus)) { %>
+        <span class="badge px-3 py-2" style="font-size:12px; background:#6c757d; color:white;">
+            <i class="bi bi-cash-coin"></i> Refunded
+        </span>
+    <% } else if ("Rejected".equals(refundStatus)) { %>
+        <span class="badge bg-danger px-3 py-2" style="font-size:12px;">
+            <i class="bi bi-x-circle"></i> Refund Rejected
+        </span>
+<% } %>
+    <script>document.currentScript.closest('.order-card').dataset.refundStatus = '<%= refundStatus %>';</script>
+<% } else if (refundEligible) { %>
+    <button class="btn btn-outline-danger btn-sm fw-semibold"
+        onclick="openRefundModal(<%= ord.get("id") %>)">
+        <i class="bi bi-arrow-counterclockwise"></i> Request Refund
+    </button>
 <% } %>
     <% } %>
     </div>
@@ -947,7 +1001,6 @@ request.setAttribute("navBackUrl", "index.jsp");
         <% } %>
     </div>
         </div>
-            </div>
 
             <!-- WISHLIST TAB -->
             <div id="tab-wishlist" class="tab-content-section">
@@ -959,8 +1012,8 @@ request.setAttribute("navBackUrl", "index.jsp");
             if (wlCustId == null) wlCustId = (int) session.getAttribute("userId");
             java.sql.Connection wlConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement wlPs = wlConn.prepareStatement(
-                "SELECT p.product_id, p.name, p.price, p.image, p.stock " +
-                "FROM wishlist w JOIN product p ON w.product_id = p.product_id " +
+            		"SELECT p.product_id, p.name, p.price, p.original_price, p.image, p.stock " +
+            				"FROM wishlist w JOIN product p ON w.product_id = p.product_id " +
                 "WHERE w.customer_id = ? ORDER BY w.created_at DESC");
             wlPs.setInt(1, wlCustId);
             java.sql.ResultSet wlRs = wlPs.executeQuery();
@@ -980,7 +1033,23 @@ request.setAttribute("navBackUrl", "index.jsp");
             <% } %>
             <div class="flex-grow-1">
                 <p class="mb-0 fw-bold" style="font-size:14px;"><%= wlRs.getString("name") %></p>
-                <p class="mb-0 text-primary fw-bold">₱<%= String.format("%.2f", wlRs.getDouble("price")) %></p>
+                <%
+double wlOrigPrice = wlRs.getDouble("original_price");
+double wlRealPrice = wlRs.getDouble("price");
+int wlDiscPct = 0;
+if (wlOrigPrice > 0 && wlOrigPrice < wlRealPrice) {
+    wlDiscPct = (int) Math.round((wlRealPrice - wlOrigPrice) / wlRealPrice * 100);
+}
+%>
+<% if (wlDiscPct > 0) { %>
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= String.format("%.2f", wlRealPrice) %></span>
+        <span class="badge bg-danger" style="font-size:10px;">-<%= wlDiscPct %>% OFF</span>
+    </div>
+    <p class="mb-0 text-primary fw-bold">₱<%= String.format("%.2f", wlOrigPrice) %></p>
+<% } else { %>
+    <p class="mb-0 text-primary fw-bold">₱<%= String.format("%.2f", wlRealPrice) %></p>
+<% } %>
                 <% if (wlRs.getInt("stock") > 0) { %>
                     <span class="badge bg-success" style="font-size:10px;">In Stock</span>
                 <% } else { %>
@@ -1129,9 +1198,74 @@ request.setAttribute("navBackUrl", "index.jsp");
                     <% } %>
                     </div>
               </div>
+     </div><!-- end tab-notifications -->
+        <!-- WALLET TAB -->
+      <div id="tab-wallet" class="tab-content-section" style="display:none;">
+            <div class="card-section">
+        <p class="section-title"><i class="bi bi-wallet2 text-primary"></i> My Wallet</p>
+        <%
+        double custWalletBalance = 0;
+        java.util.List<java.util.Map<String,Object>> walletTxns = new java.util.ArrayList<>();
+        try {
+            Integer wCustId = (Integer) session.getAttribute("customerId");
+            if (wCustId == null) wCustId = (int) session.getAttribute("userId");
+            java.sql.Connection wConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement wPs = wConn.prepareStatement(
+                "SELECT wallet_balance FROM customer WHERE customer_id=?");
+            wPs.setInt(1, wCustId);
+            java.sql.ResultSet wRs = wPs.executeQuery();
+            if (wRs.next()) custWalletBalance = wRs.getDouble("wallet_balance");
+            wRs.close(); wPs.close();
+            java.sql.PreparedStatement txPs = wConn.prepareStatement(
+                "SELECT amount, type, description, created_at FROM wallet_transactions WHERE customer_id=? ORDER BY created_at DESC LIMIT 20");
+            txPs.setInt(1, wCustId);
+            java.sql.ResultSet txRs = txPs.executeQuery();
+            while (txRs.next()) {
+                java.util.Map<String,Object> tx = new java.util.HashMap<>();
+                tx.put("amount", txRs.getDouble("amount"));
+                tx.put("type", txRs.getString("type"));
+                tx.put("description", txRs.getString("description"));
+                tx.put("date", txRs.getTimestamp("created_at").toString().substring(0,16));
+                walletTxns.add(tx);
+            }
+            txRs.close(); txPs.close(); wConn.close();
+        } catch (Exception wEx) { wEx.printStackTrace(); }
+        %>
+        <!-- Balance Card -->
+        <div class="p-4 rounded-3 mb-4 text-center" style="background:linear-gradient(135deg,#0d6efd,#6610f2); color:white;">
+            <p class="mb-1" style="font-size:13px; opacity:0.85;">Available Wallet Balance</p>
+            <h2 class="fw-bold mb-0" style="font-size:38px;">₱<%= String.format("%.2f", custWalletBalance) %></h2>
+            <p class="mb-0 mt-1" style="font-size:12px; opacity:0.75;">Can be used on your next order</p>
         </div>
+        <!-- Transaction History -->
+        <p class="fw-bold mb-3" style="font-size:14px;"><i class="bi bi-clock-history me-1 text-primary"></i> Transaction History</p>
+        <% if (walletTxns.isEmpty()) { %>
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-wallet2" style="font-size:2rem; opacity:0.3;"></i>
+                <p class="mt-2" style="font-size:13px;">No transactions yet.</p>
+            </div>
+        <% } else { for (java.util.Map<String,Object> tx : walletTxns) { %>
+            <div class="d-flex justify-content-between align-items-center p-3 mb-2 rounded-3"
+                 style="background:#f0f4ff; border:1px solid #d0e0ff; font-size:13px;">
+                <div class="d-flex align-items-center gap-3">
+                   <div style="width:40px; height:40px; border-radius:50%; background:<%= "purchase".equals(tx.get("type")) ? "#dc3545" : "#198754" %>; display:flex; align-items:center; justify-content:center;">
+    <i class="bi bi-arrow-<%= "purchase".equals(tx.get("type")) ? "up" : "down" %>-circle-fill" style="color:white; font-size:18px;"></i>
+</div>
+                    <div>
+                        <p class="mb-0 fw-bold"><%= tx.get("description") %></p>
+                        <p class="mb-0 text-muted" style="font-size:11px;"><i class="bi bi-clock me-1"></i><%= tx.get("date") %></p>
+                    </div>
+                </div>
+               <span class="fw-bold" style="font-size:15px; color:<%= "purchase".equals(tx.get("type")) ? "#dc3545" : "#198754" %>;">
+    <%= "purchase".equals(tx.get("type")) ? "-" : "+" %>₱<%= String.format("%.2f", (double)tx.get("amount")) %>
+</span>
+            </div>
+        <% } } %>
+</div>
+        </div><!-- end tab-wallet -->
         </div><!-- end col-md-9 -->
     </div><!-- end row -->
+</div><!-- end container -->
 
 <!-- GREEN BAR NOTIFICATION -->
 <div id="successBar" style="display:none; position:fixed; top:0; left:0; width:100%; background:#198754; color:white; padding:12px 20px; z-index:99999; text-align:center; font-size:14px; font-weight:600; box-shadow:0 2px 8px rgba(0,0,0,0.15); margin:0;">
@@ -1167,8 +1301,19 @@ if (!bdayVal) {
 </script>
 <script>
 
+//Hide Write a Review button kapag refunded or pending
+document.querySelectorAll('.order-card').forEach(card => {
+    const refundStatus = card.dataset.refundStatus;
+    if (refundStatus === 'Refunded' || refundStatus === 'Pending') {
+        const reviewBtn = card.querySelector('.btn-warning');
+        if (reviewBtn) reviewBtn.style.display = 'none';
+    }
+});
 
 window.addEventListener('load', function() {
+	if (profileParams.get('tab') === 'orders') {
+	    filterOrders('All', document.querySelector('.nav-link[onclick*="All"]'));
+	}
     const profileParams = new URLSearchParams(window.location.search);
     const tabParam = profileParams.get('tab');
     const msg = profileParams.get('msg');
@@ -1183,9 +1328,18 @@ window.addEventListener('load', function() {
         setTimeout(() => { bar.style.display = 'none'; }, 3000);
         window.history.replaceState({}, '', 'customer.jsp');
     }
+    if (!tabParam || tabParam === 'wallet') {
+        document.querySelectorAll('.tab-content-section').forEach(t => { t.classList.remove('active'); t.style.display = 'none'; });
+        const activeTab = tabParam || 'profile';
+        document.getElementById('tab-' + activeTab).style.display = 'block';
+        document.getElementById('tab-' + activeTab).classList.add('active');
+        const activeLink = document.querySelector('.sidebar-nav a[onclick*="' + activeTab + '"]');
+        if (activeLink) { document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active')); activeLink.classList.add('active'); }
+    }
     if (tabParam === 'orders') {
         document.querySelectorAll('.tab-content-section').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+        document.getElementById('tab-orders').style.display = 'block';
         document.getElementById('tab-orders').classList.add('active');
         document.querySelector('.sidebar-nav a[onclick*="orders"]').classList.add('active');
     }
@@ -1230,8 +1384,12 @@ window.addEventListener('load', function() {
 
     function showTab(tab, el, e) {
         if (e) e.preventDefault();
-        document.querySelectorAll('.tab-content-section').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content-section').forEach(t => {
+            t.classList.remove('active');
+            t.style.display = 'none';
+        });
         document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+        document.getElementById('tab-' + tab).style.display = 'block';
         document.getElementById('tab-' + tab).classList.add('active');
         el.classList.add('active');
     }
@@ -1492,6 +1650,8 @@ window.addEventListener('load', function() {
                 show = card.dataset.status === 'Pending' || card.dataset.status === 'Processing';
             } else if (status === 'Shipped') {
                 show = card.dataset.status === 'Shipped';
+            } else if (status === 'Refund') {
+                show = card.dataset.refundStatus !== undefined && card.dataset.refundStatus !== '';
             } else {
                 show = card.dataset.status === status;
             }
@@ -1824,7 +1984,69 @@ window.addEventListener('load', function() {
         })
         .catch(err => alert('Error: ' + err));
     }
-    
+    function openRefundModal(orderId) {
+        document.getElementById('refundOrderId').value = orderId;
+        document.getElementById('refundReason').value = '';
+        document.getElementById('refundDescription').value = '';
+        document.getElementById('refundProofInput').value = '';
+        document.getElementById('refundProofPreview').style.display = 'none';
+        document.getElementById('refundError').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('refundModal')).show();
+    }
+
+    function previewRefundProof(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('refundProofImg').src = e.target.result;
+                document.getElementById('refundProofPreview').style.display = 'block';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function submitRefund() {
+        const orderId = document.getElementById('refundOrderId').value;
+        const reason = document.getElementById('refundReason').value;
+        const description = document.getElementById('refundDescription').value.trim();
+        const proofImage = document.getElementById('refundProofImg').src || '';
+        const errEl = document.getElementById('refundError');
+
+        if (!reason) {
+            errEl.innerText = 'Please select a reason.';
+            errEl.style.display = 'block';
+            return;
+        }
+        errEl.style.display = 'none';
+
+        fetch('RefundServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=submit&orderId=' + orderId +
+                  '&reason=' + encodeURIComponent(reason) +
+                  '&description=' + encodeURIComponent(description) +
+                  '&proofImage=' + encodeURIComponent(
+                      document.getElementById('refundProofPreview').style.display !== 'none'
+                      ? document.getElementById('refundProofImg').src : '')
+        })
+        .then(r => r.json())
+       .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('refundModal')).hide();
+            showToast('Refund request submitted successfully!', 'success');
+            setTimeout(() => {
+                window.location.href = 'customer.jsp?tab=orders';
+            }, 1500);
+            } else {
+                errEl.innerText = data.message || 'Error submitting refund.';
+                errEl.style.display = 'block';
+            }
+        })
+        .catch(() => {
+            errEl.innerText = 'Server error. Please try again.';
+            errEl.style.display = 'block';
+        });
+    }
 </script>
 <!-- RE	VIEW MODAL -->
 <div id="reviewModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000;">
@@ -1986,7 +2208,52 @@ window.addEventListener('load', function() {
         </div>
     </div>
 </div>
-
+<!-- REFUND REQUEST MODAL -->
+<div class="modal fade" id="refundModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body p-4">
+                <div class="text-center mb-3">
+                    <div style="width:56px; height:56px; background:#fff3cd; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 10px;">
+                        <i class="bi bi-arrow-counterclockwise" style="font-size:24px; color:#fd7e14;"></i>
+                    </div>
+                    <h5 class="fw-bold mb-1">Request Return / Refund</h5>
+                    <p class="text-muted mb-0" style="font-size:13px;">Please provide details for your refund request.</p>
+                </div>
+                <input type="hidden" id="refundOrderId">
+                <div class="mb-3">
+                    <label class="form-label fw-bold" style="font-size:13px;">Reason <span class="text-danger">*</span></label>
+                    <select class="form-select" id="refundReason" style="font-size:13px;">
+                        <option value="">-- Select a reason --</option>
+                        <option value="Wrong item received">Wrong item received</option>
+                        <option value="Damaged product">Damaged product</option>
+                        <option value="Missing item">Missing item</option>
+                        <option value="Item not as described">Item not as described</option>
+                        <option value="Change of mind">Change of mind</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" style="font-size:13px;">Description <span class="text-muted fw-normal">(optional)</span></label>
+                    <textarea class="form-control" id="refundDescription" rows="3" placeholder="Describe your issue..." style="font-size:13px;"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" style="font-size:13px;">Proof Image <span class="text-muted fw-normal">(optional)</span></label>
+                    <input type="file" class="form-control" id="refundProofInput" accept="image/*" onchange="previewRefundProof(this)" style="font-size:13px;">
+                    <div id="refundProofPreview" class="mt-2" style="display:none;">
+                        <img id="refundProofImg" src="" style="width:100px; height:100px; object-fit:cover; border-radius:8px; border:2px solid #dee2e6;">
+                    </div>
+                </div>
+                <div id="refundError" class="text-danger mb-2" style="display:none; font-size:13px;"></div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger w-100 fw-bold" onclick="submitRefund()">
+                        <i class="bi bi-send me-1"></i> Submit Request
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Seller Center Loading Overlay -->
 <div id="sellerCenterOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95);
      z-index:99999; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
@@ -2001,6 +2268,64 @@ window.addEventListener('load', function() {
 @keyframes scSpin { to { transform: rotate(360deg); } }
 </style>
 <script>
+function openRefundModal(orderId) {
+    document.getElementById('refundOrderId').value = orderId;
+    document.getElementById('refundReason').value = '';
+    document.getElementById('refundDescription').value = '';
+    document.getElementById('refundProofInput').value = '';
+    document.getElementById('refundProofPreview').style.display = 'none';
+    document.getElementById('refundError').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('refundModal')).show();
+}
+
+function previewRefundProof(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('refundProofImg').src = e.target.result;
+            document.getElementById('refundProofPreview').style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function submitRefund() {
+    const orderId = document.getElementById('refundOrderId').value;
+    const reason = document.getElementById('refundReason').value;
+    const description = document.getElementById('refundDescription').value.trim();
+    const errEl = document.getElementById('refundError');
+    if (!reason) {
+        errEl.innerText = 'Please select a reason.';
+        errEl.style.display = 'block';
+        return;
+    }
+    errEl.style.display = 'none';
+    const hasProof = document.getElementById('refundProofPreview').style.display !== 'none';
+    const proofSrc = hasProof ? document.getElementById('refundProofImg').src : '';
+    fetch('RefundServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'action=submit&orderId=' + orderId +
+              '&reason=' + encodeURIComponent(reason) +
+              '&description=' + encodeURIComponent(description) +
+              '&proofImage=' + encodeURIComponent(proofSrc)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+        	bootstrap.Modal.getInstance(document.getElementById('refundModal')).hide();
+        	showToast('Refund request submitted successfully!', 'success');
+        	setTimeout(() => { window.location.href = 'customer.jsp?tab=orders'; }, 1500);
+        } else {
+            errEl.innerText = data.message || 'Error submitting refund.';
+            errEl.style.display = 'block';
+        }
+    })
+    .catch(() => {
+        errEl.innerText = 'Server error. Please try again.';
+        errEl.style.display = 'block';
+    });
+}
 function goToSellerCenter() {
     var overlay = document.getElementById('sellerCenterOverlay');
     overlay.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:99999; flex-direction:column; align-items:center; justify-content:center; gap:16px;";
@@ -2008,6 +2333,27 @@ function goToSellerCenter() {
         window.location.href = 'seller.jsp';
     }, 1500);
 }
+function cancelRefundRequest(orderId) {
+    if (!confirm('Cancel your refund request?')) return;
+    fetch('CancelRefundServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'orderId=' + orderId
+    }).then(r => r.text()).then(() => location.reload());
+}
+
+function showToast(message, type) {
+    if (!type) type = 'success';
+    const toast = document.createElement('div');
+    const bg = type === 'success' ? '#198754' : '#dc3545';
+    toast.style.cssText = 'position:fixed; bottom:30px; left:50%; transform:translateX(-50%);' +
+        'background:' + bg + '; color:white; padding:14px 28px; border-radius:10px;' +
+        'font-weight:600; font-size:15px; z-index:99999; box-shadow:0 4px 15px rgba(0,0,0,0.2);';
+    toast.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' + message;
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 2500);
+}
+   
 </script>
 </body>
 

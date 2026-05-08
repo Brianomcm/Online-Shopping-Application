@@ -66,7 +66,33 @@ public class CancelOrderServlet extends HttpServlet {
                 stockPs.setInt(1, orderId);
                 stockPs.executeUpdate();
                 stockPs.close();
+             // Refund wallet if payment was via Wallet
+                PreparedStatement paymentPs = conn.prepareStatement(
+                    "SELECT payment_method, total_amount FROM orders WHERE order_id=?");
+                paymentPs.setInt(1, orderId);
+                ResultSet paymentRs = paymentPs.executeQuery();
+                if (paymentRs.next()) {
+                    String payMethod = paymentRs.getString("payment_method");
+                    double totalAmt = paymentRs.getDouble("total_amount");
+                    if ("Wallet".equals(payMethod) && totalAmt > 0) {
+                        PreparedStatement walletPs = conn.prepareStatement(
+                            "UPDATE customers SET wallet_balance = wallet_balance + ? WHERE customer_id=?");
+                        walletPs.setDouble(1, totalAmt);
+                        walletPs.setInt(2, customerId);
+                        walletPs.executeUpdate();
+                        walletPs.close();
 
+                        PreparedStatement walletTxPs = conn.prepareStatement(
+                            "INSERT INTO wallet_transactions (customer_id, amount, type, description) VALUES (?, ?, 'refund', ?)");
+                        walletTxPs.setInt(1, customerId);
+                        walletTxPs.setDouble(2, totalAmt);
+                        walletTxPs.setString(3, "Refund for cancelled Order #SE-" + orderId);
+                        walletTxPs.executeUpdate();
+                        walletTxPs.close();
+                    }
+                }
+                paymentRs.close(); paymentPs.close();
+                
                 // Set Cancelled
                 PreparedStatement updatePs = conn.prepareStatement(
                 	    "UPDATE orders SET status='Cancelled', cancel_reason=?, cancel_requested_at=NOW() WHERE order_id=?");

@@ -63,10 +63,14 @@ public class CheckoutServlet extends HttpServlet {
             // Insert into orders table
             String fullAddress = shipName + " | " + shipPhone + " | " + shipAddress;
             String initialStatus = "Pending";
+            double walletDeduct = 0;
+            try { walletDeduct = Double.parseDouble(request.getParameter("walletDeduct")); } catch (Exception ignored) {}
+            double finalTotal = Math.max(0, cartTotal - walletDeduct);
+
             String orderSql = "INSERT INTO orders (customer_id, total_amount, status, payment_method, shipping_address) VALUES (?, ?, ?, ?, ?)";
             PreparedStatement orderPs = conn.prepareStatement(orderSql, PreparedStatement.RETURN_GENERATED_KEYS);
             orderPs.setInt(1, customerId);
-            orderPs.setDouble(2, cartTotal);
+            orderPs.setDouble(2, finalTotal);
             orderPs.setString(3, initialStatus);
             orderPs.setString(4, paymentMethod);
             orderPs.setString(5, fullAddress);
@@ -109,13 +113,43 @@ public class CheckoutServlet extends HttpServlet {
             itemPs.executeBatch();
             itemPs.close();
 
+         // Wallet deduction if payment method is Wallet
+            String useWallet = request.getParameter("useWallet");
+            if ("true".equals(useWallet) || "Wallet".equals(paymentMethod)) {
+                PreparedStatement walletCheckPs = conn.prepareStatement(
+                    "SELECT wallet_balance FROM customer WHERE customer_id=?");
+                walletCheckPs.setInt(1, customerId);
+                ResultSet walletRs = walletCheckPs.executeQuery();
+                double currentBalance = walletRs.next() ? walletRs.getDouble("wallet_balance") : 0;
+                walletRs.close(); walletCheckPs.close();
+
+                double deduct = Math.min(currentBalance, cartTotal);
+                if (deduct > 0) {
+                    PreparedStatement walletDeductPs = conn.prepareStatement(
+                        "UPDATE customer SET wallet_balance = wallet_balance - ? WHERE customer_id=?");
+                    walletDeductPs.setDouble(1, deduct);
+                    walletDeductPs.setInt(2, customerId);
+                    walletDeductPs.executeUpdate();
+                    walletDeductPs.close();
+
+                    // Log wallet transaction
+                    PreparedStatement walletLogPs = conn.prepareStatement(
+                        "INSERT INTO wallet_transactions (customer_id, amount, type, description, reference_id) VALUES (?,?,'purchase',?,?)");
+                    walletLogPs.setInt(1, customerId);
+                    walletLogPs.setDouble(2, deduct);
+                    walletLogPs.setString(3, "Used for Order #SE-" + orderId);
+                    walletLogPs.setInt(4, orderId);
+                    walletLogPs.executeUpdate();
+                    walletLogPs.close();
+                }
+            }
+
             // Notify customer
-           
             int notifUserId = (int) session.getAttribute("userId");
             PreparedStatement custNotifPs = conn.prepareStatement(
                 "INSERT INTO notifications (user_id, user_type, message) VALUES (?, 'customer', ?)");
             custNotifPs.setInt(1, notifUserId);
-            custNotifPs.setString(2, "Your order #" + orderId + " has been placed successfully! Total: ₱" + String.format("%.2f", cartTotal));
+            custNotifPs.setString(2, "Your order #" + orderId + " has been placed successfully! Total: ₱" + String.format("%.2f", finalTotal));
             custNotifPs.executeUpdate();
             custNotifPs.close();
 

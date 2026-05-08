@@ -25,8 +25,10 @@
             sf.append(") ");
             searchFilter = sf.toString();
         }
-        String minPriceFilter = (minPriceParam != null && !minPriceParam.isEmpty()) ? "AND p.price >= " + Double.parseDouble(minPriceParam) + " " : "";
-        String maxPriceFilter = (maxPriceParam != null && !maxPriceParam.isEmpty()) ? "AND p.price <= " + Double.parseDouble(maxPriceParam) + " " : "";
+        String minPriceFilter = (minPriceParam != null && !minPriceParam.isEmpty()) ? 
+        	    "AND COALESCE(NULLIF(p.original_price, 0), p.price) >= " + Double.parseDouble(minPriceParam) + " " : "";
+        	String maxPriceFilter = (maxPriceParam != null && !maxPriceParam.isEmpty()) ? 
+        	    "AND COALESCE(NULLIF(p.original_price, 0), p.price) <= " + Double.parseDouble(maxPriceParam) + " " : "";
         String ratingFilter = (minRatingParam != null && !minRatingParam.isEmpty() && !minRatingParam.equals("0")) ? "AND COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) >= " + Double.parseDouble(minRatingParam) + " " : "";
 
         String orderBy = "ORDER BY RAND()";
@@ -43,7 +45,7 @@
         		"COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold, " +
         		"s.user_id AS seller_user_id " +
         "FROM product p JOIN seller s ON p.seller_id = s.seller_id " +
-        "WHERE p.status='active' AND p.stock > 0 " + catFilter + searchFilter + minPriceFilter + maxPriceFilter + orderBy);
+        "WHERE p.status='active' AND p.stock > 0 " + catFilter + searchFilter + minPriceFilter + maxPriceFilter + ratingFilter + orderBy);
         if (searchWords.length > 0) {
             int idx = 1;
             for (String word : searchWords) {
@@ -426,7 +428,8 @@ input::-webkit-contacts-auto-fill-button {
     <div class="carousel-indicators">
         <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="0" class="active"></button>
         <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="1"></button>
-        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="2"></button>
+      <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="2"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="3"></button>
     </div>
     <div class="carousel-inner">
         <!-- SLIDE 1 -->
@@ -460,6 +463,27 @@ input::-webkit-contacts-auto-fill-button {
                 <a href="index.jsp?sort=newest" class="btn btn-warning btn-lg fw-bold mt-3 px-5" style="border-radius:30px;">
                     <i class="bi bi-stars"></i> See New Items →
                 </a>
+            </div>
+        </div>
+<!-- SLIDE 4 - BECOME A SELLER -->
+        <div class="carousel-item">
+            <div style="background:linear-gradient(135deg,#6610f2 0%,#0d6efd 100%); min-height:280px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:white; text-align:center; padding:40px 20px;">
+                <div style="font-size:13px; font-weight:600; letter-spacing:3px; opacity:0.85; margin-bottom:8px;">🏪 START YOUR BUSINESS</div>
+                <div style="font-size:52px; font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">SELL HERE</div>
+                <div style="font-size:22px; font-weight:700; margin:8px 0; opacity:0.95;">Turn Your Products Into Profit!</div>
+<% if ("seller".equals(loggedRole) || "both".equals(loggedRole)) { %>
+<button onclick="showAlreadySellerModal()" class="btn btn-warning btn-lg fw-bold mt-3 px-5" style="border-radius:30px;">
+    <i class="bi bi-shop-window"></i> Become a Seller →
+</button>
+<% } else if (loggedUser != null) { %>
+<button onclick="goToBecomeSeller()" class="btn btn-warning btn-lg fw-bold mt-3 px-5" style="border-radius:30px;">
+    <i class="bi bi-shop-window"></i> Become a Seller →
+</button>
+<% } else { %>
+<button onclick="showSellerLoginPrompt()" class="btn btn-warning btn-lg fw-bold mt-3 px-5" style="border-radius:30px;">
+    <i class="bi bi-shop-window"></i> Become a Seller →
+</button>
+<% } %>
             </div>
         </div>
     </div>
@@ -686,12 +710,14 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
 <button type="button" class="btn btn-primary btn-sm w-100" onclick="addToCart(<%= prod.get("id") %>, <%= hasVar %>)">
     <i class="bi bi-cart-plus"></i> <%= hasVar ? "Select Options" : "Add to Cart" %>
 </button>
-<% } else { %>
+<% } else { 
+    Object spv2 = prod.get("hasVariations");
+    boolean hasVar2 = spv2 != null && (boolean) spv2;
+%>
     <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
-        <i class="bi bi-cart-plus"></i> Add to Cart
+        <i class="bi bi-cart-plus"></i> <%= hasVar2 ? "Select Options" : "Add to Cart" %>
     </button>
-<% } %>
-                </div>
+<% } %>       </div>
             </div>
         </div>
     </div>
@@ -1186,7 +1212,53 @@ function goToBecomeSeller() {
         window.location.href = 'seller-apply.jsp';
     }, 1500);
 }
+function showSellerLoginPrompt() {
+    new bootstrap.Modal(document.getElementById('sellerLoginPromptModal')).show();
+}
+function showAlreadySellerModal() {
+    new bootstrap.Modal(document.getElementById('alreadySellerModal')).show();
+}
 </script>
+<!-- SELLER LOGIN PROMPT MODAL -->
+<div class="modal fade" id="sellerLoginPromptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-5">
+                <div style="width:70px; height:70px; background:linear-gradient(135deg,#6610f2,#0d6efd); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+                    <i class="bi bi-shop-window" style="font-size:30px; color:white;"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Become a Seller</h5>
+                <p class="text-muted mb-1" style="font-size:14px;">You need to <strong>log in</strong> first and must be <strong>18 years or older</strong> to become a seller.</p>
+                <div class="d-flex gap-2 justify-content-center mt-4">
+                    <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Maybe Later</button>
+                    <button class="btn btn-primary px-4" onclick="bootstrap.Modal.getInstance(document.getElementById('sellerLoginPromptModal')).hide(); setTimeout(()=>new bootstrap.Modal(document.getElementById('loginModal')).show(),300)">
+                        <i class="bi bi-person me-1"></i> Login Now
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
+<!-- ALREADY SELLER MODAL -->
+<div class="modal fade" id="alreadySellerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-5">
+                <div style="width:70px; height:70px; background:linear-gradient(135deg,#198754,#20c997); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+                    <i class="bi bi-patch-check-fill" style="font-size:30px; color:white;"></i>
+                </div>
+                <h5 class="fw-bold mb-2">You're Already a Seller! 🎉</h5>
+                <p class="text-muted mb-1" style="font-size:14px;">You already have an active seller account. Go to your <strong>Seller Center</strong> to manage your shop.</p>
+                <div class="d-flex gap-2 justify-content-center mt-4">
+                    <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    <button class="btn btn-success px-4" onclick="bootstrap.Modal.getInstance(document.getElementById('alreadySellerModal')).hide(); goToSellerCenter()">
+                        <i class="bi bi-shop me-1"></i> Go to Seller Center
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

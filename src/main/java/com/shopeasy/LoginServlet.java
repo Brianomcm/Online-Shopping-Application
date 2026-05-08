@@ -26,11 +26,12 @@ public class LoginServlet extends HttpServlet {
             // -------------------------------------------------------
             // 1. Check users table first to get role and active_mode
             // -------------------------------------------------------
-            String userSql = "SELECT * FROM users WHERE (email=? OR user_id IN (SELECT user_id FROM customer WHERE username=?)) AND password=?";
+            String userSql = "SELECT u.* FROM users u LEFT JOIN customer c ON u.user_id = c.user_id WHERE (u.email=? OR c.username=?) AND u.password=?";
             PreparedStatement userPs = conn.prepareStatement(userSql);
             userPs.setString(1, email);
             userPs.setString(2, email);
             userPs.setString(3, password);
+
             ResultSet userRs = userPs.executeQuery();
 
             if (!userRs.next()) {

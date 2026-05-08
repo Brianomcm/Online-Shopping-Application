@@ -78,13 +78,9 @@
          
      <% if (_navIsCustomer) { %>
             <% if ("simple".equals(_navType)) { %>
-     <a href="index.jsp" class="btn btn-outline-secondary d-flex align-items-center gap-1">
-    <i class="bi bi-house"></i> Home
-</a>
-<a href="SellerPageServlet?id=<%= (Integer) session.getAttribute("sellerId") %>" 
-   class="btn btn-outline-success d-flex align-items-center gap-1">
-    <i class="bi bi-shop"></i> View My Shop
-</a>
+       <a href="index.jsp" class="btn btn-outline-secondary d-flex align-items-center gap-1">
+                <i class="bi bi-house"></i> Home
+            </a>
             <% } %>
             <a href="CartServlet" class="btn btn-outline-secondary position-relative">
                 <i class="bi bi-cart3 fs-5"></i>

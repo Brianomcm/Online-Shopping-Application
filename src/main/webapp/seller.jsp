@@ -457,12 +457,13 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
     	int sUserId = (int) session.getAttribute("userId");
     	// Get actual seller_id from DB
     	int sId = sUserId; // fallback
-    	java.sql.PreparedStatement sIdPs = com.shopeasy.DBConnection.getConnection().prepareStatement(
+    	java.sql.Connection sIdConn = com.shopeasy.DBConnection.getConnection();
+    	java.sql.PreparedStatement sIdPs = sIdConn.prepareStatement(
     	    "SELECT seller_id FROM seller WHERE user_id=?");
     	sIdPs.setInt(1, sUserId);
     	java.sql.ResultSet sIdRs = sIdPs.executeQuery();
     	if (sIdRs.next()) sId = sIdRs.getInt(1);
-    	sIdRs.close(); sIdPs.close();
+    	sIdRs.close(); sIdPs.close(); sIdConn.close();
         java.sql.Connection sStatConn = com.shopeasy.DBConnection.getConnection();
 
         // Product count
@@ -483,7 +484,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
 
         // Revenue
         java.sql.PreparedStatement sStatPs3 = sStatConn.prepareStatement(
-        		"SELECT SUM(oi.subtotal) FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE oi.seller_id=? AND o.status='Completed' AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
+        		"SELECT SUM(oi.subtotal) FROM order_items oi JOIN orders o ON oi.order_id=o.order_id JOIN product p ON oi.product_id=p.product_id WHERE p.seller_id=? AND o.status='Completed' AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
         sStatPs3.setInt(1, sId);
         java.sql.ResultSet sStatRs3 = sStatPs3.executeQuery();
         if (sStatRs3.next()) sellerStatRevenue = sStatRs3.getDouble(1);
@@ -654,95 +655,11 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
     <!-- OTHER TABS (keep these hidden for sidebar nav) -->
     <div id="tab-products" class="tab-content-section" style="display:none;">
     <div class="card-section">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+     <div class="d-flex justify-content-between align-items-center mb-3">
             <p class="section-title mb-0"><i class="bi bi-grid-fill text-success"></i> My Products</p>
-            <button class="btn btn-success btn-sm" onclick="showAddProduct()">
+            <button class="btn btn-success btn-sm" onclick="openAddProductModal()">
                 <i class="bi bi-plus"></i> Add Product
             </button>
-        </div>
-
-        <!-- ADD PRODUCT FORM -->
-        <div id="addProductForm" style="display:none;" class="mb-4 p-3 border rounded-3 bg-light">
-            <p class="fw-bold mb-3" style="font-size:14px;">
-                <i class="bi bi-plus-circle text-success"></i> Add New Product
-            </p>
-            <form action="AddProductServlet" method="post" id="productForm">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold" style="font-size:13px;">Product Name</label>
-                        <input type="text" name="productName" class="form-control" placeholder="Enter product name" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold" style="font-size:13px;">Category</label>
-                       <select name="categoryId" class="form-select" required>
-    <option value="">Select category</option>
-    <%
-        java.sql.Connection catConn = com.shopeasy.DBConnection.getConnection();
-        java.sql.PreparedStatement catPs = catConn.prepareStatement("SELECT category_id, name FROM category ORDER BY name");
-        java.sql.ResultSet catRs = catPs.executeQuery();
-        while (catRs.next()) {
-    %>
-        <option value="<%= catRs.getInt("category_id") %>"><%= catRs.getString("name") %></option>
-    <%
-        }
-        catRs.close(); catPs.close(); catConn.close();
-    %>
-</select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold" style="font-size:13px;">Price (₱)</label>
-                        <input type="number" name="price" class="form-control" placeholder="0.00" step="0.01" min="0" required>
-                    </div>
-                    <div class="col-md-6">
-<label class="form-label fw-bold" style="font-size:13px;">Discounted Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional — leave blank if no discount</span></label>
-<input type="number" name="originalPrice" class="form-control" placeholder="e.g. 199.00" step="0.01" min="0">
-</div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold" style="font-size:13px;">Stock Quantity</label>
-                        <input type="number" name="stock" class="form-control" placeholder="0" min="0" required>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label fw-bold" style="font-size:13px;">Description</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="Describe your product..."></textarea>
-                    </div>
-                    
-                    <!-- PRODUCT VARIATIONS -->
-<div class="col-12">
-    <label class="form-label fw-bold" style="font-size:13px;">
-        Product Variations 
-        <span class="text-muted fw-normal" style="font-size:11px;">(optional — size, color, kilos)</span>
-    </label>
-    <div id="variationsContainer" class="d-flex flex-column gap-2 mb-2">
-        <!-- rows added dynamically -->
-    </div>
-    <button type="button" class="btn btn-outline-success btn-sm" onclick="addVariationRow()">
-        <i class="bi bi-plus"></i> Add Variation
-    </button>
-    <p class="text-muted mt-1" style="font-size:11px;">
-        Each row is one option. Example: Size → XL, Color → Red, Kilos → 5kg
-    </p>
-</div>
-
-                    
-                    <div class="col-12">
-    <label class="form-label fw-bold" style="font-size:13px;">Product Image</label>
-    <input type="file" id="productImageInput" class="form-control" accept="image/*" onchange="openProductCropModal(this)">
-    <input type="hidden" name="productImage" id="productImageData">
-    <div id="productImagePreview" class="mt-2" style="display:none;">
-        <img id="productImgPreview" src="" style="width:120px; height:120px; object-fit:cover; border-radius:8px; border:2px solid #198754;">
-        <p class="text-muted mt-1" style="font-size:11px;">Click the file input again to change photo</p>
-    </div>
-</div>
-                    <div class="col-12 d-flex gap-2 justify-content-end">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="hideAddProduct()">
-                            <i class="bi bi-x"></i> Cancel
-                        </button>
-                        <button type="submit" class="btn btn-success btn-sm px-4">
-                            <i class="bi bi-check2"></i> Save Product
-                        </button>
-                    </div>
-                </div>
-            </form>
         </div>
 
         <%
@@ -762,21 +679,42 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
             "LEFT JOIN category c ON p.category_id = c.category_id " +
             "WHERE p.seller_id = ? ORDER BY p.product_id DESC");
         prodPs.setInt(1, sellerIdForProducts);
+        java.sql.Connection varChkConn = com.shopeasy.DBConnection.getConnection();
         java.sql.ResultSet prodRs = prodPs.executeQuery();
         while (prodRs.next()) {
             java.util.Map<String, String> product = new java.util.HashMap<>();
-            product.put("product_id", prodRs.getString("product_id"));
+            String pid = prodRs.getString("product_id");
+            product.put("product_id", pid);
             product.put("name", prodRs.getString("name"));
             product.put("description", prodRs.getString("description"));
             product.put("price", prodRs.getString("price"));
             product.put("original_price", prodRs.getString("original_price"));
             product.put("stock", prodRs.getString("stock"));
             product.put("image", prodRs.getString("image"));
+            product.put("thumbnail", prodRs.getString("thumbnail"));
             product.put("category_name", prodRs.getString("category_name"));
             product.put("category_id", prodRs.getString("category_id"));
             product.put("status", prodRs.getString("status"));
+            // Check variant pricing
+            java.sql.PreparedStatement vcPs = varChkConn.prepareStatement(
+                "SELECT MIN(COALESCE(original_price, price)) as lowest, SUM(stock) as total_stock, MIN(image) as first_img FROM product_variation WHERE product_id=?");
+            vcPs.setString(1, pid);
+            java.sql.ResultSet vcRs = vcPs.executeQuery();
+            if (vcRs.next() && vcRs.getString("lowest") != null) {
+                product.put("has_variations", "true");
+                product.put("display_price", vcRs.getString("lowest"));
+                product.put("display_stock", vcRs.getString("total_stock"));
+                String vi = vcRs.getString("first_img");
+                if (vi != null && !vi.isEmpty()) product.put("var_image", vi);
+            } else {
+                product.put("has_variations", "false");
+                product.put("display_price", prodRs.getString("price"));
+                product.put("display_stock", prodRs.getString("stock"));
+            }
+            vcRs.close(); vcPs.close();
             products.add(product);
         }
+        varChkConn.close();
         prodRs.close(); prodPs.close(); prodConn.close();
     } catch (Exception prodEx) { prodEx.printStackTrace(); }
     if (!products.isEmpty()) {
@@ -785,8 +723,15 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
     <% for (java.util.Map<String, String> product : products) { %>
         <div class="product-row">
             <div class="d-flex gap-3 align-items-center">
-                <% if (product.get("image") != null && !product.get("image").isEmpty()) { %>
-                    <img src="<%= product.get("image") %>" class="product-img" alt="Product">
+             <%
+    String dImg = product.get("thumbnail");
+    if (dImg == null || dImg.isEmpty()) dImg = product.get("image");
+    if (dImg == null || dImg.isEmpty()) dImg = product.get("var_image");
+%>
+            <% if (dImg != null && !dImg.isEmpty()) { %>
+                <a href="product.jsp?id=<%= product.get("product_id") %>">
+                        <img src="<%= dImg %>" class="product-img" alt="Product" style="cursor:pointer;">
+                    </a>
                 <% } else { %>
                     <div class="product-img d-flex align-items-center justify-content-center bg-light rounded">
                         <i class="bi bi-image text-muted"></i>
@@ -796,27 +741,32 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                     <p class="mb-0 fw-bold" style="font-size:14px;"><%= product.get("name") %></p>
                     <p class="mb-0 text-muted" style="font-size:12px;">
                         <%= product.get("category_name") != null ? product.get("category_name") : "Uncategorized" %> 
-                        &nbsp;|&nbsp; Stock: <%= product.get("stock") %>
+                     &nbsp;|&nbsp; Stock: <%= product.get("display_stock") %>
                     </p>
                 </div>
-                <div class="text-end">
+                <div class="text-end">  
     <%
+    boolean hasVars = "true".equals(product.get("has_variations"));
+    double displayPrice = Double.parseDouble(product.get("display_price") != null ? product.get("display_price") : "0");
+    int displayStock = Integer.parseInt(product.get("display_stock") != null ? product.get("display_stock") : "0");
+    if (hasVars) {
+%>
+    <p class="mb-0 text-muted" style="font-size:10px;">Starting at</p>
+    <p class="mb-1 fw-bold text-success">₱<%= String.format("%.2f", displayPrice) %></p>
+<% } else {
     String discPriceStr = product.get("original_price");
     double discPrice = (discPriceStr != null && !discPriceStr.isEmpty()) ? Double.parseDouble(discPriceStr) : 0;
     double realPrice = Double.parseDouble(product.get("price") != null ? product.get("price") : "0");
-    int discPct = 0;
-    if (discPrice > 0 && discPrice < realPrice) {
-        discPct = (int) Math.round((realPrice - discPrice) / realPrice * 100);
-    }
-%>
-<% if (discPct > 0) { %>
-    <span class="badge bg-danger mb-1" style="font-size:10px;">-<%= discPct %>% OFF</span><br>
-    <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= product.get("price") %></span><br>
-    <p class="mb-1 fw-bold text-success">₱<%= discPriceStr %></p>
-<% } else { %>
-    <p class="mb-1 fw-bold text-success">₱<%= product.get("price") %></p>
+    int discPct = (discPrice > 0 && discPrice < realPrice) ? (int) Math.round((realPrice - discPrice) / realPrice * 100) : 0;
+    if (discPct > 0) { %>
+        <span class="badge bg-danger mb-1" style="font-size:10px;">-<%= discPct %>% OFF</span><br>
+        <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= String.format("%.2f", realPrice) %></span><br>
+        <p class="mb-1 fw-bold text-success">₱<%= String.format("%.2f", discPrice) %></p>
+    <% } else { %>
+        <p class="mb-1 fw-bold text-success">₱<%= String.format("%.2f", realPrice) %></p>
+    <% } %>
 <% } %>
-    <%  int stock = Integer.parseInt(product.get("stock") != null ? product.get("stock") : "0");
+    <%  int stock = displayStock;
         if (stock > 5) { %>
         <span class="badge bg-success stock-badge">In Stock</span>
     <% } else if (stock > 0) { %>
@@ -826,20 +776,28 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
     <% } %>
 </div>
 
-                <div class="d-flex flex-column gap-1">
-    <button class="btn btn-outline-primary btn-sm" 
-    onclick="editProduct('<%= product.get("product_id") %>', '<%= product.get("name") != null ? product.get("name").replace("'", "\\'") : "" %>', '<%= product.get("price") %>', '<%= product.get("stock") %>', '<%= product.get("description") != null ? product.get("description").replace("'", "\\'").replace("\n", "\\n").replace("\r", "") : "" %>', '<%= product.get("category_name") %>', '<%= product.get("original_price") != null ? product.get("original_price") : "" %>', '<%= product.get("category_id") != null ? product.get("category_id") : "" %>')">
+      <div class="d-flex flex-column gap-1">
+  <button class="btn btn-outline-primary btn-sm" 
+   onclick="editProduct('<%= product.get("product_id") %>')"
+   data-pid="<%= product.get("product_id") %>"
+   data-name="<%= product.get("name") != null ? product.get("name").replace("\"", "&quot;").replace("'", "&#39;") : "" %>"
+   data-price="<%= product.get("price") != null ? product.get("price") : "" %>"
+   data-stock="<%= product.get("stock") != null ? product.get("stock") : "" %>"
+   data-originalprice="<%= product.get("original_price") != null ? product.get("original_price") : "" %>"
+   data-categoryid="<%= product.get("category_id") != null ? product.get("category_id") : "" %>">
         <i class="bi bi-pencil"></i>
     </button>
+    <div id="desc_<%= product.get("product_id") %>" style="display:none;"><%= product.get("description") != null ? product.get("description") : "" %></div>
     <button class="btn btn-outline-danger btn-sm"
-        onclick="deleteProduct('<%= product.get("product_id") %>', '<%= product.get("name") != null ? new String(product.get("name").getBytes("ISO-8859-1"), "UTF-8") : "" %>')">
+       onclick="deleteProduct('<%= product.get("product_id") %>')">
         <i class="bi bi-trash"></i>
     </button>
 </div>
             </div>
         </div>
-    <% } %>
+<% } %>
     </div>
+
 <% } else { %>
     <div class="text-center text-muted py-4" id="noProductsMsg">
         <i class="bi bi-box-seam fs-1 opacity-50"></i>
@@ -910,8 +868,8 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                 // Fetch items for this order belonging to this seller
                 java.util.List<java.util.Map<String, Object>> itemList = new java.util.ArrayList<>();
                 java.sql.PreparedStatement itemPs = sOrdConn.prepareStatement(
-                	    "SELECT oi.quantity, oi.subtotal, p.name AS pname, p.image AS image_url, " +
-                	    "pv.variation_type, pv.variation_value " +
+                		"SELECT oi.quantity, oi.subtotal, p.name AS pname, p.image AS image_url, p.thumbnail, " +
+                        "pv.variation_type, pv.variation_value, pv.image AS var_image " +
                 	    "FROM order_items oi " +
                 	    "JOIN product p ON oi.product_id = p.product_id " +
                 	    "LEFT JOIN product_variation pv ON oi.variation_id = pv.variation_id " +
@@ -924,7 +882,10 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                     item.put("qty", itemRs.getInt("quantity"));
                     item.put("subtotal", itemRs.getDouble("subtotal"));
                     item.put("pname", itemRs.getString("pname"));
-                    item.put("image", itemRs.getString("image_url"));
+                    String sItmImg = itemRs.getString("var_image");
+                    if (sItmImg == null || sItmImg.isEmpty()) sItmImg = itemRs.getString("image_url");
+                    if (sItmImg == null || sItmImg.isEmpty()) sItmImg = itemRs.getString("thumbnail");
+                    item.put("image", sItmImg);
                     item.put("variationType", itemRs.getString("variation_type"));
                     item.put("variationValue", itemRs.getString("variation_value"));
                     itemList.add(item);
@@ -938,11 +899,18 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
     %>
 
     <%-- Order Tab Nav --%>
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-bag-check me-2"></i>Orders Received</h5>
+   <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-bag-check me-2"></i>Orders Received
+            <span class="badge bg-secondary ms-2" style="font-size:12px;"><%= sellerOrders.size() %></span>
+        </h5>
+        <div class="input-group" style="max-width:240px;">
+            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted" style="font-size:13px;"></i></span>
+     <input type="search" id="sellerOrderSearch" class="form-control border-start-0" placeholder="Search Order #..." style="font-size:13px;" oninput="filterSellerOrders(this.value)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly')" value="">
+        </div>
     </div>
 
     <%-- Status Filter Tabs --%>
+    <% int sOrdNum = 0; %>
     <ul class="nav nav-tabs mb-4" id="orderStatusTabs">
         <%String[] sOrderStatuses = {"All","Pending","Processing","Shipped","Completed","Cancelled","Cancellation Requested","Refund Requests"};
            for (String st : sOrderStatuses) { %>
@@ -975,12 +943,13 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
             java.util.List<java.util.Map<String, Object>> ordItems =
                 (java.util.List<java.util.Map<String, Object>>) ord.get("items");
     %>
-    <div class="card mb-3 shadow-sm border-0" style="border-radius:12px; overflow:hidden;">
+<% sOrdNum++; %>
+    <div class="card mb-3 shadow-sm border-0 seller-order-card" data-orderid="SE-<%= ord.get("id") %>" style="border-radius:12px; overflow:hidden;">
         <%-- Card Header --%>
         <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3"
              style="border-bottom: 1px solid #f0f0f0;">
             <span class="fw-semibold text-muted" style="font-size:13px;">
-                <i class="bi bi-hash"></i>Order #SE-<%= ord.get("id") %>
+              <span class="text-muted me-2" style="font-size:12px;"><%= sOrdNum %>.</span><i class="bi bi-hash"></i>Order #SE-<%= ord.get("id") %>
                 <span class="ms-2 text-secondary" style="font-weight:400; font-size:12px;">
                     <%= ord.get("date") != null ? ord.get("date") : "Date not available" %>
                 </span>
@@ -1277,7 +1246,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
             %>
 
             <!-- Summary Cards -->
-            <div class="row g-3 mb-4" id="section-stats" style="display:none;">
+           <div class="row g-3 mb-4" id="section-stats">
                 <div class="col-md-4">
                     <div class="p-3 rounded-3 text-center" style="background:#f0fdf4; border:1px solid #bbf7d0;">
                         <p class="mb-0 text-muted" style="font-size:12px;">Total Revenue</p>
@@ -1301,8 +1270,10 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
 <%-- TODAY'S SUMMARY + RECENT ORDERS + LOW STOCK --%>
             <%
             try {
-                java.sql.Connection dashConn = com.shopeasy.DBConnection.getConnection();
-                int dashSellerId = (int) session.getAttribute("sellerId");
+            	java.sql.Connection dashConn = com.shopeasy.DBConnection.getConnection();
+                Integer dashSellerIdObj = (Integer) session.getAttribute("sellerId");
+                if (dashSellerIdObj == null) { dashConn.close(); throw new Exception("sellerId not in session"); }
+                int dashSellerId = dashSellerIdObj;
 
                 // Today's orders
                 java.sql.PreparedStatement todayPs = dashConn.prepareStatement(
@@ -1310,7 +1281,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                     		"COALESCE(SUM(oi.subtotal),0) as today_revenue " +
                     "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id " +
                     "JOIN product p ON oi.product_id=p.product_id " +
-                		"WHERE p.seller_id=? AND DATE(o.order_date)=CURDATE() AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
+                    		"WHERE p.seller_id=? AND DATE(o.order_date)=CURDATE() AND o.status='Completed' AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
                 todayPs.setInt(1, dashSellerId);
                 java.sql.ResultSet todayRs = todayPs.executeQuery();
                 int todayOrders = 0; double todayRevenue = 0;
@@ -1329,7 +1300,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                     "JOIN product p ON oi.product_id=p.product_id " +
                     "JOIN order_items oi2 ON o.order_id=oi2.order_id " +
                     "LEFT JOIN customer c ON o.customer_id=c.customer_id " +
-                    "WHERE p.seller_id=? " +
+                    		"WHERE p.seller_id=? " +
                     "GROUP BY o.order_id, c.name, o.status, o.order_date " +
                     "ORDER BY o.order_date DESC LIMIT 5");
                 recentPs.setInt(1, dashSellerId);
@@ -1367,8 +1338,8 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
             <div class="row g-3 mb-4">
                 <div class="col-6">
                     <div class="p-3 rounded-3 text-center" style="background:#f0fdf4; border:1px solid #bbf7d0;">
-                        <p class="mb-1 text-muted" style="font-size:11px;">ORDERS TODAY</p>
-                        <h3 class="fw-bold text-success mb-0"><%= todayOrders %></h3>
+                    <p class="mb-1 text-muted" style="font-size:11px;">SUCCESSFUL ORDERS TODAY</p>
+<h3 class="fw-bold text-success mb-0"><%= todayOrders %></h3>
                     </div>
                 </div>
                 <div class="col-6">
@@ -1482,8 +1453,9 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
         try {
             java.sql.Connection srConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement srPs = srConn.prepareStatement(
-            		"SELECT r.rating, r.comment, r.photo, p.product_id, p.name AS pname, p.image AS pimage, " +
-            				"c.name AS cname " +
+            		"SELECT r.rating, r.comment, r.photo, p.product_id, p.name AS pname, p.image AS pimage, p.thumbnail AS pthumbnail, " +
+            		        "(SELECT pv.image FROM product_variation pv WHERE pv.product_id = p.product_id AND pv.image IS NOT NULL ORDER BY pv.variation_id ASC LIMIT 1) AS var_image, " +
+            		        "c.name AS cname " +
                 "FROM review r " +
                 "JOIN product p ON r.product_id = p.product_id " +
                 "JOIN customer c ON r.customer_id = c.customer_id " +
@@ -1494,9 +1466,13 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                 hasSellerReviews = true;
         %>
         <div class="d-flex gap-3 p-3 mb-3 border rounded-3">
-            <% if (srRs.getString("pimage") != null && !srRs.getString("pimage").isEmpty()) { %>
+     <%
+     String srImg = srRs.getString("pimage");
+     if (srImg == null || srImg.isEmpty()) srImg = srRs.getString("var_image");
+     if (srImg == null || srImg.isEmpty()) srImg = srRs.getString("pthumbnail");
+            if (srImg != null && !srImg.isEmpty()) { %>
                <a href="product.jsp?id=<%= srRs.getInt("product_id") %>">
-    <img src="<%= srRs.getString("pimage") %>"
+    <img src="<%= srImg %>"
          style="width:60px; height:60px; object-fit:cover; border-radius:8px; cursor:pointer;">
 </a>
             <% } else { %>
@@ -1613,9 +1589,13 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
               if (payoutSellerId != null) {
               	java.sql.Connection payoutConn = com.shopeasy.DBConnection.getConnection();
                   // Get total revenue from completed orders
-                 java.sql.PreparedStatement payoutPs = payoutConn.prepareStatement(
-                		  "SELECT COALESCE(SUM(oi.subtotal),0) FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE oi.seller_id=? AND o.status='Completed' AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
-        payoutPs.setInt(1, payoutSellerId);
+              java.sql.PreparedStatement payoutPs = payoutConn.prepareStatement(
+    "SELECT COALESCE(SUM(oi.subtotal),0) FROM order_items oi " +
+    "JOIN orders o ON oi.order_id=o.order_id " +
+    "JOIN product p ON oi.product_id=p.product_id " +
+    "WHERE p.seller_id=? AND o.status='Completed' " +
+    "AND o.order_id NOT IN (SELECT order_id FROM refund_requests WHERE status='Refunded')");
+payoutPs.setInt(1, payoutSellerId);
         java.sql.ResultSet payoutRs = payoutPs.executeQuery();
         totalRevenue = payoutRs.next() ? payoutRs.getDouble(1) : 0.0;
         payoutRs.close(); payoutPs.close();
@@ -1917,10 +1897,9 @@ function submitPayout() {
     const fee = (method === 'Bank') ? 18 : 12;
     const receive = amount - fee;
     const minAmount = 50 + fee;
-    if (!account) { alert('Please enter your account number!'); return; }
-    if (!amount || amount < minAmount) { alert('Minimum withdrawal is ₱' + minAmount + ' (includes ₱' + fee + ' fee)!'); return; }
-    if (amount > balance) { alert('Amount exceeds your available balance!'); return; }
-  
+    if (!account) { showSellerToast('Please enter your account number!', 'error'); return; }
+    if (!amount || amount < minAmount) { showSellerToast('Minimum withdrawal is ₱' + minAmount + ' (includes ₱' + fee + ' fee)!', 'error'); return; }
+    if (amount > balance) { showSellerToast('Amount exceeds your available balance!', 'error'); return; }
     // Show confirmation modal first
     document.getElementById('confirmMethodText').innerText = method;
     document.getElementById('confirmAccountText').innerText = account;
@@ -1948,9 +1927,9 @@ function proceedPayout() {
     })
         .then(r => r.json())
         .then(data => {
-            if (!data.success) {
+        	if (!data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('payoutLoadingModal')).hide();
-                alert(data.message || 'Error processing payout.');
+                showSellerToast(data.message || 'Error processing payout.', 'error');
                 return;
             }
             const isInstant = (method === 'GCash' || method === 'Maya');
@@ -1971,33 +1950,11 @@ function proceedPayout() {
         })
         .catch(() => {
             bootstrap.Modal.getInstance(document.getElementById('payoutLoadingModal')).hide();
-            alert('Server error. Please try again.');
+            showSellerToast('Server error. Please try again.', 'error');
         });
     }, 300);
 }
 
-    // SIDEBAR NAV — hide shop+profile sections, show selected tab
-    function showTab(tab, el) {
-        // Hide shop and profile sections
-        document.getElementById('section-shop').style.display = 'none';
-        
-        document.getElementById('section-stats').style.display = 'none';
-        // Hide all other tabs
-        document.querySelectorAll('.tab-content-section').forEach(t => t.style.display = 'none');
-        document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
-
-        const otherTab = document.getElementById('tab-' + tab);
-        if (otherTab) {
-            otherTab.style.display = 'block';
-        } else {
-            // If no tab found, show shop+profile (home view)
-            document.getElementById('section-stats').style.display = 'flex';
-            document.getElementById('section-shop').style.display = 'block';
-            
-        }
-        el.classList.add('active');
-        event.preventDefault();
-    }
 
     // SHOP EDIT
     function enableShopEdit() {
@@ -2021,25 +1978,6 @@ function proceedPayout() {
     }
 
     // PROFILE EDIT
-    function enableProfileEdit() {
-        document.querySelectorAll('#section-profile input, #section-profile select').forEach(el => el.disabled = false);
-        document.getElementById('avatarUploadBtn').disabled = false;
-        document.getElementById('avatarUploadBtn').style.opacity = '1';
-        document.getElementById('editProfileBtn').style.display = 'none';
-        document.getElementById('saveProfileBtn').style.display = 'inline-block';
-        document.getElementById('cancelProfileBtn').style.display = 'inline-block';
-    }
-    function cancelProfileEdit() {
-        document.querySelectorAll('#section-profile input, #section-profile select').forEach(el => el.disabled = true);
-        document.getElementById('avatarUploadBtn').disabled = true;
-        document.getElementById('avatarUploadBtn').style.opacity = '0.5';
-        document.getElementById('editProfileBtn').style.display = 'inline-block';
-        document.getElementById('saveProfileBtn').style.display = 'none';
-        document.getElementById('cancelProfileBtn').style.display = 'none';
-    }
-
-
-
     function openBannerCrop(input) {
         if (input.files && input.files[0]) {
             const reader = new FileReader();
@@ -2402,6 +2340,20 @@ function proceedPayout() {
     }
 
     // GREEN BAR on page load
+function showTab(tab, el) {
+    document.getElementById('section-shop').style.display = 'none';
+    document.querySelectorAll('.tab-content-section').forEach(t => t.style.display = 'none');
+    document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+    const otherTab = document.getElementById('tab-' + tab);
+    if (otherTab) {
+        otherTab.style.display = 'block';
+    } else {
+        document.getElementById('section-shop').style.display = 'block';
+    }
+    if (el) el.classList.add('active');
+    if (event) event.preventDefault();
+}
+
 window.addEventListener('load', function() {
     const params = new URLSearchParams(window.location.search);
     
@@ -2431,20 +2383,30 @@ window.addEventListener('load', function() {
     } else if (tab === 'sales') {
         const link = document.querySelector('.sidebar-nav a[onclick*="sales"]');
         if (link) link.click();
+    } else if (tab === 'products') {
+        const link = document.querySelector('.sidebar-nav a[onclick*="products"]');
+        if (link) link.click();
     } else if (tab) {
         const link = document.querySelector('.sidebar-nav a[onclick*="' + tab + '"]');
         if (link) link.click();
     } else {
-        document.getElementById('section-stats').style.display = 'flex';
         document.getElementById('section-shop').style.display = 'block';
-        
     }
+    
+    const srch = document.getElementById('sellerOrderSearch');
+    srch.value = '';
+    srch.setAttribute('readonly', '');
+    setTimeout(() => { srch.value = ''; }, 100);
+    setTimeout(() => { srch.value = ''; }, 500);
 });
-    function doLogout() {
-        if (!confirm('Are you sure you want to logout?')) return;
-        document.getElementById('logoutOverlay').style.display = 'flex';
-        setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
-    }
+function doLogout() {
+    new bootstrap.Modal(document.getElementById('logoutConfirmModal')).show();
+}
+function confirmLogout() {
+    bootstrap.Modal.getInstance(document.getElementById('logoutConfirmModal')).hide();
+    document.getElementById('logoutOverlay').style.display = 'flex';
+    setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
+}
     
    
 
@@ -2455,23 +2417,124 @@ window.addEventListener('load', function() {
     });
 
     document.getElementById('productForm').addEventListener('submit', function(e) {
+        // Validate — if variation mode, make sure at least 1 variation exists
+        const isVariation = document.getElementById('addTypeVariation') && document.getElementById('addTypeVariation').checked;
+        if (isVariation) {
+            const rows = document.querySelectorAll('#variationsContainer .border');
+            if (rows.length === 0) {
+                e.preventDefault();
+                alert('Please add at least one variation, or switch to Single Product.');
+                return;
+            }
+        }
         document.getElementById('savingOverlay').style.display = 'flex';
     });
     
     function removeBanner() {
-        if (!confirm('Remove banner photo?')) return;
+      
         document.getElementById('bannerData').value = '';
         document.getElementById('removeBannerFlag').value = 'true';
-        document.getElementById('removeBannerBtn').style.display = 'none';
+        document.getElementById('removeBannerBtn2').style.display = 'none';
         document.getElementById('savingOverlay').style.display = 'flex';
         setTimeout(() => {
             document.getElementById('bannerForm').submit();
         }, 1500);
     }
     
+    function openAddProductModal() {
+        // Reset form
+        document.getElementById('productForm').reset();
+        document.getElementById('variationsContainer').innerHTML = '';
+        document.getElementById('productImageData').value = '';
+        document.getElementById('productThumbnailData').value = '';
+        document.getElementById('galleryAddPreviews').innerHTML = '';
+        document.getElementById('galleryImagesData').value = '';
+        addGalleryFiles = [];
+        document.getElementById('productThumbnailPreview').style.display = 'none';
+        // Reset to simple mode
+        document.getElementById('addTypeSimple').checked = true;
+        toggleAddProductType('simple');
+        const modal = document.getElementById('addProductModal');
+        modal.style.display = 'block';
+        document.querySelector('.navbar-shopeasy').style.zIndex = '0';
+    }
+    function closeAddProductModal() {
+        document.getElementById('addProductModal').style.display = 'none';
+        document.querySelector('.navbar-shopeasy').style.zIndex = '';
+    }
+    function toggleAddProductType(type) {
+        const simpleFields = document.getElementById('addSimpleFields');
+        const varFields = document.getElementById('addVariationFields');
+        const varSection = document.getElementById('addVariationsSection');
+        const simplePrice = document.getElementById('addSimplePrice');
+        const simpleStock = document.getElementById('addSimpleStock');
+        if (type === 'variation') {
+            simpleFields.style.display = 'none';
+            varFields.style.display = 'block';
+            varSection.style.display = 'block';
+            simplePrice.removeAttribute('required');
+            simpleStock.removeAttribute('required');
+        } else {
+            simpleFields.style.display = 'block';
+            varFields.style.display = 'none';
+            varSection.style.display = 'none';
+            simplePrice.setAttribute('required', '');
+            simpleStock.setAttribute('required', '');
+            document.getElementById('variationsContainer').innerHTML = '';
+        }
+    }
+    function toggleEditProductType(type) {
+        const simpleFields = document.getElementById('editSimpleFields');
+        const varFields = document.getElementById('editVariationFields');
+        const varSection = document.getElementById('editVariationsSection');
+        const editPrice = document.getElementById('editProductPrice');
+        const editStock = document.getElementById('editProductStock');
+        if (type === 'variation') {
+            simpleFields.style.display = 'none';
+            varFields.style.display = 'block';
+            varSection.style.display = 'block';
+            if (editPrice) editPrice.removeAttribute('required');
+            if (editStock) editStock.removeAttribute('required');
+        } else {
+            simpleFields.style.display = 'block';
+            varFields.style.display = 'none';
+            varSection.style.display = 'none';
+            if (editPrice) editPrice.setAttribute('required', '');
+            if (editStock) editStock.setAttribute('required', '');
+        }
+    }
     function showAddProduct() {
-        document.getElementById('addProductForm').style.display = 'block';
-        document.getElementById('noProductsMsg').style.display = 'none';
+        openAddProductModal();
+    }
+    function previewThumbnail(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('productThumbnailData').value = e.target.result;
+                const preview = document.getElementById('productThumbnailPreview');
+                const img = document.getElementById('productThumbPreviewImg');
+                if (img) img.src = e.target.result;
+                if (preview) preview.style.display = 'block';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function previewVarImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const row = input.closest('.border');
+                const hiddenInput = row.querySelector('.var-image-data');
+                const preview = row.querySelector('.var-image-preview');
+                if (hiddenInput) hiddenInput.value = e.target.result;
+                if (preview) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'inline-block';
+                }
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
     }
     
     function addVariationRow() {
@@ -2479,28 +2542,52 @@ window.addEventListener('load', function() {
         const row = document.createElement('div');
         row.className = 'border rounded-3 p-2 mb-1';
         row.innerHTML = `
-            <div class="d-flex gap-2 align-items-center flex-wrap">
-                <select name="variationType[]" class="form-select form-select-sm" style="width:110px; flex-shrink:0;">
-                    <option value="Size">Size</option>
-                    <option value="Color">Color</option>
-                    <option value="Kilos">Kilos</option>
-                    <option value="Style">Style</option>
-                </select>
-                <input type="text" name="variationValue[]" class="form-control form-control-sm"
-                       placeholder="e.g. XL, Red, 5kg" style="width:180px;" required>
-                <button type="button" class="btn btn-outline-danger btn-sm px-2"
-                        onclick="this.closest('.border').remove()">
-                    <i class="bi bi-x"></i>
-                </button>
+            <div class="d-flex align-items-center gap-2 flex-nowrap overflow-auto pb-1">
+                <div class="d-flex flex-column gap-1" style="min-width:90px;">
+                    <label style="font-size:10px; font-weight:600; color:#555;">Type</label>
+                    <select name="variationType[]" class="form-select form-select-sm">
+                        <option value="Size">Size</option>
+                        <option value="Color">Color</option>
+                        <option value="Kilos">Kilos</option>
+                        <option value="Style">Style</option>
+                    </select>
+                </div>
+                <div class="d-flex flex-column gap-1" style="min-width:100px;">
+                    <label style="font-size:10px; font-weight:600; color:#555;">Value</label>
+                    <input type="text" name="variationValue[]" class="form-control form-control-sm" placeholder="e.g. XL, Red" required>
+                </div>
+                <div class="d-flex flex-column gap-1" style="min-width:90px;">
+                    <label style="font-size:10px; font-weight:600; color:#555;">Base Price (₱)</label>
+                    <input type="number" name="variationPrice[]" class="form-control form-control-sm" placeholder="299" min="0" step="0.01">
+                </div>
+                <div class="d-flex flex-column gap-1" style="min-width:90px;">
+                    <label style="font-size:10px; font-weight:600; color:#555;">Sale Price (₱) <span style="color:#aaa;">opt</span></label>
+                    <input type="number" name="variationOriginalPrice[]" class="form-control form-control-sm" placeholder="199" min="0" step="0.01">
+                </div>
+                <div class="d-flex flex-column gap-1" style="min-width:70px;">
+                    <label style="font-size:10px; font-weight:600; color:#555;">Stock</label>
+                    <input type="number" name="variationStock[]" class="form-control form-control-sm" placeholder="0" min="0">
+                </div>
+                <div class="d-flex flex-column gap-1 align-items-center" style="min-width:60px;">
+                    <label style="font-size:10px; font-weight:600; color:#555;">Image</label>
+                    <label class="btn btn-outline-secondary btn-sm px-2 mb-0" style="font-size:10px;cursor:pointer;">📷<input type="file" name="variationImageFile[]" accept="image/*" onchange="previewVarImage(this)" style="display:none;"></label>
+                    <input type="hidden" name="variationImage[]" class="var-image-data">
+                    <img src="" class="var-image-preview" style="display:none; width:36px; height:36px; object-fit:cover; border-radius:4px; border:2px solid #198754;">
+                </div>
+                <div class="d-flex flex-column justify-content-end" style="padding-top:18px;">
+                    <button type="button" class="btn btn-outline-danger btn-sm px-2" onclick="this.closest('.border').remove()">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             </div>
         `;
         container.appendChild(row);
     }
     
     function hideAddProduct() {
-        document.getElementById('addProductForm').style.display = 'none';
-        document.getElementById('noProductsMsg').style.display = 'block';
+        closeAddProductModal();
     }
+    
     let productCropImg = new Image();
     let productCropOffX = 0, productCropOffY = 0;
     let productCropIsDragging = false;
@@ -2623,31 +2710,74 @@ window.addEventListener('load', function() {
     }
     
     
-    function deleteProduct(id, name) {
-        if (!confirm('Delete "' + name + '"?')) return;
-        document.getElementById('savingOverlay').style.display = 'flex';
-        window.location.href = 'DeleteProductServlet?productId=' + id + '&tab=products&msg=deleted';
+    function deleteProduct(id) {
+        const modal = document.getElementById('deleteProductModal');
+        modal.style.display = 'flex';
+        document.getElementById('deleteProductConfirmBtn').onclick = function() {
+            modal.style.display = 'none';
+            document.getElementById('savingOverlay').style.display = 'flex';
+            window.location.href = 'DeleteProductServlet?productId=' + id + '&tab=products&msg=deleted';
+        };
+    }
+    function closeDeleteProductModal() {
+        document.getElementById('deleteProductModal').style.display = 'none';
     }
 
-    function editProduct(id, name, price, stock, description, category, originalPrice, categoryId) {
+    function editProduct(id) {
+        const btn = document.querySelector('button[data-pid="' + id + '"]');
+        const card = btn ? btn.closest('.product-row') : null;
+        const thumbImg = card ? card.querySelector('img.product-img') : null;
+        const thumbnail = (thumbImg && thumbImg.src && !thumbImg.src.endsWith('/seller.jsp')) ? thumbImg.src : '';
+
+        const name = btn ? btn.dataset.name : '';
+        const price = btn ? btn.dataset.price : '';
+        const stock = btn ? btn.dataset.stock : '';
+        const originalPrice = btn ? btn.dataset.originalprice : '';
+        const categoryId = btn ? btn.dataset.categoryid : '';
+
         document.getElementById('editProductId').value = id;
         document.getElementById('editProductName').value = name;
-        document.getElementById('editProductPrice').value = price;
-        document.getElementById('editProductStock').value = stock;
-        document.getElementById('editProductDesc').value = description;
-        document.getElementById('editOriginalPrice').value = originalPrice || '';
+        const descEl = document.getElementById('desc_' + id);
+        document.getElementById('editProductDesc').value = descEl ? descEl.innerText : '';
         if (categoryId) document.getElementById('editCategoryId').value = categoryId;
 
-        // Load existing variations via fetch
         const container = document.getElementById('editVariationsContainer');
-        container.innerHTML = '<p class="text-muted" style="font-size:12px;">Loading variations...</p>';
+        container.innerHTML = '<p class="text-muted" style="font-size:12px;"><i class="bi bi-hourglass-split"></i> Loading...</p>';
+
+        // Reset thumbnail preview
+        document.getElementById('editThumbnailPreview').style.display = 'none';
+        document.getElementById('editThumbPreviewImg').src = '';
+        document.getElementById('editThumbnailData').value = '';
+
+        // Show existing thumbnail if available
+        if (thumbnail && thumbnail !== '') {
+            document.getElementById('editThumbPreviewImg').src = thumbnail;
+            document.getElementById('editThumbnailPreview').style.display = 'block';
+        }
+
         fetch('GetVariationsServlet?productId=' + id)
             .then(r => r.json())
             .then(vars => {
                 container.innerHTML = '';
-                vars.forEach(v => addEditVariationRow(v));
+                if (vars && vars.length > 0) {
+                    document.getElementById('editTypeVariation').checked = true;
+                    toggleEditProductType('variation');
+                    vars.forEach(v => addEditVariationRow(v));
+                } else {
+                    document.getElementById('editTypeSimple').checked = true;
+                    toggleEditProductType('simple');
+                    document.getElementById('editProductPrice').value = price;
+                    document.getElementById('editProductStock').value = stock;
+                    document.getElementById('editOriginalPrice').value = originalPrice || '';
+                }
             })
-            .catch(() => { container.innerHTML = ''; });
+            .catch(() => {
+                container.innerHTML = '';
+                document.getElementById('editTypeSimple').checked = true;
+                toggleEditProductType('simple');
+                document.getElementById('editProductPrice').value = price;
+                document.getElementById('editProductStock').value = stock;
+            });
 
         const eModal = document.getElementById('editProductModal');
         eModal.style.display = 'flex';
@@ -2667,36 +2797,100 @@ window.addEventListener('load', function() {
         const selColor = (v && v.type==='Color') ? 'selected' : '';
         const selKilos = (v && v.type==='Kilos') ? 'selected' : '';
         const selStyle = (v && v.type==='Style') ? 'selected' : '';
+        const varOriginalPrice = (v && v.originalPrice) ? v.originalPrice : '';
         row.innerHTML =
-            '<div class="d-flex gap-2 align-items-center flex-wrap">' +
+            '<div class="d-flex align-items-center gap-2 flex-nowrap overflow-auto pb-1">' +
                 '<input type="hidden" name="editVarId[]" value="' + varId + '">' +
-                '<select name="editVarType[]" class="form-select form-select-sm" style="width:110px; flex-shrink:0;">' +
-                    '<option value="Size" ' + selSize + '>Size</option>' +
-                    '<option value="Color" ' + selColor + '>Color</option>' +
-                    '<option value="Kilos" ' + selKilos + '>Kilos</option>' +
-                    '<option value="Style" ' + selStyle + '>Style</option>' +
-                '</select>' +
-                '<input type="text" name="editVarValue[]" class="form-control form-control-sm" placeholder="e.g. XL, Red" style="width:180px;" value="' + varVal + '" required>' +
-                '<button type="button" class="btn btn-outline-danger btn-sm px-2" onclick="this.closest(\'.border\').remove()">' +
-                    '<i class="bi bi-x"></i>' +
-                '</button>' +
+                '<div class="d-flex flex-column gap-1" style="min-width:90px;">' +
+                    '<label style="font-size:10px;font-weight:600;color:#555;">Type</label>' +
+                    '<select name="editVarType[]" class="form-select form-select-sm">' +
+                        '<option value="Size" ' + selSize + '>Size</option>' +
+                        '<option value="Color" ' + selColor + '>Color</option>' +
+                        '<option value="Kilos" ' + selKilos + '>Kilos</option>' +
+                        '<option value="Style" ' + selStyle + '>Style</option>' +
+                    '</select>' +
+                '</div>' +
+                '<div class="d-flex flex-column gap-1" style="min-width:100px;">' +
+                    '<label style="font-size:10px;font-weight:600;color:#555;">Value</label>' +
+                    '<input type="text" name="editVarValue[]" class="form-control form-control-sm" placeholder="e.g. XL, Red" value="' + varVal + '" required>' +
+                '</div>' +
+                '<div class="d-flex flex-column gap-1" style="min-width:90px;">' +
+                    '<label style="font-size:10px;font-weight:600;color:#555;">Base Price (₱)</label>' +
+                    '<input type="number" name="editVarPrice[]" class="form-control form-control-sm" placeholder="299" min="0" step="0.01" value="' + varPrice + '">' +
+                '</div>' +
+                '<div class="d-flex flex-column gap-1" style="min-width:90px;">' +
+                    '<label style="font-size:10px;font-weight:600;color:#555;">Sale Price (₱) <span style=\'color:#aaa;\'>opt</span></label>' +
+                    '<input type="number" name="editVarOriginalPrice[]" class="form-control form-control-sm" placeholder="199" min="0" step="0.01" value="' + varOriginalPrice + '">' +
+                '</div>' +
+                '<div class="d-flex flex-column gap-1" style="min-width:70px;">' +
+                    '<label style="font-size:10px;font-weight:600;color:#555;">Stock</label>' +
+                    '<input type="number" name="editVarStock[]" class="form-control form-control-sm" placeholder="0" min="0" value="' + varStock + '">' +
+                '</div>' +
+                '<div class="d-flex flex-column gap-1 align-items-center" style="min-width:60px;">' +
+                    '<label style="font-size:10px;font-weight:600;color:#555;">Image</label>' +
+                    '<label class="btn btn-outline-secondary btn-sm px-2 mb-0" style="font-size:10px;cursor:pointer;">📷<input type="file" name="editVarImageFile[]" accept="image/*" onchange="previewVarImage(this)" style="display:none;"></label>' +
+                    '<input type="hidden" name="editVarImage[]" class="var-image-data" value="">' +
+                    '<input type="hidden" name="editVarKeepImage[]" class="var-keep-image" value="' + (v && v.image ? 'keep' : '') + '">' +
+                    '<img src="' + (v && v.image ? v.image : '') + '" class="var-image-preview" style="' + (v && v.image ? 'display:block;' : 'display:none;') + ' width:36px; height:36px; object-fit:cover; border-radius:4px; border:2px solid #198754; cursor:pointer;" onclick="removeEditVarImage(this)" title="Click to remove">' +
+                    '<span class="var-image-hint" style="' + (v && v.image ? 'display:block;' : 'display:none;') + ' font-size:9px; color:#dc3545; text-align:center; line-height:1.2; margin-top:2px;">click pic<br>to remove</span>' +
+                    '</div>' +
+                '<div class="d-flex flex-column justify-content-end" style="padding-top:18px;">' +
+                    '<button type="button" class="btn btn-outline-danger btn-sm px-2" onclick="this.closest(\'.border\').remove()">' +
+                        '<i class="bi bi-trash"></i>' +
+                    '</button>' +
+                '</div>' +
             '</div>';
         container.appendChild(row);
     }
+    function removeEditVarImage(btn) {
+        const col = btn.closest('.d-flex.flex-column');
+        col.querySelector('.var-image-preview').style.display = 'none';
+        col.querySelector('.var-image-preview').src = '';
+        col.querySelector('.var-image-data').value = '';
+        col.querySelector('.var-keep-image').value = '';
+        const hint = col.querySelector('.var-image-hint');
+        if (hint) hint.style.display = 'none';
+    }
+    function previewEditGalleryImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('editGalleryImageData').value = e.target.result;
+                document.getElementById('editGalleryPreviewImg').src = e.target.result;
+                document.getElementById('editGalleryPreview').style.display = 'block';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
     
+    function previewEditThumbnail(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('editThumbnailData').value = e.target.result;
+                document.getElementById('editThumbPreviewImg').src = e.target.result;
+                document.getElementById('editThumbnailPreview').style.display = 'block';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
     function closeEditModal() {
         document.getElementById('editProductModal').style.display = 'none';
         document.querySelector('.navbar-shopeasy').style.zIndex = '';
     }
+    function showSellerToast(msg, type) {
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toastMsg');
+        toast.style.background = (type === 'error') ? '#dc3545' : '#198754';
+        toastMsg.textContent = msg;
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+            toast.style.background = '#198754';
+        }, 3000);
+    }
+    
     function updateOrderStatus(orderId, newStatus) {
-        const actionLabels = {
-            'Processing': 'Confirm this order?',
-            'Shipped': 'Mark this order as Shipped?',
-            'Completed': 'Mark this order as Completed?',
-            'Cancelled': 'Cancel this order?'
-        };
-        if (!confirm(actionLabels[newStatus] || 'Update order status?')) return;
-
         fetch('UpdateOrderServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -2704,7 +2898,6 @@ window.addEventListener('load', function() {
         })
         .then(res => res.text())
         .then(() => {
-            // Show success bar
             document.getElementById('successBarMsg').textContent = 'Order status updated to ' + newStatus + '! ✅';
             document.getElementById('successBar').style.display = 'block';
             setTimeout(() => {
@@ -2712,15 +2905,10 @@ window.addEventListener('load', function() {
                 location.reload();
             }, 1500);
         })
-        .catch(err => alert('Error updating order: ' + err));
+        .catch(() => showSellerToast('Error updating order. Please try again.', 'error'));
     }
     
     function approveCancel(orderId, action) {
-        const label = action === 'approve'
-            ? 'Approve cancellation? Stock will be restored.'
-            : 'Decline this cancellation request? Order will return to Processing.';
-        if (!confirm(label)) return;
-
         fetch('ApproveCancelServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -2739,10 +2927,10 @@ window.addEventListener('load', function() {
                     location.reload();
                 }, 1500);
             } else {
-                alert('Error: ' + (data.message || 'Something went wrong.'));
+                showSellerToast(data.message || 'Something went wrong.', 'error');
             }
         })
-        .catch(err => alert('Error: ' + err));
+        .catch(() => showSellerToast('Error processing request. Please try again.', 'error'));
     }
 </script>
 
@@ -2836,70 +3024,258 @@ window.addEventListener('load', function() {
     </div>
 </div>
 <!-- EDIT PRODUCT MODAL -->
-<div id="editProductModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center; overflow-y:auto;" onclick="if(event.target===this)closeEditModal()">
-
-<div style="background:white; border-radius:20px; padding:32px; width:92%; max-width:580px; margin:0 auto 40px auto; box-shadow:0 20px 60px rgba(0,0,0,0.2);">
-<div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
-    <h5 class="fw-bold mb-0"><i class="bi bi-pencil-fill text-success me-2"></i>Edit Product</h5>
-    <button type="button" onclick="closeEditModal()" style="background:none; border:none; font-size:20px; color:#aaa; cursor:pointer;">&times;</button>
-</div>
-        <form action="EditProductServlet" method="post">
-            <input type="hidden" name="productId" id="editProductId">
-            <div class="row g-3">
-                <div class="col-12">
-                    <label class="form-label fw-bold" style="font-size:13px;">Product Name</label>
-                    <input type="text" name="productName" id="editProductName" class="form-control" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Price (₱)</label>
-                    <input type="number" name="price" id="editProductPrice" class="form-control" step="0.01" min="0" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Stock</label>
-                    <input type="number" name="stock" id="editProductStock" class="form-control" min="0" required>
-                </div>
-                <div class="col-md-6">
-   <label class="form-label fw-bold" style="font-size:13px;">Discounted Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional</span></label>
-    <input type="number" name="originalPrice" id="editOriginalPrice" class="form-control" step="0.01" min="0">
-</div>
-                <div class="col-12">
-                    <label class="form-label fw-bold" style="font-size:13px;">Category</label>
-                    <select name="categoryId" id="editCategoryId" class="form-select" required>
-                        <option value="">Select category</option>
-                        <%
-                            java.sql.Connection editCatConn = com.shopeasy.DBConnection.getConnection();
-                            java.sql.PreparedStatement editCatPs = editCatConn.prepareStatement("SELECT category_id, name FROM category ORDER BY name");
-                            java.sql.ResultSet editCatRs = editCatPs.executeQuery();
-                            while (editCatRs.next()) {
-                        %>
-                            <option value="<%= editCatRs.getInt("category_id") %>"><%= editCatRs.getString("name") %></option>
-                        <%
-                            }
-                            editCatRs.close(); editCatPs.close(); editCatConn.close();
-                        %>
-                    </select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label fw-bold" style="font-size:13px;">Description</label>
-                    <textarea name="description" id="editProductDesc" class="form-control" rows="3"></textarea>
-                </div>
-                <div class="col-12">
-    <label class="form-label fw-bold" style="font-size:13px;">
-        Variations <span class="text-muted fw-normal" style="font-size:11px;">optional</span>
-    </label>
-    <div id="editVariationsContainer" class="d-flex flex-column gap-1 mb-2"></div>
-    <button type="button" class="btn btn-outline-success btn-sm" onclick="addEditVariationRow()">
-        <i class="bi bi-plus"></i> Add Variation
-    </button>
-</div>
-<div class="col-12 d-flex gap-2 justify-content-end">
-    <button type="button" class="btn btn-outline-secondary" onclick="closeEditModal()">Cancel</button>
-    <button type="submit" class="btn btn-success px-4">Save Changes</button>
-</div>
-            </div>
-        </form>
+<!-- ADD PRODUCT MODAL -->
+<div id="addProductModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; overflow-y:auto;" onclick="if(event.target===this)closeAddProductModal()">
+<div style="background:white; border-radius:20px; padding:32px; width:82%; max-width:700px; margin:20px auto 60px auto; box-shadow:0 20px 60px rgba(0,0,0,0.2); min-height:fit-content;"> 
+    <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+        <h5 class="fw-bold mb-0"><i class="bi bi-plus-circle-fill text-success me-2"></i>Add New Product</h5>
+        <button type="button" onclick="closeAddProductModal()" style="background:none; border:none; font-size:20px; color:#aaa; cursor:pointer;">&times;</button>
     </div>
+    <form action="AddProductServlet" method="post" id="productForm">
+        <div class="row g-3">
+            <!-- Product Name -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">Product Name</label>
+                <input type="text" name="productName" class="form-control" placeholder="Enter product name" required>
+            </div>
+            <!-- Category -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">Category</label>
+                <select name="categoryId" class="form-select" required>
+                    <option value="">Select category</option>
+                    <%
+                        java.sql.Connection addCatConn = com.shopeasy.DBConnection.getConnection();
+                        java.sql.PreparedStatement addCatPs = addCatConn.prepareStatement("SELECT category_id, name FROM category ORDER BY name");
+                        java.sql.ResultSet addCatRs = addCatPs.executeQuery();
+                        while (addCatRs.next()) {
+                    %>
+                        <option value="<%= addCatRs.getInt("category_id") %>"><%= addCatRs.getString("name") %></option>
+                    <%
+                        }
+                        addCatRs.close(); addCatPs.close(); addCatConn.close();
+                    %>
+                </select>
+            </div>
+            <!-- Description -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">Description</label>
+                <textarea name="description" class="form-control" rows="3" placeholder="Describe your product..."></textarea>
+            </div>
+
+            <!-- PRODUCT TYPE TOGGLE -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">Product Type</label>
+                <div class="d-flex gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="productType" id="addTypeSimple" value="simple" checked onchange="toggleAddProductType('simple')">
+                        <label class="form-check-label" for="addTypeSimple" style="font-size:13px; cursor:pointer;">
+                            <i class="bi bi-box"></i> <strong>Single Product</strong> <span class="text-muted" style="font-size:11px;">— one price, one stock</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="productType" id="addTypeVariation" value="variation" onchange="toggleAddProductType('variation')">
+                        <label class="form-check-label" for="addTypeVariation" style="font-size:13px; cursor:pointer;">
+                            <i class="bi bi-collection"></i> <strong>With Variations</strong> <span class="text-muted" style="font-size:11px;">— size, color, etc.</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SIMPLE PRODUCT PRICING -->
+            <div id="addSimpleFields" class="col-12">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold" style="font-size:13px;">Base Price (₱)</label>
+                        <input type="number" name="price" id="addSimplePrice" class="form-control" placeholder="0.00" step="0.01" min="0" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold" style="font-size:13px;">Sale Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional</span></label>
+                        <input type="number" name="originalPrice" id="addSimpleOrigPrice" class="form-control" placeholder="e.g. 199.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold" style="font-size:13px;">Stock</label>
+                        <input type="number" name="stock" id="addSimpleStock" class="form-control" placeholder="0" min="0" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VARIATION PRODUCT INFO -->
+            <div id="addVariationFields" class="col-12" style="display:none;">
+                <input type="hidden" name="price" id="addVarHiddenPrice" value="0">
+                <input type="hidden" name="originalPrice" id="addVarHiddenOrigPrice" value="">
+                <input type="hidden" name="stock" id="addVarHiddenStock" value="0">
+                <div class="alert alert-info py-2 px-3 mb-0" style="font-size:12px; border-radius:10px;">
+                    <i class="bi bi-info-circle me-1"></i> Price and stock are set <strong>per variation</strong> below. The lowest price will show as "Starting at ₱XX" on product cards.
+                </div>
+            </div>
+
+            <!-- VARIATIONS SECTION -->
+            <div id="addVariationsSection" class="col-12" style="display:none;">
+                <label class="form-label fw-bold" style="font-size:13px;">Variations</label>
+                <div id="variationsContainer" class="d-flex flex-column gap-2 mb-2"></div>
+                <button type="button" class="btn btn-outline-success btn-sm" onclick="addVariationRow()">
+                    <i class="bi bi-plus"></i> Add Variation
+                </button>
+            </div>
+
+      <!-- GALLERY IMAGES (multiple) -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">📸 Product Gallery Images <span class="text-muted fw-normal" style="font-size:11px;">up to 5 photos — first photo shown in product page</span></label>
+                <input type="file" id="productImageInput" class="form-control" accept="image/*" multiple onchange="handleMultiGalleryUpload(this)">
+                <input type="hidden" name="productImage" id="productImageData">
+                <div id="galleryAddPreviews" class="d-flex gap-2 flex-wrap mt-2"></div>
+                <input type="hidden" name="galleryImages" id="galleryImagesData">
+            </div>
+
+            <!-- THUMBNAIL -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">⭐ Product Thumbnail <span class="text-muted fw-normal" style="font-size:11px;">used for product cards — leave blank to auto-use gallery image</span></label>
+                <input type="file" id="productThumbnailInput" class="form-control" accept="image/*" onchange="previewThumbnail(this)">
+                <input type="hidden" name="productThumbnail" id="productThumbnailData">
+                <div id="productThumbnailPreview" class="mt-2" style="display:none;">
+                    <img id="productThumbPreviewImg" src="" style="width:70px; height:70px; object-fit:cover; border-radius:8px; border:2px solid #0d6efd;">
+                </div>
+            </div>
+
+
+            
+            <!-- ACTIONS -->
+            <div class="col-12 d-flex gap-2 justify-content-end pt-2 border-top">
+                <button type="button" class="btn btn-outline-secondary" onclick="closeAddProductModal()">
+                    <i class="bi bi-x"></i> Cancel
+                </button>
+                <button type="submit" class="btn btn-success px-4">
+                    <i class="bi bi-check2"></i> Save Product
+                </button>
+            </div>
+        </div>
+    </form>
 </div>
+</div>
+
+<!-- EDIT PRODUCT MODAL -->
+<div id="editProductModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; overflow-y:auto;" onclick="if(event.target===this)closeEditModal()">
+<div style="background:white; border-radius:20px; padding:32px; width:82%; max-width:700px; margin:20px auto 60px auto; box-shadow:0 20px 60px rgba(0,0,0,0.2); min-height:fit-content;"> 
+    <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+        <h5 class="fw-bold mb-0"><i class="bi bi-pencil-fill text-success me-2"></i>Edit Product</h5>
+        <button type="button" onclick="closeEditModal()" style="background:none; border:none; font-size:20px; color:#aaa; cursor:pointer;">&times;</button>
+    </div>
+    <form action="EditProductServlet" method="post">
+        <input type="hidden" name="productId" id="editProductId">
+        <div class="row g-3">
+            <!-- Product Name -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">Product Name</label>
+                <input type="text" name="productName" id="editProductName" class="form-control" required>
+            </div>
+            <!-- Category -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">Category</label>
+                <select name="categoryId" id="editCategoryId" class="form-select" required>
+                    <option value="">Select category</option>
+                    <%
+                        java.sql.Connection editCatConn = com.shopeasy.DBConnection.getConnection();
+                        java.sql.PreparedStatement editCatPs = editCatConn.prepareStatement("SELECT category_id, name FROM category ORDER BY name");
+                        java.sql.ResultSet editCatRs = editCatPs.executeQuery();
+                        while (editCatRs.next()) {
+                    %>
+                        <option value="<%= editCatRs.getInt("category_id") %>"><%= editCatRs.getString("name") %></option>
+                    <%
+                        }
+                        editCatRs.close(); editCatPs.close(); editCatConn.close();
+                    %>
+                </select>
+            </div>
+            <!-- Description -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">Description</label>
+                <textarea name="description" id="editProductDesc" class="form-control" rows="3"></textarea>
+            </div>
+
+            <!-- PRODUCT TYPE TOGGLE -->
+            <div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">Product Type</label>
+                <div class="d-flex gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="editProductType" id="editTypeSimple" value="simple" checked onchange="toggleEditProductType('simple')">
+                        <label class="form-check-label" for="editTypeSimple" style="font-size:13px; cursor:pointer;">
+                            <i class="bi bi-box"></i> <strong>Single Product</strong>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="editProductType" id="editTypeVariation" value="variation" onchange="toggleEditProductType('variation')">
+                        <label class="form-check-label" for="editTypeVariation" style="font-size:13px; cursor:pointer;">
+                            <i class="bi bi-collection"></i> <strong>With Variations</strong>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SIMPLE EDIT FIELDS -->
+            <div id="editSimpleFields" class="col-12">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold" style="font-size:13px;">Base Price (₱)</label>
+                        <input type="number" name="price" id="editProductPrice" class="form-control" step="0.01" min="0" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold" style="font-size:13px;">Sale Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional</span></label>
+                        <input type="number" name="originalPrice" id="editOriginalPrice" class="form-control" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold" style="font-size:13px;">Stock</label>
+                        <input type="number" name="stock" id="editProductStock" class="form-control" min="0" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VARIATION EDIT INFO -->
+            <div id="editVariationFields" class="col-12" style="display:none;">
+                <input type="hidden" name="price" id="editVarHiddenPrice" value="0">
+                <input type="hidden" name="originalPrice" id="editVarHiddenOrigPrice" value="">
+                <input type="hidden" name="stock" id="editVarHiddenStock" value="0">
+                <div class="alert alert-info py-2 px-3 mb-0" style="font-size:12px; border-radius:10px;">
+                    <i class="bi bi-info-circle me-1"></i> Price and stock are set <strong>per variation</strong> below.
+                </div>
+            </div>
+
+<div class="col-12">
+                <label class="form-label fw-bold" style="font-size:13px;">📸 Product Gallery Images <span class="text-muted fw-normal" style="font-size:11px;">up to 5 photos — leave blank to keep existing</span></label>
+                <input type="file" class="form-control" accept="image/*" multiple onchange="handleEditMultiGalleryUpload(this)">
+                <input type="hidden" name="productImage" id="editGalleryImageData">
+                <div id="editGalleryPreviews" class="d-flex gap-2 flex-wrap mt-2"></div>
+                <input type="hidden" name="galleryImages" id="editGalleryImagesData">
+            </div>
+            
+<!-- EDIT THUMBNAIL -->
+            <div class="col-12" id="editThumbnailSection">
+                <label class="form-label fw-bold" style="font-size:13px;">⭐ Product Thumbnail <span class="text-muted fw-normal" style="font-size:11px;">leave blank to keep existing</span></label>
+                <input type="file" class="form-control" accept="image/*" onchange="previewEditThumbnail(this)">
+                <input type="hidden" name="thumbnail" id="editThumbnailData">
+                <div id="editThumbnailPreview" class="mt-2" style="display:none;">
+                    <img id="editThumbPreviewImg" src="" style="width:70px; height:70px; object-fit:cover; border-radius:8px; border:2px solid #0d6efd;">
+                </div>
+            </div>
+
+            <!-- EDIT VARIATIONS SECTION -->
+            <div id="editVariationsSection" class="col-12" style="display:none;">
+                <label class="form-label fw-bold" style="font-size:13px;">Variations</label>
+                <div id="editVariationsContainer" class="d-flex flex-column gap-2 mb-2"></div>
+                <button type="button" class="btn btn-outline-success btn-sm" onclick="addEditVariationRow()">
+                    <i class="bi bi-plus"></i> Add Variation
+                </button>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="col-12 d-flex gap-2 justify-content-end pt-2 border-top">
+                <button type="button" class="btn btn-outline-secondary" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-success px-4">Save Changes</button>
+            </div>
+        </div>
+    </form>
+</div>
+</div>
+
 <!-- SELLER CANCEL ORDER MODAL -->
 <div id="sellerCancelModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:white; border-radius:16px; padding:28px; width:90%; max-width:420px;">
@@ -3054,7 +3430,7 @@ function sellerMarkOneRead(notifId, el) {
 }
 
 function sellerClearAll() {
-    if (!confirm('Clear all notifications?')) return;
+   
     fetch('NotificationServlet', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -3110,7 +3486,7 @@ function submitSellerCancel() {
             location.reload();
         }, 1500);
     })
-    .catch(err => alert('Error: ' + err));
+    .catch(() => showSellerToast('Error clearing notifications. Please try again.', 'error'));
 }
 //SHOP LOGO CROP
 let shopLogoImg = new Image();
@@ -3216,11 +3592,6 @@ function closeShopLogoCropModal() {
 }
 
 function sellerRefundAction(refundId, action) {
-    const label = action === 'approve'
-        ? 'Approve this refund? Amount will be deducted from your revenue.'
-        : 'Reject this refund request?';
-    if (!confirm(label)) return;
-
     fetch('RefundServlet', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -3237,12 +3608,94 @@ function sellerRefundAction(refundId, action) {
                 location.reload();
             }, 1500);
         } else {
-            alert(data.message || 'Error processing refund.');
+        	showSellerToast(data.message || 'Error processing refund.', 'error');
         }
     })
-    .catch(() => alert('Server error. Please try again.'));
+    .catch(() => showSellerToast('Server error. Please try again.', 'error'));
 }
 
+function filterSellerOrders(val) {
+    const v = val.toLowerCase().trim();
+    document.querySelectorAll('.seller-order-card').forEach(card => {
+        const id = card.dataset.orderid.toLowerCase();
+        card.style.display = (!v || id.includes(v)) ? '' : 'none';
+    });
+}
+//===== MULTI GALLERY UPLOAD (ADD) =====
+let addGalleryFiles = [];
+function handleMultiGalleryUpload(input) {
+    const files = Array.from(input.files).slice(0, 5);
+    addGalleryFiles = [];
+    document.getElementById('galleryAddPreviews').innerHTML = '';
+    files.forEach((file, idx) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            addGalleryFiles[idx] = e.target.result;
+            // Update hidden fields
+            document.getElementById('productImageData').value = addGalleryFiles[0] || '';
+            document.getElementById('galleryImagesData').value = JSON.stringify(addGalleryFiles);
+            // Preview
+            renderAddGalleryPreviews();
+        };
+        reader.readAsDataURL(file);
+    });
+}
+function renderAddGalleryPreviews() {
+    const container = document.getElementById('galleryAddPreviews');
+    container.innerHTML = '';
+    addGalleryFiles.forEach((src, idx) => {
+        if (!src) return;
+        const wrap = document.createElement('div');
+        wrap.style = 'position:relative; display:inline-block;';
+        wrap.innerHTML = '<img src="' + src + '" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid ' + (idx===0?'#0d6efd':'#198754') + ';">' +
+            '<span onclick="removeAddGalleryImg(' + idx + ')" style="position:absolute;top:-6px;right:-6px;background:#dc3545;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:bold;">×</span>' +
+            (idx===0 ? '<div style="font-size:9px;text-align:center;color:#0d6efd;font-weight:bold;">MAIN</div>' : '');
+        container.appendChild(wrap);
+    });
+}
+function removeAddGalleryImg(idx) {
+    addGalleryFiles.splice(idx, 1);
+    document.getElementById('productImageData').value = addGalleryFiles[0] || '';
+    document.getElementById('galleryImagesData').value = JSON.stringify(addGalleryFiles);
+    renderAddGalleryPreviews();
+}
+
+// ===== MULTI GALLERY UPLOAD (EDIT) =====
+let editGalleryFiles = [];
+function handleEditMultiGalleryUpload(input) {
+    const files = Array.from(input.files).slice(0, 5);
+    editGalleryFiles = [];
+    document.getElementById('editGalleryPreviews').innerHTML = '';
+    files.forEach((file, idx) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            editGalleryFiles[idx] = e.target.result;
+            document.getElementById('editGalleryImageData').value = editGalleryFiles[0] || '';
+            document.getElementById('editGalleryImagesData').value = JSON.stringify(editGalleryFiles);
+            renderEditGalleryPreviews();
+        };
+        reader.readAsDataURL(file);
+    });
+}
+function renderEditGalleryPreviews() {
+    const container = document.getElementById('editGalleryPreviews');
+    container.innerHTML = '';
+    editGalleryFiles.forEach((src, idx) => {
+        if (!src) return;
+        const wrap = document.createElement('div');
+        wrap.style = 'position:relative; display:inline-block;';
+        wrap.innerHTML = '<img src="' + src + '" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid ' + (idx===0?'#0d6efd':'#198754') + ';">' +
+            '<span onclick="removeEditGalleryImg(' + idx + ')" style="position:absolute;top:-6px;right:-6px;background:#dc3545;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:bold;">×</span>' +
+            (idx===0 ? '<div style="font-size:9px;text-align:center;color:#0d6efd;font-weight:bold;">MAIN</div>' : '');
+        container.appendChild(wrap);
+    });
+}
+function removeEditGalleryImg(idx) {
+    editGalleryFiles.splice(idx, 1);
+    document.getElementById('editGalleryImageData').value = editGalleryFiles[0] || '';
+    document.getElementById('editGalleryImagesData').value = JSON.stringify(editGalleryFiles);
+    renderEditGalleryPreviews();
+}
 </script>
 <!-- SHOP LOGO CROP MODAL -->
 <div class="crop-modal-overlay" id="shopLogoCropModal">
@@ -3264,6 +3717,18 @@ function sellerRefundAction(refundId, action) {
                     <i class="bi bi-check2"></i> Apply
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+<!-- Delete Product Confirmation Modal -->
+<div id="deleteProductModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:20px; padding:32px; width:90%; max-width:400px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="font-size:48px; margin-bottom:12px;">🗑️</div>
+        <h5 class="fw-bold mb-2">Delete Product?</h5>
+        <p class="text-muted mb-4" style="font-size:14px;">This product will be permanently deleted. This cannot be undone.</p>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-outline-secondary px-4" onclick="closeDeleteProductModal()">Cancel</button>
+            <button class="btn btn-danger px-4" id="deleteProductConfirmBtn">Delete</button>
         </div>
     </div>
 </div>

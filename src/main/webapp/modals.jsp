@@ -14,7 +14,7 @@
                 <p class="text-center fw-bold mb-2" style="font-size:13px;">Log in with</p>
                 <div class="row g-2 mb-3">
                     <div class="col-6">
-                        <button class="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2" type="button" style="transition:0.3s;" onmouseover="this.style.background='#EA4335'; this.style.color='white';" onmouseout="this.style.background='white'; this.style.color='#EA4335';">
+                       <button class="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2" type="button" onclick="showComingSoon()" style="transition:0.3s;" onmouseover="this.style.background='#EA4335'; this.style.color='white';" onmouseout="this.style.background='white'; this.style.color='#EA4335';">  
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 48 48">
                                 <path fill="#EA4335" d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.5 3.5 29 1.5 24 1.5 14.9 1.5 7.2 7.2 4.1 15.1l6.6 5.1C12.3 13.7 17.7 9.5 24 9.5z"/>
                                 <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.4 5.7c4.3-4 6.8-9.9 6.8-16.9z"/>
@@ -25,7 +25,8 @@
                         </button>
                     </div>
                     <div class="col-6">
-                        <button class="btn w-100 d-flex align-items-center justify-content-center gap-2" type="button" style="background:#1877F2; color:white; border:none; transition:0.3s;" onmouseover="this.style.background='#1558b0'" onmouseout="this.style.background='#1877F2'">
+                       
+                      <button class="btn w-100 d-flex align-items-center justify-content-center gap-2" type="button" onclick="showComingSoon()" style="background:#1877F2; color:white; border:none; transition:0.3s;" onmouseover="this.style.background='#1558b0'" onmouseout="this.style.background='#1877F2'">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white" viewBox="0 0 16 16">
         <path d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0-.002 3.603-.002 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951z"/>
     </svg>
@@ -71,9 +72,9 @@
                     <div id="loginError" class="alert alert-danger py-2 mb-3" style="display:none; font-size:13px;">
                         <i class="bi bi-x-circle-fill"></i> <span id="loginErrorText">Invalid email or password.</span>
                     </div>
-                   <button type="submit" id="registerSubmitBtn" class="btn btn-primary w-100 fw-bold py-2">
-                        <i class="bi bi-box-arrow-in-right"></i> Login
-                    </button>
+                  <button type="submit" id="loginSubmitBtn" class="btn btn-primary w-100 fw-bold py-2">
+    <i class="bi bi-box-arrow-in-right"></i> Login
+</button>
                 </form>
 
                 <p class="text-center mt-3 mb-0" style="font-size:14px;">
@@ -98,13 +99,7 @@
             </div>
             <div class="modal-body px-4 pb-4">
 
-                <!-- LOADING OVERLAY -->
-                <div id="loadingOverlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.85); z-index:999; border-radius:16px; flex-direction:column; align-items:center; justify-content:center;">
-                    <div class="spinner-border text-primary mb-2" role="status" style="width:3rem; height:3rem;">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="fw-bold text-primary mb-0" id="loadingText">Loading...</p>
-                </div>
+              
 
                 <form action="RegisterServlet" method="post" id="registerForm">
                 <!-- ACCOUNT TYPE SELECTOR -->
@@ -157,13 +152,14 @@
                     </div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">Confirm Password</label>
+                     <label class="form-label fw-bold">Confirm Password</label>
                         <div class="input-group">
     <input type="password" id="confirmPassword" class="form-control" placeholder="Repeat your password">
     <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('confirmPassword', this)">
         <i class="bi bi-eye"></i>
     </button>
 </div>
+<div id="regValidationError" class="alert alert-danger py-2 mt-2" style="display:none; font-size:13px;"></div>
                     </div>
                 </div>
 
@@ -186,14 +182,14 @@ I agree to the <a href="#" class="text-primary" data-bs-toggle="modal" data-bs-t
                 <p class="text-center fw-bold mb-2" style="font-size:13px;">Or sign up with</p>
                 <div class="row g-2">
                     <div class="col-6">
-                        <button class="btn btn-outline-danger w-100" type="button">
-                            <i class="bi bi-google"></i> Google
-                        </button>
+                 <button class="btn btn-outline-danger w-100" type="button" onclick="showComingSoon()">
+    <i class="bi bi-google"></i> Google
+</button>
                     </div>
                     <div class="col-6">
-                        <button class="btn w-100 d-flex align-items-center justify-content-center gap-2" type="button" style="background:#1877F2; color:white; border:none; transition:0.3s;" onmouseover="this.style.background='#1558b0'" onmouseout="this.style.background='#1877F2'">
-                            <i class="bi bi-facebook"></i> Facebook
-                        </button>
+               <button class="btn w-100 d-flex align-items-center justify-content-center gap-2" type="button" onclick="showComingSoon()" style="background:#1877F2; color:white; border:none; transition:0.3s;" onmouseover="this.style.background='#1558b0'" onmouseout="this.style.background='#1877F2'">
+    <i class="bi bi-facebook"></i> Facebook
+</button>
                     </div>
                 </div>
 
@@ -467,6 +463,10 @@ function submitForgotPassword() {
             document.getElementById('forgotPassErrorText').textContent = data.message || 'Failed to update password.';
             document.getElementById('forgotPassError').style.display = 'block';
         }
+    })
+    .catch(() => {
+        document.getElementById('forgotPassErrorText').textContent = 'Server error. Please try again.';
+        document.getElementById('forgotPassError').style.display = 'block';
     });
 }
 </script>
@@ -483,37 +483,7 @@ function togglePassword(fieldId, btn) {
     }
 }
 
-function selectTypeWithMessage(type, message) {
-    const customerCard = document.getElementById('customerCard');
-    const sellerCard = document.getElementById('sellerCard');
-    const sellerFields = document.getElementById('sellerFields');
-    const overlay = document.getElementById('loadingOverlay');
-    const loadingText = document.getElementById('loadingText');
-    loadingText.textContent = message;
-    overlay.style.display = 'flex';
-    setTimeout(() => {
-        if (type === 'customer') {
-            customerCard.style.background = '#e8f0fe';
-            customerCard.style.borderColor = '#0d6efd';
-            customerCard.querySelector('i').className = 'bi bi-person-fill fs-3 text-primary';
-            sellerCard.style.background = 'white';
-            sellerCard.style.borderColor = '#dee2e6';
-            sellerCard.querySelector('i').className = 'bi bi-shop fs-3 text-secondary';
-            sellerFields.style.display = 'none';
-            document.getElementById('accountTypeInput').value = 'customer';
-        } else {
-            sellerCard.style.background = '#e8f0fe';
-            sellerCard.style.borderColor = '#0d6efd';
-            sellerCard.querySelector('i').className = 'bi bi-shop fs-3 text-primary';
-            customerCard.style.background = 'white';
-            customerCard.style.borderColor = '#dee2e6';
-            customerCard.querySelector('i').className = 'bi bi-person-fill fs-3 text-secondary';
-            sellerFields.style.display = 'block';
-            document.getElementById('accountTypeInput').value = 'seller';
-        }
-        overlay.style.display = 'none';
-    }, 800);
-}
+
 
 function handleLoginSubmit(e, form) {
     e.preventDefault();
@@ -553,25 +523,6 @@ function acceptTermsPrivacy() {
     });
 }
 
-function acceptPrivacy() {
-    privacyAccepted = true;
-    const privacyModal = bootstrap.Modal.getInstance(document.getElementById('privacyModal'));
-    if (privacyModal) privacyModal.hide();
-    document.getElementById('privacyModal').addEventListener('hidden.bs.modal', function handler() {
-        document.getElementById('privacyModal').removeEventListener('hidden.bs.modal', handler);
-        const registerModal = new bootstrap.Modal(document.getElementById('registerModal'));
-        registerModal.show();
-        checkEnableCheckbox();
-    });
-}
-
-function checkEnableCheckbox() {
-    if (termsAccepted && privacyAccepted) {
-        const checkbox = document.getElementById('agreeTerms');
-        checkbox.disabled = false;
-        checkbox.checked = true;
-    }
-}
 function checkPasswordStrength(val) {
     const bar = document.getElementById('passStrengthBar');
     const text = document.getElementById('passStrengthText');
@@ -583,7 +534,7 @@ function checkPasswordStrength(val) {
     if (/[0-9]/.test(val)) score++;
     if (/[^A-Za-z0-9]/.test(val)) score++;
 
-    const submitBtn = document.getElementById('registerSubmitBtn');
+    const submitBtn = document.querySelector('#registerForm button[type="submit"]');
 
     if (val.length === 0) {
         bar.style.width = '0%'; bar.className = 'progress-bar';
@@ -619,6 +570,15 @@ function formatPHPhone(input) {
         if (err) err.style.display = 'none';
     }
 }
+
+function showComingSoon() {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#1a1a2e; color:white; padding:12px 28px; border-radius:12px; font-size:14px; font-weight:600; z-index:99999; box-shadow:0 4px 16px rgba(0,0,0,0.2);';
+    toast.innerHTML = '<i class="bi bi-clock me-2"></i>Social login coming soon!';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+}
+
 </script>
 
 <!-- ===== SELLER BLOCKED MODAL (no birthday / underage) ===== -->

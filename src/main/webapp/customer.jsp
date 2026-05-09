@@ -102,85 +102,6 @@
     padding-bottom: 10px;
     border-bottom: 2px solid #e8f0fe;
 }
-.avatar-circle {
-    width: 100px; height: 100px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #0d6efd, #6610f2);
-    color: white;
-    font-size: 36px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 4px solid white;
-    box-shadow: 0 4px 16px rgba(13,110,253,0.3);
-    margin: 0 auto;
-}
-.sidebar-avatar {
-    width: 80px; height: 80px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid white;
-    box-shadow: 0 4px 12px rgba(13,110,253,0.3);
-}
-.avatar-upload {
-    position: relative;
-    width: 100px;
-    height: 100px;
-    margin: 0 auto 16px;
-}
-.upload-btn {
-    position: absolute;
-    bottom: 2px; right: 2px;
-    background: #0d6efd;
-    color: white;
-    border: 2px solid white;
-    border-radius: 50%;
-    width: 30px; height: 30px;
-    font-size: 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    transition: 0.2s;
-}
-.upload-btn:hover { background: #0b5ed7; transform: scale(1.1); }
-.order-badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; }
-.order-item {
-    border: 1px solid #e8f0fe;
-    border-radius: 14px;
-    padding: 16px;
-    margin-bottom: 12px;
-    transition: 0.2s;
-    background: #fafbff;
-}
-.order-item:hover { box-shadow: 0 4px 16px rgba(13,110,253,0.1); border-color: #c5d8fb; }
-.order-img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; }
-.review-star { color: #ffc107; font-size: 13px; }
-.address-card {
-    border: 1px solid #e0e0e0;
-    border-radius: 14px;
-    padding: 16px;
-    margin-bottom: 12px;
-    position: relative;
-    transition: 0.2s;
-    background: #fafbff;
-}
-.address-card.default { border-color: #0d6efd; background: #f0f4ff; }
-.address-card:hover { box-shadow: 0 4px 16px rgba(13,110,253,0.1); }
-.default-badge {
-    position: absolute;
-    top: 10px; right: 10px;
-    background: linear-gradient(135deg, #0d6efd, #6610f2);
-    color: white;
-    font-size: 10px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-weight: 600;
-}
-.tab-content-section { display: none; }
-.tab-content-section.active { display: block; }
 .stat-box {
     background: linear-gradient(135deg, #f0f4ff, #e8f0fe);
     border-radius: 16px;
@@ -189,43 +110,20 @@
     border: 1px solid #dce8fd;
     transition: 0.2s;
 }
+.tab-content-section { display: none; }
+.tab-content-section.active { display: block; }
+.navbar-shopeasy { background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.sidebar-avatar {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid white;
+    box-shadow: 0 4px 12px rgba(13,110,253,0.3);
+}
 .stat-box:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(13,110,253,0.1); }
 .stat-box .stat-num { font-size: 26px; font-weight: 800; color: #0d6efd; }
 .stat-box .stat-label { font-size: 12px; color: #666; font-weight: 500; }
-.navbar-shopeasy { background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .sidebar-nav a {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 24px;
-            color: #555;
-            text-decoration: none;
-            font-size: 14px;
-            transition: 0.2s;
-            border-left: 3px solid transparent;
-        }
-        .sidebar-nav a:hover, .sidebar-nav a.active {
-            background: #e8f0fe;
-            color: #0d6efd;
-            border-left-color: #0d6efd;
-            font-weight: 600;
-        }
-        .sidebar-nav a i { font-size: 16px; width: 20px; }
-        .card-section {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-            padding: 24px;
-            margin-bottom: 20px;
-        }
-        .section-title {
-            font-size: 16px;
-            font-weight: 700;
-            color: #1a1a2e;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e8f0fe;
-        }
+        
         .avatar-circle {
             width: 100px; height: 100px;
             border-radius: 50%;
@@ -302,12 +200,7 @@
             padding: 2px 8px;
             border-radius: 20px;
         }
-        .tab-content-section { display: none; }
-        .tab-content-section.active { display: block; }
-        .stat-box { background: #f0f4ff; border-radius: 12px; padding: 14px; text-align: center; }
-        .stat-box .stat-num { font-size: 24px; font-weight: 700; color: #0d6efd; }
-        .stat-box .stat-label { font-size: 12px; color: #666; }
-        .navbar-shopeasy { background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        
        .password-strength { height: 4px; border-radius: 2px; margin-top: 6px; transition: 0.3s; }
         input[type="password"]::-ms-reveal,
         input[type="password"]::-ms-clear,
@@ -322,12 +215,6 @@
         }
         .crop-container { background: white; border-radius: 16px; padding: 20px; width: 90%; max-width: 500px; }
         #customerCropCanvas { display: block; width: 300px; height: 300px; cursor: grab; border-radius: 4px; }
-        #reviewModal > div {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
 
 #starRating i {
     cursor: pointer !important;
@@ -396,6 +283,18 @@ request.setAttribute("navBackUrl", "index.jsp");
     int statTotal = 0, statPending = 0, statCompleted = 0, statCancelled = 0;
     try {
     	Integer statId = (Integer) session.getAttribute("customerId");
+        if (statId == null) {
+            // Try to get customerId from DB using userId
+            try {
+                java.sql.Connection cidConn = com.shopeasy.DBConnection.getConnection();
+                java.sql.PreparedStatement cidPs = cidConn.prepareStatement(
+                    "SELECT customer_id FROM customer WHERE user_id=?");
+                cidPs.setInt(1, (int) session.getAttribute("userId"));
+                java.sql.ResultSet cidRs = cidPs.executeQuery();
+                if (cidRs.next()) statId = cidRs.getInt("customer_id");
+                cidRs.close(); cidPs.close(); cidConn.close();
+            } catch (Exception ignored) {}
+        }
         if (statId == null) statId = (int) session.getAttribute("userId");
         java.sql.Connection statConn = com.shopeasy.DBConnection.getConnection();
         java.sql.PreparedStatement statPs = statConn.prepareStatement(
@@ -521,7 +420,18 @@ request.setAttribute("navBackUrl", "index.jsp");
            <!-- MY ORDERS TAB -->
             <div id="tab-orders" class="tab-content-section">
                 <div class="card-section">
-                    <p class="section-title"><i class="bi bi-bag-fill text-primary"></i> My Orders</p>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+    <p class="section-title mb-0"><i class="bi bi-bag-fill text-primary"></i> My Orders</p>
+    <div class="input-group" style="width:220px;">
+        <span class="input-group-text bg-white border-end-0">
+            <i class="bi bi-search text-muted" style="font-size:13px;"></i>
+        </span>
+        <input type="text" id="orderSearch" class="form-control border-start-0 ps-0" 
+               placeholder="Search Order #..." 
+               style="font-size:13px;"
+               oninput="searchOrders(this.value)">
+    </div>
+</div>
                     <%
                         java.util.List<java.util.Map<String, Object>> myOrders = new java.util.ArrayList<>();
                         try {
@@ -554,17 +464,120 @@ request.setAttribute("navBackUrl", "index.jsp");
                             }
                             ordRs.close(); ordPs.close(); ordConn.close();
                         } catch (Exception ex) { ex.printStackTrace(); }
+
+                    // BATCH QUERY 1 — All order items for all orders
+                    java.util.Map<Integer, java.util.List<java.util.Map<String,Object>>> allOrderItems = new java.util.HashMap<>();
+                    java.util.Map<Integer, Integer> firstProductIds = new java.util.HashMap<>();
+                    // BATCH QUERY 2 — All review checks
+                    java.util.Set<Integer> reviewedOrderIds = new java.util.HashSet<>();
+                    // BATCH QUERY 3 — All refund statuses
+                    java.util.Map<Integer, String> refundStatuses = new java.util.HashMap<>();
+                    // BATCH QUERY 4 — All refund eligibility (days since order)
+                    java.util.Map<Integer, Integer> orderDaysSince = new java.util.HashMap<>();
+
+                    if (!myOrders.isEmpty()) {
+                        // Build comma-separated order IDs
+                        StringBuilder orderIds = new StringBuilder();
+                        for (java.util.Map<String,Object> o : myOrders) {
+                            if (orderIds.length() > 0) orderIds.append(",");
+                            orderIds.append((Integer) o.get("id"));
+                        }
+                        String orderIdList = orderIds.toString();
+
+                        try {
+                            Integer batchCustId = (Integer) session.getAttribute("customerId");
+                            if (batchCustId == null) batchCustId = (int) session.getAttribute("userId");
+                            java.sql.Connection batchConn = com.shopeasy.DBConnection.getConnection();
+
+                            // BATCH 1 — Order items
+                            java.sql.Statement itemStmt = batchConn.createStatement();
+                            java.sql.ResultSet itemBatchRs = itemStmt.executeQuery(
+                            		"SELECT oi.order_id, p.product_id, p.name, p.image, p.thumbnail, oi.quantity, oi.price, oi.subtotal, " +
+                            				"pv.variation_type, pv.variation_value, pv.image as var_image " +
+                                "FROM order_items oi " +
+                                "JOIN product p ON oi.product_id = p.product_id " +
+                                "LEFT JOIN product_variation pv ON oi.variation_id = pv.variation_id " +
+                                "WHERE oi.order_id IN (" + orderIdList + ")");
+                            while (itemBatchRs.next()) {
+                                int oid = itemBatchRs.getInt("order_id");
+                                if (!allOrderItems.containsKey(oid)) allOrderItems.put(oid, new java.util.ArrayList<>());
+                                java.util.Map<String,Object> itm = new java.util.HashMap<>();
+                                itm.put("productId", itemBatchRs.getInt("product_id"));
+                                itm.put("name", itemBatchRs.getString("name"));
+                                String itmImg = itemBatchRs.getString("var_image");
+                                if (itmImg == null || itmImg.isEmpty()) itmImg = itemBatchRs.getString("image");
+                                if (itmImg == null || itmImg.isEmpty()) itmImg = itemBatchRs.getString("thumbnail");
+                                itm.put("image", itmImg);
+                                itm.put("quantity", itemBatchRs.getInt("quantity"));
+                                itm.put("price", itemBatchRs.getDouble("price"));
+                                itm.put("subtotal", itemBatchRs.getDouble("subtotal"));
+                                itm.put("variationType", itemBatchRs.getString("variation_type"));
+                                itm.put("variationValue", itemBatchRs.getString("variation_value"));
+                                allOrderItems.get(oid).add(itm);
+                                if (!firstProductIds.containsKey(oid)) firstProductIds.put(oid, itemBatchRs.getInt("product_id"));
+                            }
+                            itemBatchRs.close(); itemStmt.close();
+
+                            // BATCH 2 — Review checks
+                            java.sql.PreparedStatement rvBatchPs = batchConn.prepareStatement(
+                                "SELECT DISTINCT order_id FROM review WHERE customer_id=? AND order_id IN (" + orderIdList + ")");
+                            rvBatchPs.setInt(1, batchCustId);
+                            java.sql.ResultSet rvBatchRs = rvBatchPs.executeQuery();
+                            while (rvBatchRs.next()) reviewedOrderIds.add(rvBatchRs.getInt("order_id"));
+                            rvBatchRs.close(); rvBatchPs.close();
+
+                            // BATCH 3 — Refund statuses
+                            java.sql.PreparedStatement rfBatchPs = batchConn.prepareStatement(
+                                "SELECT order_id, status FROM refund_requests WHERE customer_id=? AND order_id IN (" + orderIdList + ")");
+                            rfBatchPs.setInt(1, batchCustId);
+                            java.sql.ResultSet rfBatchRs = rfBatchPs.executeQuery();
+                            while (rfBatchRs.next()) refundStatuses.put(rfBatchRs.getInt("order_id"), rfBatchRs.getString("status"));
+                            rfBatchRs.close(); rfBatchPs.close();
+
+                            // BATCH 4 — Days since order
+                            java.sql.Statement dayStmt = batchConn.createStatement();
+                            java.sql.ResultSet dayBatchRs = dayStmt.executeQuery(
+                                "SELECT order_id, DATEDIFF(NOW(), order_date) as days FROM orders WHERE order_id IN (" + orderIdList + ")");
+                            while (dayBatchRs.next()) orderDaysSince.put(dayBatchRs.getInt("order_id"), dayBatchRs.getInt("days"));
+                            dayBatchRs.close(); dayStmt.close();
+
+                            batchConn.close();
+                        } catch (Exception batchEx) { batchEx.printStackTrace(); }
+                    }
                     %>
+                    
                     <!-- STATUS TABS -->
-                  <ul class="nav nav-tabs mb-3" id="orderTabs" style="flex-wrap:nowrap; overflow-x:auto;">
-    <li class="nav-item"><a class="nav-link active" href="#" onclick="filterOrders('All', this)">All</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('To Ship', this)">To Ship</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Shipped', this)">To Receive</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Completed', this)">Completed</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancellation Requested', this)">Cancel Requests</a></li>
-   <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancelled', this)">Cancelled</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Refund', this)">Returns/Refunds</a></li>
+   <%
+int cntAll=0, cntToShip=0, cntShipped=0, cntCompleted=0, cntCancelReq=0, cntCancelled=0, cntRefund=0;
+for (java.util.Map<String,Object> o : myOrders) {
+    String os = (String) o.get("status");
+    cntAll++;
+    if ("Pending".equals(os) || "Processing".equals(os)) cntToShip++;
+    else if ("Shipped".equals(os)) cntShipped++;
+    else if ("Completed".equals(os)) cntCompleted++;
+    else if ("Cancellation Requested".equals(os)) cntCancelReq++;
+    else if ("Cancelled".equals(os)) cntCancelled++;
+    String rs = refundStatuses.get((Integer) o.get("id"));
+    if (rs != null && !rs.isEmpty()) cntRefund++;
+}
+%>
+<ul class="nav nav-tabs mb-3" id="orderTabs" style="flex-wrap:nowrap; overflow-x:auto;">
+    <li class="nav-item"><a class="nav-link active" href="#" onclick="filterOrders('All', this)">
+        All <span class="badge bg-secondary ms-1" style="font-size:10px;"><%= cntAll %></span></a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('To Ship', this)">
+        To Ship <% if(cntToShip > 0) { %><span class="badge bg-warning text-dark ms-1" style="font-size:10px;"><%= cntToShip %></span><% } %></a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Shipped', this)">
+        To Receive <% if(cntShipped > 0) { %><span class="badge bg-info text-dark ms-1" style="font-size:10px;"><%= cntShipped %></span><% } %></a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Completed', this)">
+        Completed <% if(cntCompleted > 0) { %><span class="badge bg-success ms-1" style="font-size:10px;"><%= cntCompleted %></span><% } %></a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancellation Requested', this)">
+        Cancel Requests <% if(cntCancelReq > 0) { %><span class="badge bg-danger ms-1" style="font-size:10px;"><%= cntCancelReq %></span><% } %></a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Cancelled', this)">
+        Cancelled <% if(cntCancelled > 0) { %><span class="badge bg-danger ms-1" style="font-size:10px;"><%= cntCancelled %></span><% } %></a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="filterOrders('Refund', this)">
+        Returns/Refunds <% if(cntRefund > 0) { %><span class="badge bg-primary ms-1" style="font-size:10px;"><%= cntRefund %></span><% } %></a></li>
 </ul>
+
               <% if (myOrders.isEmpty()) { %>
                         <div class="text-center py-4 text-muted">
                             <i class="bi bi-bag fs-1 opacity-25"></i>
@@ -602,51 +615,49 @@ request.setAttribute("navBackUrl", "index.jsp");
 
                             <%-- Load items for this order --%>
                             <%
-    int firstProductId = 0;
-    try {
-        java.sql.Connection itemConn = com.shopeasy.DBConnection.getConnection();
-        java.sql.PreparedStatement itemPs = itemConn.prepareStatement(
-        	    "SELECT p.product_id, p.name, p.image, oi.quantity, oi.price, " +
-        	    "pv.variation_type, pv.variation_value " +
-        	    "FROM order_items oi " +
-        	    "JOIN product p ON oi.product_id = p.product_id " +
-        	    "LEFT JOIN product_variation pv ON oi.variation_id = pv.variation_id " +
-        	    "WHERE oi.order_id = ?");
-        itemPs.setInt(1, (Integer) ord.get("id"));
-        java.sql.ResultSet itemRs = itemPs.executeQuery();
-        while (itemRs.next()) {
-            if (firstProductId == 0) firstProductId = itemRs.getInt("product_id");
-%>
+                            int ordIdKey = (Integer) ord.get("id");
+                            int firstProductId = firstProductIds.getOrDefault(ordIdKey, 0);
+                            java.util.List<java.util.Map<String,Object>> ordItems = allOrderItems.getOrDefault(ordIdKey, new java.util.ArrayList<>());
+                            for (java.util.Map<String,Object> itemMap : ordItems) {
+                        %>
                                 <div class="d-flex align-items-center gap-2 mb-1 mt-1">
-    <a href="product.jsp?id=<%= itemRs.getInt("product_id") %>" style="text-decoration:none; flex-shrink:0;">
-        <% if (itemRs.getString("image") != null && !itemRs.getString("image").isEmpty()) { %>
-            <img src="<%= itemRs.getString("image") %>" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid #eee; transition:0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+<a href="product.jsp?id=<%= itemMap.get("productId") %>" style="text-decoration:none; flex-shrink:0;">
+        <% if (itemMap.get("image") != null && !((String)itemMap.get("image")).isEmpty()) { %>
+            <img src="<%= itemMap.get("image") %>" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid #eee; transition:0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
         <% } else { %>
             <div style="width:40px; height:40px; background:#f0f0f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:16px; color:#aaa;"><i class="bi bi-image"></i></div>
         <% } %>
     </a>
     <div>
-        <a href="product.jsp?id=<%= itemRs.getInt("product_id") %>" class="text-decoration-none text-dark">
-            <p class="mb-0 fw-bold" style="font-size:12px;"><%= itemRs.getString("name") %></p>
+        <a href="product.jsp?id=<%= itemMap.get("productId") %>" class="text-decoration-none text-dark">
+            <p class="mb-0 fw-bold" style="font-size:12px;"><%= itemMap.get("name") %></p>
         </a>
-<% if (itemRs.getString("variation_type") != null) { %>
+<% if (itemMap.get("variationType") != null) { %>
 <p class="mb-0" style="font-size:11px;">
     <span class="badge bg-light text-dark border" style="font-size:10px;">
-        <i class="bi bi-tag"></i> <%= itemRs.getString("variation_type") %>: <%= itemRs.getString("variation_value") %>
+        <i class="bi bi-tag"></i> <%= itemMap.get("variationType") %>: <%= itemMap.get("variationValue") %>
     </span>
 </p>
 <% } %>
-<p class="mb-0 text-muted" style="font-size:11px;">Qty: <%= itemRs.getInt("quantity") %> &nbsp;|&nbsp; ₱<%= String.format("%.2f", itemRs.getDouble("price")) %></p>
+<% double displayPrice = (double)itemMap.get("subtotal") / (int)itemMap.get("quantity"); %>
+<p class="mb-0 text-muted" style="font-size:11px;">Qty: <%= itemMap.get("quantity") %> &nbsp;|&nbsp; ₱<%= String.format("%.2f", displayPrice) %></p> 
     </div>
 </div>
-                                <%
+                              <%
                                     }
-                                    itemRs.close(); itemPs.close(); itemConn.close();
-                                } catch (Exception itemEx) { itemEx.printStackTrace(); }
-                                %>                         
+                                %>                      
 
                             <div class="d-flex justify-content-between align-items-center mt-2">
-    <p class="mb-0 fw-bold text-primary">Total: ₱<%= String.format("%.2f", ord.get("total")) %></p>
+   <%
+   double displayTotal = (double) ord.get("total");
+   if (displayTotal == 0) {
+       double batchTotal = 0;
+       java.util.List<java.util.Map<String,Object>> totalItems = allOrderItems.getOrDefault(ordIdKey, new java.util.ArrayList<>());
+       for (java.util.Map<String,Object> ti : totalItems) batchTotal += (double) ti.get("subtotal");
+       if (batchTotal > 0) displayTotal = batchTotal;
+   }
+%>
+<p class="mb-0 fw-bold text-primary">Total: ₱<%= String.format("%.2f", displayTotal) %></p>
     <div class="d-flex gap-2 flex-wrap flex-column align-items-end">
     <% if ("Cancelled".equals(ord.get("status"))) {
         String custCancelReason = ord.get("cancelReason") != null ? (String) ord.get("cancelReason") : "";
@@ -689,19 +700,7 @@ request.setAttribute("navBackUrl", "index.jsp");
     <% if ("Completed".equals(ord.get("status"))) { %>
         <%
             // Check if already reviewed
-            boolean hasReview = false;
-            try {
-                java.sql.Connection rvChkConn = com.shopeasy.DBConnection.getConnection();
-                java.sql.PreparedStatement rvChkPs = rvChkConn.prepareStatement(
-                	    "SELECT COUNT(*) FROM review WHERE customer_id=? AND order_id=?");
-                Integer rvChkId = (Integer) session.getAttribute("customerId");
-                if (rvChkId == null) rvChkId = (int) session.getAttribute("userId");
-            	rvChkPs.setInt(1, rvChkId);
-                	rvChkPs.setInt(2, (Integer) ord.get("id"));
-                	java.sql.ResultSet rvChkRs = rvChkPs.executeQuery();
-                	if (rvChkRs.next() && rvChkRs.getInt(1) > 0) hasReview = true;
-                rvChkRs.close(); rvChkPs.close(); rvChkConn.close();
-            } catch (Exception rvEx) { rvEx.printStackTrace(); }
+           boolean hasReview = reviewedOrderIds.contains(ordIdKey);
         %>
 <% if (hasReview) { %>
         <span class="badge bg-success px-3 py-2" style="font-size:12px;">
@@ -715,29 +714,9 @@ request.setAttribute("navBackUrl", "index.jsp");
 <% } %>
 <%
     // Check refund status + eligibility
-    String refundStatus = null;
-    boolean refundEligible = false;
-    try {
-        java.sql.Connection rfConn = com.shopeasy.DBConnection.getConnection();
-        // Check existing refund
-        java.sql.PreparedStatement rfPs = rfConn.prepareStatement(
-            "SELECT status FROM refund_requests WHERE order_id=? AND customer_id=?");
-        Integer rfCustId = (Integer) session.getAttribute("customerId");
-        if (rfCustId == null) rfCustId = (int) session.getAttribute("userId");
-        rfPs.setInt(1, (Integer) ord.get("id"));
-        rfPs.setInt(2, rfCustId);
-        java.sql.ResultSet rfRs = rfPs.executeQuery();
-        if (rfRs.next()) refundStatus = rfRs.getString("status");
-        rfRs.close(); rfPs.close();
-        // Check 7-day window
-        java.sql.PreparedStatement dayPs = rfConn.prepareStatement(
-            "SELECT DATEDIFF(NOW(), order_date) FROM orders WHERE order_id=?");
-        dayPs.setInt(1, (Integer) ord.get("id"));
-        java.sql.ResultSet dayRs = dayPs.executeQuery();
-        int daysSince = dayRs.next() ? dayRs.getInt(1) : 999;
-        dayRs.close(); dayPs.close(); rfConn.close();
-        refundEligible = (daysSince <= 7);
-    } catch (Exception rfEx) { rfEx.printStackTrace(); }
+  String refundStatus = refundStatuses.get(ordIdKey);
+    int daysSince = orderDaysSince.getOrDefault(ordIdKey, 999);
+    boolean refundEligible = (daysSince <= 7);
 %>
 <% if (refundStatus != null) { %>
    <% if ("Pending".equals(refundStatus)) { %>
@@ -787,8 +766,9 @@ request.setAttribute("navBackUrl", "index.jsp");
                 java.sql.Connection rvConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement rvPs = rvConn.prepareStatement(
                 		"SELECT r.review_id, r.product_id, r.rating, r.comment, r.photo, r.created_at, r.is_edited, " +
-                				"p.name AS pname, p.image AS pimage " +
-                	    "FROM review r JOIN product p ON r.product_id = p.product_id " +
+                				"p.name AS pname, p.image AS pimage, p.thumbnail AS pthumbnail, " +
+                				"(SELECT pv.image FROM product_variation pv WHERE pv.product_id = p.product_id AND pv.image IS NOT NULL ORDER BY pv.price ASC LIMIT 1) AS var_image " +
+                                "FROM review r JOIN product p ON r.product_id = p.product_id " +
                 	    "WHERE r.customer_id = ? ORDER BY r.review_id DESC");
                 rvPs.setInt(1, rvCustId);
                 java.sql.ResultSet rvRs = rvPs.executeQuery();
@@ -804,6 +784,8 @@ request.setAttribute("navBackUrl", "index.jsp");
         String rvPhoto = rvRs.getString("photo");
         String rvPname = rvRs.getString("pname");
         String rvPimage = rvRs.getString("pimage");
+        if (rvPimage == null || rvPimage.isEmpty()) rvPimage = rvRs.getString("var_image");
+        if (rvPimage == null || rvPimage.isEmpty()) rvPimage = rvRs.getString("pthumbnail");
         java.sql.Timestamp rvCreatedAt = rvRs.getTimestamp("created_at");
         long rvDaysSince = rvCreatedAt != null
             ? (System.currentTimeMillis() - rvCreatedAt.getTime()) / (1000 * 60 * 60 * 24)
@@ -899,16 +881,16 @@ request.setAttribute("navBackUrl", "index.jsp");
                         <label class="form-label fw-bold" style="font-size:13px;">Full Name</label>
                         <input type="text" name="fullname" id="addrFullname" class="form-control" placeholder="Enter full name" required>
                     </div>
-                    <div class="col-md-6">
+                 <div class="col-md-6">
                         <label class="form-label fw-bold" style="font-size:13px;">Phone Number</label>
                         <div class="input-group">
                             <span class="input-group-text">+63</span>
                           <input type="tel" name="phone" id="addrPhone" class="form-control" placeholder="9XX XXX XXXX" required maxlength="10" oninput="formatPHPhone(this)">
                         </div>
-                  </div>
-                        <div id="addrPhoneError" class="text-danger" style="display:none; font-size:11px;">
-                            First digit must be 9 (e.g. 9171234567)
+                        <div id="addrPhoneError" class="text-danger mt-1" style="display:none; font-size:11px;">
+                            <i class="bi bi-exclamation-circle"></i> <span id="addrPhoneErrorText">Phone number must be exactly 10 digits</span>
                         </div>
+                    </div>
                     <div class="col-12">
                         <label class="form-label fw-bold" style="font-size:13px;">Full Address</label>
                         <input type="text" name="address" id="addrAddress" class="form-control" placeholder="Street, Barangay, City, Province, ZIP" required>
@@ -923,9 +905,9 @@ request.setAttribute("navBackUrl", "index.jsp");
                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="hideAddressForm()">
                             <i class="bi bi-x"></i> Cancel
                         </button>
-                        <button type="submit" class="btn btn-primary btn-sm">
-                            <i class="bi bi-check2"></i> Save Address
-                        </button>
+                     <button type="button" class="btn btn-primary btn-sm" onclick="submitAddressForm()">
+                        <i class="bi bi-check2"></i> Save Address
+                    </button>
                     </div>
                 </div>
             </form>
@@ -982,7 +964,7 @@ request.setAttribute("navBackUrl", "index.jsp");
                         <form action="AddressServlet" method="post" style="display:inline;">
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="addressId" value="<%= addr.get("id") %>">
-                            <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete this address?')">
+                           <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirmDelete(this.closest('form'))">
                                 <i class="bi bi-trash"></i> Delete
                             </button>
                         </form>
@@ -1272,10 +1254,6 @@ if (wlOrigPrice > 0 && wlOrigPrice < wlRealPrice) {
     <i class="bi bi-check-circle-fill me-2"></i>Profile saved successfully ✅
 </div>
 
-<!-- TOAST (para sa ibang messages like address) -->
-<div id="toast" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#0d6efd; color:white; padding:20px 40px; border-radius:16px; font-size:16px; font-weight:600; z-index:9999; box-shadow:0 8px 30px rgba(0,0,0,0.3); text-align:center; align-items:center; gap:10px;">
-    <i class="bi bi-check-circle-fill" style="font-size:20px;"></i><span id="toastMsg"></span>
-</div>
 
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -1311,10 +1289,10 @@ document.querySelectorAll('.order-card').forEach(card => {
 });
 
 window.addEventListener('load', function() {
-	if (profileParams.get('tab') === 'orders') {
-	    filterOrders('All', document.querySelector('.nav-link[onclick*="All"]'));
-	}
     const profileParams = new URLSearchParams(window.location.search);
+    if (profileParams.get('tab') === 'orders') {
+        filterOrders('All', document.querySelector('.nav-link[onclick*="All"]'));
+    }
     const tabParam = profileParams.get('tab');
     const msg = profileParams.get('msg');
 
@@ -1440,10 +1418,7 @@ window.addEventListener('load', function() {
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Updating password...';
 
-     // Safety timeout - remove overlay after 5 seconds
-        setTimeout(() => { document.getElementById('pwOverlay')?.remove(); }, 3000);
-
-        // Show overlay
+     // Show overlay
         const overlay = document.createElement('div');
         overlay.id = 'pwOverlay';
         overlay.style.cssText = 'display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center; gap:12px;';
@@ -1459,6 +1434,7 @@ window.addEventListener('load', function() {
         .then(data => {
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-shield-check"></i> Update Password';
+            overlay.remove();
             if (data.success) {
                 document.getElementById('currentPw').value = '';
                 document.getElementById('newPw').value = '';
@@ -1474,6 +1450,7 @@ window.addEventListener('load', function() {
             }
         })
         .catch(() => {
+            overlay.remove();
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-shield-check"></i> Update Password';
             document.getElementById('securityErrorText').textContent = 'Server error. Please try again.';
@@ -1593,12 +1570,10 @@ window.addEventListener('load', function() {
         btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
         setTimeout(() => { this.submit(); }, 600);
     });
-
-    function showToast(msg) {
-        const toast = document.getElementById('toast');
-        document.getElementById('toastMsg').textContent = msg;
-        toast.style.display = 'flex';
-        setTimeout(() => toast.style.display = 'none', 3000);
+    
+    function confirmDelete(form) {
+        if (!confirm('Delete this address?')) return false;
+        return true;
     }
     
     function showAddressForm() {
@@ -1636,6 +1611,26 @@ window.addEventListener('load', function() {
         }
     }
     
+    function searchOrders(query) {
+        const q = query.toLowerCase().trim();
+        const cards = document.querySelectorAll('.order-card');
+        let visible = 0;
+        cards.forEach(card => {
+            const orderId = card.querySelector('.fw-bold')?.innerText?.toLowerCase() || '';
+            const shopName = card.querySelector('.fw-semibold')?.innerText?.toLowerCase() || '';
+            const show = q === '' || orderId.includes(q) || shopName.includes(q);
+            card.style.display = show ? 'block' : 'none';
+            if (show) visible++;
+        });
+        const ef = document.getElementById('emptyFilter');
+        if (ef) ef.style.display = visible === 0 ? 'block' : 'none';
+        // Reset active tab to All when searching
+        if (q !== '') {
+            document.querySelectorAll('#orderTabs .nav-link').forEach(a => a.classList.remove('active'));
+            document.querySelector('#orderTabs .nav-link').classList.add('active');
+        }
+    }
+    
     function filterOrders(status, el) {
         event.preventDefault();
         document.querySelectorAll('#orderTabs .nav-link').forEach(a => a.classList.remove('active'));
@@ -1651,7 +1646,9 @@ window.addEventListener('load', function() {
             } else if (status === 'Shipped') {
                 show = card.dataset.status === 'Shipped';
             } else if (status === 'Refund') {
-                show = card.dataset.refundStatus !== undefined && card.dataset.refundStatus !== '';
+                show = card.dataset.refundStatus !== undefined && 
+                       card.dataset.refundStatus !== '' &&
+                       card.dataset.refundStatus !== 'Rejected';
             } else {
                 show = card.dataset.status === status;
             }
@@ -1709,9 +1706,9 @@ window.addEventListener('load', function() {
         const orderId = document.getElementById('reviewOrderId').value;
         const productId = document.getElementById('reviewProductId').value;
         const photo = document.getElementById('reviewPhotoData').value;
-        if (rating === 0) { alert('Please select a star rating!'); return; }
-        if (comment === '') { alert('Please write a comment!'); return; }
-
+        if (rating === 0) { showToast('Please select a star rating!', 'error'); return; }
+        if (comment === '') { showToast('Please write a comment!', 'error'); return; }
+        
         const formData = new URLSearchParams();
         formData.append('orderId', orderId);
         formData.append('rating', rating);
@@ -1726,10 +1723,10 @@ window.addEventListener('load', function() {
         })
        .then(res => res.text())
 .then(data => {
-    if (data.trim() === 'already_reviewed') {
+	if (data.trim() === 'already_reviewed') {
         closeReviewModal();
-        alert('You have already reviewed this order.');
-        location.reload();
+        showToast('You have already reviewed this order.', 'error');
+        setTimeout(() => location.reload(), 2000);
         return;
     }
     if (data.trim() === 'ok') {
@@ -1739,10 +1736,10 @@ window.addEventListener('load', function() {
             window.location.href = 'customer.jsp?tab=reviews';
         }, 1000);
     } else {
-        alert('Something went wrong. Please try again.');
+        showToast('Something went wrong. Please try again.', 'error');
     }
 })
-        .catch(err => alert('Error submitting review: ' + err));
+        .catch(err => showToast('Error submitting review. Please try again.', 'error'));
     }
     
     function markAllRead() {
@@ -1803,7 +1800,7 @@ window.addEventListener('load', function() {
     }
 
     function clearAllNotifs() {
-        if (!confirm('Clear all notifications?')) return;
+        if (!confirm('Clear all notifications?')) return; // TODO: replace with modal if needed
         fetch('NotificationServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1982,7 +1979,7 @@ window.addEventListener('load', function() {
                 document.getElementById('editReviewError').style.display = 'block';
             }
         })
-        .catch(err => alert('Error: ' + err));
+        .catch(() => showToast('Error saving review. Please try again.', 'error'));
     }
     function openRefundModal(orderId) {
         document.getElementById('refundOrderId').value = orderId;
@@ -2267,65 +2264,8 @@ window.addEventListener('load', function() {
 <style>
 @keyframes scSpin { to { transform: rotate(360deg); } }
 </style>
+
 <script>
-function openRefundModal(orderId) {
-    document.getElementById('refundOrderId').value = orderId;
-    document.getElementById('refundReason').value = '';
-    document.getElementById('refundDescription').value = '';
-    document.getElementById('refundProofInput').value = '';
-    document.getElementById('refundProofPreview').style.display = 'none';
-    document.getElementById('refundError').style.display = 'none';
-    new bootstrap.Modal(document.getElementById('refundModal')).show();
-}
-
-function previewRefundProof(input) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById('refundProofImg').src = e.target.result;
-            document.getElementById('refundProofPreview').style.display = 'block';
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-}
-
-function submitRefund() {
-    const orderId = document.getElementById('refundOrderId').value;
-    const reason = document.getElementById('refundReason').value;
-    const description = document.getElementById('refundDescription').value.trim();
-    const errEl = document.getElementById('refundError');
-    if (!reason) {
-        errEl.innerText = 'Please select a reason.';
-        errEl.style.display = 'block';
-        return;
-    }
-    errEl.style.display = 'none';
-    const hasProof = document.getElementById('refundProofPreview').style.display !== 'none';
-    const proofSrc = hasProof ? document.getElementById('refundProofImg').src : '';
-    fetch('RefundServlet', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'action=submit&orderId=' + orderId +
-              '&reason=' + encodeURIComponent(reason) +
-              '&description=' + encodeURIComponent(description) +
-              '&proofImage=' + encodeURIComponent(proofSrc)
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-        	bootstrap.Modal.getInstance(document.getElementById('refundModal')).hide();
-        	showToast('Refund request submitted successfully!', 'success');
-        	setTimeout(() => { window.location.href = 'customer.jsp?tab=orders'; }, 1500);
-        } else {
-            errEl.innerText = data.message || 'Error submitting refund.';
-            errEl.style.display = 'block';
-        }
-    })
-    .catch(() => {
-        errEl.innerText = 'Server error. Please try again.';
-        errEl.style.display = 'block';
-    });
-}
 function goToSellerCenter() {
     var overlay = document.getElementById('sellerCenterOverlay');
     overlay.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:99999; flex-direction:column; align-items:center; justify-content:center; gap:16px;";
@@ -2333,6 +2273,7 @@ function goToSellerCenter() {
         window.location.href = 'seller.jsp';
     }, 1500);
 }
+
 function cancelRefundRequest(orderId) {
     if (!confirm('Cancel your refund request?')) return;
     fetch('CancelRefundServlet', {
@@ -2353,8 +2294,38 @@ function showToast(message, type) {
     document.body.appendChild(toast);
     setTimeout(function() { toast.remove(); }, 2500);
 }
-   
-</script>
-</body>
 
+function formatPHPhone(input) {
+    let val = input.value.replace(/\D/g, '');
+    if (val.length > 10) val = val.substring(0, 10);
+    input.value = val;
+    const err = document.getElementById('addrPhoneError');
+    if (val.length > 0 && val[0] !== '9') {
+        err.style.display = 'block';
+    } else {
+        err.style.display = 'none';
+    }
+}
+
+function submitAddressForm() {
+    const phone = document.getElementById('addrPhone').value.trim();
+    const err = document.getElementById('addrPhoneError');
+    if (phone.length !== 10) {
+    	document.getElementById('addrPhoneErrorText').textContent = 'Phone number must be exactly 10 digits (e.g. 9171234567)';
+        err.style.display = 'block';
+        document.getElementById('addrPhone').focus();
+        return;
+    }
+    if (phone[0] !== '9') {
+    	document.getElementById('addrPhoneErrorText').textContent = 'First digit must be 9 (e.g. 9171234567)';
+        err.style.display = 'block';
+        document.getElementById('addrPhone').focus();
+        return;
+    }
+    err.style.display = 'none';
+    document.getElementById('addrPhone').closest('form').submit();
+}
+</script>
+
+</body>
 </html>

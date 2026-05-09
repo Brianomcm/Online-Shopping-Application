@@ -25,12 +25,17 @@
             sf.append(") ");
             searchFilter = sf.toString();
         }
-        String minPriceFilter = (minPriceParam != null && !minPriceParam.isEmpty()) ? 
-        	    "AND COALESCE(NULLIF(p.original_price, 0), p.price) >= " + Double.parseDouble(minPriceParam) + " " : "";
-        	String maxPriceFilter = (maxPriceParam != null && !maxPriceParam.isEmpty()) ? 
-        	    "AND COALESCE(NULLIF(p.original_price, 0), p.price) <= " + Double.parseDouble(maxPriceParam) + " " : "";
-        String ratingFilter = (minRatingParam != null && !minRatingParam.isEmpty() && !minRatingParam.equals("0")) ? "AND COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) >= " + Double.parseDouble(minRatingParam) + " " : "";
+        double minPriceVal = 0, maxPriceVal = 0, minRatingVal = 0;
+        try { if (minPriceParam != null && !minPriceParam.isEmpty()) minPriceVal = Double.parseDouble(minPriceParam); } catch (NumberFormatException e) { minPriceParam = ""; }
+        try { if (maxPriceParam != null && !maxPriceParam.isEmpty()) maxPriceVal = Double.parseDouble(maxPriceParam); } catch (NumberFormatException e) { maxPriceParam = ""; }
+        try { if (minRatingParam != null && !minRatingParam.isEmpty()) minRatingVal = Double.parseDouble(minRatingParam); } catch (NumberFormatException e) { minRatingParam = ""; }
 
+        String minPriceFilter = (minPriceParam != null && !minPriceParam.isEmpty()) ?
+            "AND COALESCE(NULLIF(p.original_price, 0), p.price) >= " + minPriceVal + " " : "";
+        String maxPriceFilter = (maxPriceParam != null && !maxPriceParam.isEmpty()) ?
+            "AND COALESCE(NULLIF(p.original_price, 0), p.price) <= " + maxPriceVal + " " : "";
+        String ratingFilter = (minRatingParam != null && !minRatingParam.isEmpty() && !minRatingParam.equals("0")) ?
+            "AND COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) >= " + minRatingVal + " " : "";
         String orderBy = "ORDER BY RAND()";
         if ("price_asc".equals(sortParam)) orderBy = "ORDER BY p.price ASC";
         else if ("price_desc".equals(sortParam)) orderBy = "ORDER BY p.price DESC";
@@ -62,7 +67,10 @@
             prod.put("id", prodRs.getInt("product_id"));
             prod.put("name", prodRs.getString("name"));
             prod.put("price", prodRs.getDouble("price"));
-            prod.put("image", prodRs.getString("image"));
+            String prodImg = prodRs.getString("thumbnail");
+            if (prodImg == null || prodImg.isEmpty()) prodImg = prodRs.getString("image");
+            prod.put("image", prodImg);
+            prod.put("productIdForVar", prodRs.getInt("product_id"));
             prod.put("stock", prodRs.getInt("stock"));
             prod.put("seller", prodRs.getString("business_name"));
 prod.put("description", prodRs.getString("description"));
@@ -72,23 +80,39 @@ prod.put("reviewCount", prodRs.getInt("review_count"));
 prod.put("totalSold", prodRs.getInt("total_sold"));
 prod.put("originalPrice", prodRs.getDouble("original_price"));
 prod.put("sellerUserId", prodRs.getInt("seller_user_id"));
-//Check if product has variations
-int pvCount = 0;
-try {
- java.sql.Connection pvConn = com.shopeasy.DBConnection.getConnection();
- java.sql.PreparedStatement pvPs = pvConn.prepareStatement(
-     "SELECT COUNT(*) FROM product_variation WHERE product_id=?");
- pvPs.setInt(1, prodRs.getInt("product_id"));
- java.sql.ResultSet pvRs = pvPs.executeQuery();
- if (pvRs.next()) pvCount = pvRs.getInt(1);
- pvRs.close(); pvPs.close(); pvConn.close();
-} catch (Exception ignored) {}
-prod.put("hasVariations", pvCount > 0);
+
          products.add(prod);
         }
         prodRs.close();
         prodPs.close();
       prodConn.close();
+      
+   // Batch-load variation flags (1 query instead of N)
+      java.util.Set<Integer> productsWithVariations = new java.util.HashSet<>();
+      if (!products.isEmpty()) {
+    	  java.sql.Connection pvConn = com.shopeasy.DBConnection.getConnection();
+          java.sql.PreparedStatement pvPs = pvConn.prepareStatement(
+              "SELECT DISTINCT product_id FROM product_variation");
+          java.sql.ResultSet pvRs = pvPs.executeQuery();
+          while (pvRs.next()) productsWithVariations.add(pvRs.getInt("product_id"));
+          pvRs.close(); pvPs.close();
+
+          // Fallback: load first variation image for products with no image
+          for (java.util.Map<String, Object> p : products) {
+              p.put("hasVariations", productsWithVariations.contains((Integer) p.get("id")));
+              String pImg = (String) p.get("image");
+              if ((pImg == null || pImg.isEmpty()) && productsWithVariations.contains((Integer) p.get("id"))) {
+                  java.sql.PreparedStatement varImgPs = pvConn.prepareStatement(
+                		  "SELECT image FROM product_variation WHERE product_id=? AND image IS NOT NULL ORDER BY price ASC LIMIT 1");
+                  varImgPs.setInt(1, (Integer) p.get("id"));
+                  java.sql.ResultSet varImgRs = varImgPs.executeQuery();
+                  if (varImgRs.next()) p.put("image", varImgRs.getString("image"));
+                  varImgRs.close(); varImgPs.close();
+              }
+          }
+          pvConn.close();
+      }
+      
     } catch (Exception ex) {
         ex.printStackTrace();
     }
@@ -103,6 +127,17 @@ prod.put("hasVariations", pvCount > 0);
             java.sql.PreparedStatement cartPs = cartConn.prepareStatement(
                     "SELECT SUM(ci.quantity) FROM cart c JOIN cartitem ci ON c.cart_id = ci.cart_id WHERE c.customer_id = ? AND ci.quantity > 0");
             Integer cartCustId = (Integer) session.getAttribute("customerId");
+            if (cartCustId == null) {
+                try {
+                    java.sql.Connection cidConn2 = com.shopeasy.DBConnection.getConnection();
+                    java.sql.PreparedStatement cidPs2 = cidConn2.prepareStatement(
+                        "SELECT customer_id FROM customer WHERE user_id=?");
+                    cidPs2.setInt(1, sessionUserId);
+                    java.sql.ResultSet cidRs2 = cidPs2.executeQuery();
+                    if (cidRs2.next()) cartCustId = cidRs2.getInt("customer_id");
+                    cidRs2.close(); cidPs2.close(); cidConn2.close();
+                } catch (Exception ignored) {}
+            }
             if (cartCustId == null) cartCustId = sessionUserId;
             cartPs.setInt(1, cartCustId);
             java.sql.ResultSet cartRs = cartPs.executeQuery();
@@ -413,7 +448,7 @@ input::-webkit-contacts-auto-fill-button {
     </div>
 
     <!-- Mobile Search Bar -->
-    <form id="mobileSearch" class="container-fluid px-3 d-md-none mt-2" action="index.jsp" method="get" onsubmit="return false;">
+  <form id="mobileSearch" class="container-fluid px-3 d-md-none mt-2" action="index.jsp" method="get">
         <div class="input-group">
             <input type="text" class="form-control" name="search" placeholder="Search products..." value="<%= searchParam != null ? searchParam : "" %>">
             <button class="btn btn-primary" type="submit">
@@ -656,7 +691,7 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
    <div class="col-6 col-md-4 col-lg-3 product-item" data-category="<%= prod.get("categoryId") %>">
 <div class="card h-100 product-card" onclick="window.location.href='product.jsp?id=<%= prod.get("id") %>'" style="cursor:pointer;">  
             <div class="product-wrapper">
-                <% if (prod.get("image") != null) { %>
+       <% if (prod.get("image") != null && !prod.get("image").toString().isEmpty()) { %>
                     <img src="<%= prod.get("image") %>" class="card-img-top" alt="<%= prod.get("name") %>">
                 <% } else { %>
                     <div style="height:200px; background:#f8f9fa; display:flex; align-items:center; justify-content:center; color:#aaa; font-size:40px;"><i class="bi bi-image"></i></div>
@@ -736,35 +771,7 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
 </div>
 </div>
 
-<!-- PRODUCT DETAILS MODAL -->
 
-<!-- PRODUCT DETAILS MODAL -->
-<div class="modal fade" id="productModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content rounded-4">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold" id="modalProductName"></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body px-4 pb-4">
-                <div class="row g-3">
-                    <div class="col-md-5 text-center">
-                        <img id="modalProductImg" src="" style="width:100%; max-height:280px; object-fit:contain; border-radius:12px; background:#f8f9fa; padding:12px;">
-                    </div>
-                    <div class="col-md-7">
-                        <p class="text-muted mb-1" style="font-size:13px;"><i class="bi bi-shop"></i> <span id="modalSeller"></span></p>
-                        <h3 class="text-danger fw-bold mb-2" id="modalPrice"></h3>
-                        <p class="text-muted mb-3" style="font-size:13px;">Stock: <span id="modalStock"></span></p>
-                        <hr>
-                        <p class="fw-bold mb-1">Description</p>
-                        <p class="text-muted" id="modalDescription" style="font-size:14px;"></p>
-                        <div id="modalCartSection" class="mt-3"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 
 
@@ -913,50 +920,22 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
     }
 })();
 
-function showProduct(id, name, price, stock, seller, image, description) {
-    document.getElementById('modalProductName').innerText = name;
-    document.getElementById('modalPrice').innerText = '₱' + parseFloat(price).toFixed(2);
-    document.getElementById('modalStock').innerText = stock;
-    document.getElementById('modalSeller').innerText = seller;
-    document.getElementById('modalDescription').innerText = description;
 
-    const img = document.getElementById('modalProductImg');
-    if (image && image !== 'null' && image !== '') {
-        img.src = image;
-        img.style.display = 'block';
-    } else {
-        img.style.display = 'none';
-    }
-
-    const cartSection = document.getElementById('modalCartSection');
-    const isLoggedIn = <%= (loggedUser != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) ? "true" : "false" %>;
-    if (isLoggedIn) {
-    	cartSection.innerHTML = `
-    	    <button type="button" class="btn btn-primary w-100 fw-bold py-2" onclick="addToCart(${id})">
-    	        <i class="bi bi-cart-plus"></i> Add to Cart
-    	    </button>`;
-    } else {
-        cartSection.innerHTML = `
-            <button class="btn btn-primary w-100 fw-bold py-2" onclick="bootstrap.Modal.getInstance(document.getElementById('productModal')).hide(); setTimeout(()=>new bootstrap.Modal(document.getElementById('loginModal')).show(),300)">
-                <i class="bi bi-cart-plus"></i> Login to Add to Cart
-            </button>`;
-    }
-
-    new bootstrap.Modal(document.getElementById('productModal')).show();
-}
 </script>
 
 <script>
     
 
 
-    function doLogout() {
-        if (confirm('Are you sure you want to logout?')) {
-            document.getElementById('logoutOverlay').style.display = 'flex';
-            setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
-        }
-    }
+function doLogout() {
+    new bootstrap.Modal(document.getElementById('logoutConfirmModal')).show();
+}
 
+function confirmLogout() {
+    bootstrap.Modal.getInstance(document.getElementById('logoutConfirmModal')).hide();
+    document.getElementById('logoutOverlay').style.display = 'flex';
+    setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
+}
     function showCenterToast(msg) {
         const toast = document.getElementById('centerToast');
         document.getElementById('centerToastMsg').textContent = msg;
@@ -967,16 +946,20 @@ function showProduct(id, name, price, stock, seller, image, description) {
     document.getElementById('registerForm').addEventListener('submit', function(e) {
         const password = document.getElementById('regPassword').value;
         const confirm = document.getElementById('confirmPassword').value;
+        const regErr = document.getElementById('regValidationError');
         if (password !== confirm) {
             e.preventDefault();
-            alert('Passwords do not match!');
+            regErr.textContent = 'Passwords do not match!';
+            regErr.style.display = 'block';
             return false;
         }
         if (password.length < 6) {
             e.preventDefault();
-            alert('Password must be at least 6 characters!');
+            regErr.textContent = 'Password must be at least 6 characters!';
+            regErr.style.display = 'block';
             return false;
         }
+        regErr.style.display = 'none';
         e.preventDefault();
         var modal = bootstrap.Modal.getInstance(document.getElementById('registerModal'));
         if (modal) modal.hide();
@@ -1040,20 +1023,17 @@ function showProduct(id, name, price, stock, seller, image, description) {
         })
         .then(res => res.json())
         .then(data => {
-    console.log('Response:', data);
-    if (data.success) {
+            if (data.success) {
                 const toast = document.getElementById('cartToast');
                 toast.style.display = 'block';
                 setTimeout(() => toast.style.display = 'none', 2500);
-                const badge = document.querySelector('.badge.bg-danger');
-                if (badge) {
-                    badge.textContent = parseInt(badge.textContent || 0) + 1;
-                }
-                const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
-                if (modal) modal.hide();
+                const badge = document.getElementById('cartBadge');
+                if (badge) badge.textContent = data.newCount;
+            } else {
+                showCenterToast(data.message || 'Failed to add item to cart.');
             }
         })
-        .catch(err => console.error(err));
+        .catch(() => showCenterToast('Failed to add item to cart. Please try again.'));
     }
     
     const pageSize = 20;
@@ -1129,14 +1109,8 @@ function showProduct(id, name, price, stock, seller, image, description) {
         }, 800);
     });
     </script>
-    
-
-    
    
-<%
-String isLoggedInFlag = (loggedUser != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) ? "true" : "false";
-%>
-<input type="hidden" id="isLoggedInFlag" value="<%= isLoggedInFlag %>">
+
 <!-- Seller Welcome Toast -->
 <div id="sellerWelcomeToast" style="display:none; position:fixed; bottom:30px; left:50%; transform:translateX(-50%); z-index:9999;
      background:#fff; border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.15); padding:20px 28px;
@@ -1254,6 +1228,28 @@ function showAlreadySellerModal() {
                     <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
                     <button class="btn btn-success px-4" onclick="bootstrap.Modal.getInstance(document.getElementById('alreadySellerModal')).hide(); goToSellerCenter()">
                         <i class="bi bi-shop me-1"></i> Go to Seller Center
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- LOGOUT CONFIRM MODAL -->
+<div class="modal fade" id="logoutConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-5">
+                <div style="width:70px; height:70px; background:linear-gradient(135deg,#dc3545,#c0392b); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+                    <i class="bi bi-box-arrow-right" style="font-size:30px; color:white;"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Log Out?</h5>
+                <p class="text-muted mb-1" style="font-size:14px;">Are you sure you want to logout?</p>
+                <div class="d-flex gap-2 justify-content-center mt-4">
+                    <button class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger px-4" onclick="confirmLogout()">
+                        <i class="bi bi-box-arrow-right me-1"></i> Logout
                     </button>
                 </div>
             </div>

@@ -5,7 +5,8 @@
         response.sendRedirect("index.jsp");
         return;
     }
-    String orderId = request.getParameter("orderId");
+String orderId = request.getParameter("orderId");
+if (orderId == null || orderId.trim().isEmpty()) orderId = "N/A";
 %>
 <!DOCTYPE html>
 <html>
@@ -23,6 +24,21 @@
     </style>
 </head>
 <body>
+
+<!-- PAGE LOADER -->
+<div id="pageLoader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); z-index:9999; align-items:center; justify-content:center; flex-direction:column; gap:12px;">
+    <div style="width:48px; height:48px; border:5px solid #e0e0e0; border-top-color:#0d6efd; border-radius:50%; animation:spin 0.7s linear infinite;"></div>
+    <span class="text-primary fw-bold">Loading...</span>
+</div>
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+
+<%
+    request.setAttribute("navType", "simple");
+    request.setAttribute("navBackUrl", "index.jsp");
+    request.setAttribute("navBackLabel", "Shop");
+%>
+<%@ include file="navbar.jsp" %>
+
 <div class="container">
     <div class="success-card">
         <div class="success-icon mb-3"><i class="bi bi-check-circle-fill"></i></div>
@@ -39,5 +55,7 @@
         </div>
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<%@ include file="modals.jsp" %>
 </body>
 </html>

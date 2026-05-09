@@ -104,10 +104,12 @@ public class PrepareCheckoutServlet extends HttpServlet {
         try {
             Connection conn = DBConnection.getConnection();
 
-            String sql = "SELECT ci.cartitem_id, ci.quantity, ci.variation_id, p.product_id, p.seller_id, p.name, p.price, p.original_price, p.stock, p.image " +
+            String sql = "SELECT ci.cartitem_id, ci.quantity, ci.variation_id, p.product_id, p.seller_id, p.name, p.price, p.original_price, p.stock, p.image, p.thumbnail, " +
+            		"pv.price as var_price, pv.original_price as var_original_price, pv.image as var_image, pv.variation_type, pv.variation_value " +
                     "FROM cartitem ci " +
                     "JOIN cart c ON ci.cart_id = c.cart_id " +
                     "JOIN product p ON ci.product_id = p.product_id " +
+                    "LEFT JOIN product_variation pv ON ci.variation_id = pv.variation_id " +
                     "WHERE c.customer_id = ?";
 
             PreparedStatement ps = conn.prepareStatement(sql);
@@ -123,14 +125,18 @@ public class PrepareCheckoutServlet extends HttpServlet {
                 item.put("productId", rs.getInt("product_id"));
                 item.put("sellerId", rs.getInt("seller_id"));
                 item.put("name", rs.getString("name"));
-                item.put("price", rs.getDouble("price"));
-                double pcoOrigPrice = rs.getDouble("original_price");
-                double pcoUsePrice = (pcoOrigPrice > 0 && pcoOrigPrice < rs.getDouble("price")) ? pcoOrigPrice : rs.getDouble("price");
-                item.put("originalPrice", pcoOrigPrice);
-                item.put("originalPrice", rs.getDouble("original_price"));
+                double basePrice = rs.getDouble("var_price") > 0 ? rs.getDouble("var_price") : rs.getDouble("price");
+                double baseOriginal = rs.getDouble("var_original_price") > 0 ? rs.getDouble("var_original_price") : rs.getDouble("original_price");
+                item.put("price", basePrice);
+                item.put("originalPrice", baseOriginal);
                 item.put("quantity", rs.getInt("quantity"));
                 item.put("stock", rs.getInt("stock"));
-                item.put("image", rs.getString("image"));
+                item.put("variationType", rs.getString("variation_type"));
+                item.put("variationValue", rs.getString("variation_value"));
+                String coImg = rs.getString("var_image");
+                if (coImg == null || coImg.isEmpty()) coImg = rs.getString("image");
+                if (coImg == null || coImg.isEmpty()) coImg = rs.getString("thumbnail");
+                item.put("image", coImg);
                 int varId = rs.getInt("variation_id");
                 if (!rs.wasNull()) {
                     item.put("variationId", varId);

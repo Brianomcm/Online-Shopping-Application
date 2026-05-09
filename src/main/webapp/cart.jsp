@@ -25,6 +25,19 @@ if ("product".equals(prevCrumb) || "seller".equals(prevCrumb)) {
     session.removeAttribute("lastProduct");
 }
     // if already "product-cart", keep it — para hindi mawala ang history
+
+// Compute total savings
+double totalSavings = 0.0;
+if (cartItems != null) {
+    for (Map<String, Object> si : cartItems) {
+        double siPrice = si.get("price") != null ? (Double) si.get("price") : 0;
+        double siOriginal = si.get("originalPrice") != null ? (Double) si.get("originalPrice") : 0;
+        int siQty = si.get("quantity") != null ? (Integer) si.get("quantity") : 0;
+        if (siOriginal > 0 && siOriginal < siPrice) {
+            totalSavings += (siPrice - siOriginal) * siQty;
+        }
+    }
+}
 %>
 <!DOCTYPE html>
 <html>
@@ -107,17 +120,27 @@ if ("product".equals(prevCrumb) || "seller".equals(prevCrumb)) {
     <h5 class="fw-bold mb-4 d-flex align-items-center gap-2">
     <span><i class="bi bi-cart3 text-primary"></i> My Cart
         <%
-int badgeCount = 0;
-for (Map<String, Object> ci : cartItems) {
-    if ((int)ci.get("quantity") > 0) badgeCount++;
-}
+        int badgeCount = 0;
+        for (Map<String, Object> ci : cartItems) {
+            if ((int)ci.get("quantity") > 0) badgeCount++;
+        }
+        int totalItemCount = cartItems.size(); // total items regardless of qty
 %>
 <span class="badge bg-primary ms-2"><%= badgeCount %></span>
     </span>
-    <% if (badgeCount > 0) { %>
-    <button class="btn btn-outline-danger btn-sm ms-auto" onclick="removeAll()">
-        <i class="bi bi-trash3"></i> Remove All
-    </button>
+<% if (totalItemCount > 0) { %>
+   <div class="d-flex align-items-center gap-2 ms-auto">
+        <div class="form-check mb-0 me-1">
+            <input type="checkbox" class="form-check-input" id="selectAllCheck"
+                   style="width:18px; height:18px; cursor:pointer;"
+                   onchange="toggleSelectAll(this.checked)" checked>
+            <label for="selectAllCheck" class="form-check-label fw-semibold" 
+                   style="font-size:13px; cursor:pointer;">Select All</label>
+        </div>
+        <button class="btn btn-outline-danger btn-sm" onclick="removeAll()">
+            <i class="bi bi-trash3"></i> Remove All
+        </button>
+    </div>
     <% } %>
 </h5>
 
@@ -182,14 +205,20 @@ for (java.util.Map.Entry<Integer, java.util.List<java.util.Map<String, Object>>>
               onchange="toggleItem(this)"
                <%= (int)item.get("quantity") > 0 ? "checked" : "" %> style="width:16px; height:16px; cursor:pointer; flex-shrink:0;">
         <!-- Product Image -->
-        <% if (item.get("image") != null) { %>
-            <img src="<%= item.get("image") %>" class="product-img" alt="<%= item.get("name") %>">
-        <% } else { %>
-            <div class="product-img-placeholder"><i class="bi bi-image"></i></div>
-        <% } %>
+     <% if (item.get("image") != null) { %>
+<a href="product.jsp?id=<%= item.get("productId") %>">
+        <img src="<%= item.get("image") %>" class="product-img" alt="<%= item.get("name") %>" style="cursor:pointer;">
+    </a>
+<% } else { %>
+ <a href="product.jsp?id=<%= item.get("productId") %>">
+        <div class="product-img-placeholder" style="cursor:pointer;"><i class="bi bi-image"></i></div>
+    </a>
+<% } %>
         <!-- Product Info -->
         <div class="flex-grow-1">
-            <h6 class="mb-1 fw-bold" style="font-size:13px;"><%= item.get("name") %></h6>
+          <a href="product.jsp?id=<%= item.get("productId") %>" style="text-decoration:none; color:inherit;">
+    <h6 class="mb-1 fw-bold" style="font-size:13px; cursor:pointer;"><%= item.get("name") %></h6>
+</a>
 <%
     double cartRealPrice = item.get("price") != null ? (Double) item.get("price") : 0;
     double cartDiscPrice = item.get("originalPrice") != null ? (Double) item.get("originalPrice") : 0;
@@ -216,7 +245,14 @@ for (java.util.Map.Entry<Integer, java.util.List<java.util.Map<String, Object>>>
     </span>
 </p>
 <% } %>
-<p class="text-muted mb-0" style="font-size:11px;">Stock: <%= item.get("stock") %></p>
+<% int cartStock = item.get("stock") != null ? (Integer) item.get("stock") : 0; %>
+<% if (cartStock == 0) { %>
+    <span class="badge bg-danger" style="font-size:10px;"><i class="bi bi-x-circle"></i> Out of Stock</span>
+<% } else if (cartStock <= 5) { %>
+    <span class="badge bg-warning text-dark" style="font-size:10px;"><i class="bi bi-exclamation-circle"></i> Only <%= cartStock %> left!</span>
+<% } else { %>
+    <p class="text-muted mb-0" style="font-size:11px;">Stock: <%= cartStock %></p>
+<% } %>
         </div>
         <!-- Quantity + Remove -->
         <div class="d-flex flex-column align-items-end gap-2">
@@ -253,6 +289,10 @@ for (Map<String, Object> ci : cartItems) {
 <span class="text-muted" id="itemsLabel">Items (<%= activeItemCount %>)</span>
                     <span id="summaryTotal">₱<%= String.format("%.2f", cartTotal) %></span>
                 </div>
+           <div class="d-flex justify-content-between mb-2" id="savingsRow" style="<%= totalSavings > 0 ? "" : "display:none;" %>">
+                    <span class="text-success fw-bold"><i class="bi bi-tag-fill"></i> You save</span>
+                    <span class="text-success fw-bold" id="savingsDisplay">-₱<%= String.format("%.2f", totalSavings) %></span>
+                </div>
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Shipping</span>
                     <span class="text-success">Free</span>
@@ -262,9 +302,23 @@ for (Map<String, Object> ci : cartItems) {
                     <span>Total</span>
                     <span class="text-primary" id="grandTotal">₱<%= String.format("%.2f", cartTotal) %></span>
                 </div>
-                <button class="btn btn-primary checkout-btn w-100 text-white" onclick="checkout()">
-                    <i class="bi bi-bag-check"></i> Proceed to Checkout
-                </button>
+           <%
+boolean hasOutOfStock = false;
+for (java.util.Map<String, Object> ckItem : cartItems) {
+    int ckStock = ckItem.get("stock") != null ? (Integer) ckItem.get("stock") : 0;
+    int ckQty = ckItem.get("quantity") != null ? (Integer) ckItem.get("quantity") : 0;
+    if (ckQty > 0 && ckStock == 0) { hasOutOfStock = true; break; }
+}
+%>
+<button class="btn btn-primary checkout-btn w-100 text-white" 
+    onclick="checkout()" <%= hasOutOfStock ? "disabled" : "" %>>
+    <i class="bi bi-bag-check"></i> Proceed to Checkout
+</button>
+<% if (hasOutOfStock) { %>
+    <p class="text-danger text-center mt-2" style="font-size:12px;">
+        <i class="bi bi-exclamation-circle"></i> Remove out of stock items to proceed
+    </p>
+<% } %>
                 <a href="index.jsp" class="btn btn-outline-secondary w-100 mt-2">
                     <i class="bi bi-arrow-left"></i> Continue Shopping
                 </a>
@@ -302,9 +356,30 @@ for (Map<String, Object> ci : cartItems) {
 <!-- Toast -->
 <div class="toast-container" id="toastContainer"></div>
 
+
+<!-- Custom Delete Confirmation Modal -->
+<div id="deleteConfirmModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:20px; padding:32px; width:90%; max-width:400px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="font-size:48px; margin-bottom:12px;">🗑️</div>
+        <h5 class="fw-bold mb-2" id="deleteModalTitle">Remove Item?</h5>
+        <p class="text-muted mb-4" id="deleteModalMsg" style="font-size:14px;">This item will be removed from your cart.</p>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-outline-secondary px-4" onclick="closeDeleteModal()">Cancel</button>
+            <button class="btn btn-danger px-4" id="deleteConfirmBtn">Remove</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const prices = {};
+const originalPrices = {};
+<% for (Map<String, Object> item : cartItems) {
+    double jsPrice = item.get("price") != null ? (Double)item.get("price") : 0;
+    double jsOrigPrice = item.get("originalPrice") != null ? (Double)item.get("originalPrice") : 0;
+%>
+    originalPrices[<%= item.get("cartitemId") %>] = <%= jsPrice %>;
+<% } %>
 <% for (Map<String, Object> item : cartItems) { 
     double jsPrice = item.get("price") != null ? (Double)item.get("price") : 0;
     double jsOrigPrice = item.get("originalPrice") != null ? (Double)item.get("originalPrice") : 0;
@@ -312,6 +387,20 @@ const prices = {};
 %>
     prices[<%= item.get("cartitemId") %>] = <%= jsFinalPrice %>;
 <% } %>
+
+function toggleSelectAll(checked) {
+    document.querySelectorAll('.shop-checkbox').forEach(shopCb => {
+        shopCb.checked = checked;
+        toggleShop(shopCb.dataset.seller, checked);
+    });
+}
+
+function updateSelectAll() {
+    const allCbs = document.querySelectorAll('.item-checkbox');
+    const allChecked = Array.from(allCbs).every(cb => cb.checked);
+    const selectAll = document.getElementById('selectAllCheck');
+    if (selectAll) selectAll.checked = allChecked;
+}
 
     function showToast(msg, color = '#198754') {
         const t = document.createElement('div');
@@ -362,6 +451,7 @@ const prices = {};
         }
 
         updateTotal();
+        updateSelectAll();
      // Update badge and items count
         let activeCount = 0;
         document.querySelectorAll('[id^="qty_"]').forEach(el => {
@@ -381,22 +471,27 @@ const prices = {};
     }
 
     function removeItem(itemId) {
-        if (!confirm('Remove this item from cart?')) return;
-        
-        fetch('RemoveCartServlet', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'cartitemId=' + itemId
-        }).then(response => {
-            if (response.ok) {
-             
-                window.location.reload(); 
-            } else {
-                showToast('Failed to remove item', '#dc3545');
-            }
-        }).catch(err => {
-            console.error(err);
-            showToast('Error connecting to server', '#dc3545');
+        showDeleteModal('Remove Item?', 'This item will be removed from your cart.', function() {
+            fetch('RemoveCartServlet', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'cartitemId=' + itemId
+            }).then(response => {
+                if (response.ok) {
+                    const remainingItems = document.querySelectorAll('[id^="cartItem_"]');
+                    if (remainingItems.length <= 1) {
+                        showToast('Cart is empty! Redirecting...', '#6610f2');
+                        setTimeout(() => { window.location.href = 'index.jsp'; }, 1500);
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    showToast('Failed to remove item', '#dc3545');
+                }
+            }).catch(err => {
+                console.error(err);
+                showToast('Error connecting to server', '#dc3545');
+            });
         });
     }
     function toggleShop(sellerId, checked) {
@@ -454,13 +549,26 @@ const prices = {};
             const sub = document.getElementById('sub_' + itemId);
             if (sub) sub.innerText = '₱' + (prices[itemId] * lastQty).toFixed(2);
         }
-        // Save to DB
-        fetch('UpdateCartServlet', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'cartitemId=' + itemId + '&quantity=' + newQty
-        });
-        if (!skipTotal) updateTotal();
+     // Only save to DB if actually removing (qty change), not just visual uncheck
+        if (checked || newQty === 0) {
+            fetch('UpdateCartServlet', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'cartitemId=' + itemId + '&quantity=' + newQty
+            });
+        }
+        if (!skipTotal) {
+            updateTotal();
+            updateSelectAll();
+            // Update shop checkbox
+            const sellerId = cb.dataset.seller;
+            if (sellerId) {
+                const allItemCbs = document.querySelectorAll('.item-checkbox[data-seller="' + sellerId + '"]');
+                const allChecked = Array.from(allItemCbs).every(c => c.checked);
+                const shopCb = document.getElementById('shopCheck_' + sellerId);
+                if (shopCb) shopCb.checked = allChecked;
+            }
+        }
     }
     
     function updateTotal() {
@@ -478,12 +586,31 @@ const prices = {};
         });
         document.getElementById('summaryTotal').innerText = '₱' + total.toFixed(2);
         document.getElementById('grandTotal').innerText = '₱' + total.toFixed(2);
+        // Update savings dynamically
+        let savings = 0;
+        document.querySelectorAll('[id^="qty_"]').forEach(el => {
+            const itemId = el.id.replace('qty_', '');
+            const cb = document.getElementById('itemCheck_' + itemId);
+            if (cb && !cb.checked) return;
+            const qty = parseInt(el.innerText);
+            if (qty > 0 && originalPrices[itemId] && originalPrices[itemId] > prices[itemId]) {
+                savings += (originalPrices[itemId] - prices[itemId]) * qty;
+            }
+        });
+        const savingsEl = document.getElementById('savingsDisplay');
+        if (savingsEl) savingsEl.innerText = savings > 0 ? '-₱' + savings.toFixed(2) : '';
+        const savingsRow = document.getElementById('savingsRow');
+        if (savingsRow) savingsRow.style.display = savings > 0 ? '' : 'none';
      // Update items count
         const itemsLabel = document.getElementById('itemsLabel');
         if (itemsLabel) itemsLabel.innerText = 'Items (' + checkedCount + ')';
-        // Update My Cart badge
+     // Update My Cart badge (h5 title)
         const cartBadge = document.querySelector('h5 .badge.bg-primary');
         if (cartBadge) cartBadge.innerText = checkedCount;
+        // Update navbar cart badge
+        const navBadge = document.getElementById('cartBadge');
+        if (navBadge) navBadge.innerText = checkedCount;
+        updateSelectAll();
     }
     function checkout() {
         // Check if all items are zero
@@ -513,14 +640,33 @@ const prices = {};
           });
     }
     function removeAll() {
-        if (!confirm('Remove all items from cart? This cannot be undone.')) return;
-        fetch('RemoveAllCartServlet', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'}
-        }).then(() => {
-            location.reload();
+        showDeleteModal('Remove All Items?', 'All items will be removed from your cart. This cannot be undone.', function() {
+            fetch('RemoveAllCartServlet', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+            }).then(() => {
+                showToast('Cart cleared!', '#6610f2');
+                setTimeout(() => { window.location.reload(); }, 800);
+            });
         });
     }
+
+function showDeleteModal(title, msg, onConfirm) {
+    document.getElementById('deleteModalTitle').textContent = title;
+    document.getElementById('deleteModalMsg').textContent = msg;
+    const modal = document.getElementById('deleteConfirmModal');
+    modal.style.display = 'flex';
+    const btn = document.getElementById('deleteConfirmBtn');
+    btn.onclick = function() {
+        closeDeleteModal();
+        onConfirm();
+    };
+}
+function closeDeleteModal() {
+    document.getElementById('deleteConfirmModal').style.display = 'none';
+}
 </script>
+
+
 </body>
 </html>

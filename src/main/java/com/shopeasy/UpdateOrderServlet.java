@@ -20,8 +20,8 @@ public class UpdateOrderServlet extends HttpServlet {
 
             PreparedStatement ps;
             if (reason != null && !reason.isEmpty()) {
-                ps = conn.prepareStatement(
-                    "UPDATE orders SET status=?, cancel_reason=? WHERE order_id=?");
+            	ps = conn.prepareStatement(
+            		    "UPDATE orders SET status=?, cancel_reason=? WHERE order_id=?");
                 ps.setString(1, status);
                 ps.setString(2, reason);
                 ps.setInt(3, orderId);
@@ -55,8 +55,8 @@ public class UpdateOrderServlet extends HttpServlet {
                     int custId = paymentRs.getInt("customer_id");
 
                     if ("Wallet".equals(payMethod) && totalAmt > 0) {
-                        PreparedStatement walletPs = conn.prepareStatement(
-                            "UPDATE customers SET wallet_balance = wallet_balance + ? WHERE customer_id=?");
+                    	PreparedStatement walletPs = conn.prepareStatement(
+                    		    "UPDATE customer SET wallet_balance = wallet_balance + ? WHERE customer_id=?");
                         walletPs.setDouble(1, totalAmt);
                         walletPs.setInt(2, custId);
                         walletPs.executeUpdate();

@@ -10,26 +10,53 @@
 
     int productId = Integer.parseInt(productIdParam.trim());
     String name = "", loggedUser = "", description = "", image = "", sellerName = "", sellerPfp = "";
+    StringBuilder galleryJson = new StringBuilder("[]");
     double price = 0, originalPrice = 0;
     int stock = 0, sellerId = 0;
     double storeAvg = 0;
     int storeRevs = 0;
+    double topAvgRating = 0;
+    int topTotalReviews = 0;
+    int totalSold = 0;
 
     try {
         Connection conn = com.shopeasy.DBConnection.getConnection();
         PreparedStatement ps = conn.prepareStatement(
-        		"SELECT p.*, s.business_name, s.seller_id, COALESCE(s.profile_picture, s.shop_logo) as profile_picture FROM product p " +
-        	    "JOIN seller s ON p.seller_id = s.seller_id " +
+        	    "SELECT p.*, s.business_name, s.seller_id, COALESCE(s.profile_picture, s.shop_logo) as profile_picture, " +
+        	    "COALESCE((SELECT AVG(r.rating) FROM review r WHERE r.product_id = p.product_id), 0) AS avg_rating, " +
+        	    "COALESCE((SELECT COUNT(r.review_id) FROM review r WHERE r.product_id = p.product_id), 0) AS review_count, " +
+        	    "COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.product_id = p.product_id AND o.status='Completed'), 0) AS total_sold " +
+        	    "FROM product p JOIN seller s ON p.seller_id = s.seller_id " +
         	    "WHERE p.product_id = ?");
         ps.setInt(1, productId);
         ResultSet rs = ps.executeQuery();
         if (rs.next()) {
+        	
+        	
             name = rs.getString("name");
             description = rs.getString("description");
+         // Prefer thumbnail > gallery image > variation image
+            String thumbnail = rs.getString("thumbnail");
             image = rs.getString("image");
+            if (thumbnail != null && !thumbnail.isEmpty()) image = thumbnail;
+         // If no image at all, use first variation image
+         if (image == null || image.isEmpty()) {
+             try {
+                 java.sql.Connection imgFallConn = com.shopeasy.DBConnection.getConnection();
+                 java.sql.PreparedStatement imgFallPs = imgFallConn.prepareStatement(
+                		 "SELECT image FROM product_variation WHERE product_id=? AND image IS NOT NULL ORDER BY price ASC LIMIT 1");
+                 imgFallPs.setInt(1, productId);
+                 java.sql.ResultSet imgFallRs = imgFallPs.executeQuery();
+                 if (imgFallRs.next()) image = imgFallRs.getString("image");
+                 imgFallRs.close(); imgFallPs.close(); imgFallConn.close();
+             } catch (Exception ignored) {}
+         }
             price = rs.getDouble("price");
             originalPrice = rs.getDouble("original_price");
             stock = rs.getInt("stock");
+            topAvgRating = rs.getDouble("avg_rating");
+            topTotalReviews = rs.getInt("review_count");
+            totalSold = rs.getInt("total_sold");
          // If stock is 0 but has variations, get total stock from variations
          if (stock == 0) {
              try {
@@ -63,6 +90,29 @@ if (storeRatRs.next()) {
     storeRevs = storeRatRs.getInt("store_revs");
 }
 storeRatRs.close(); storeRatPs.close(); conn.close();
+//Load gallery images OUTSIDE the rs.next() block
+java.util.List<String> galleryImageList = new java.util.ArrayList<>();
+galleryJson = new StringBuilder("[");
+try {
+    java.sql.Connection galConn = com.shopeasy.DBConnection.getConnection();
+    java.sql.PreparedStatement galStmt = galConn.prepareStatement(
+        "SELECT image FROM product_gallery WHERE product_id = ? ORDER BY sort_order ASC");
+    galStmt.setInt(1, productId);
+    java.sql.ResultSet galRs = galStmt.executeQuery();
+    boolean firstGal = true;
+    while (galRs.next()) {
+        String gImg = galRs.getString("image");
+        if (gImg != null && !gImg.isEmpty()) {
+            galleryImageList.add(gImg);
+            if (!firstGal) galleryJson.append(",");
+            galleryJson.append("\"").append(gImg.replace("\"", "\\\"")).append("\"");
+            firstGal = false;
+        }
+    }
+    galRs.close(); galStmt.close(); galConn.close();
+} catch (Exception ignored) {}
+galleryJson.append("]");
+
     } catch (Exception e) { e.printStackTrace(); }
     
  // Fetch variations for this product
@@ -70,7 +120,7 @@ storeRatRs.close(); storeRatPs.close(); conn.close();
  try {
      Connection varConn = com.shopeasy.DBConnection.getConnection();
      PreparedStatement varPs = varConn.prepareStatement(
-    		    "SELECT variation_id, variation_type, variation_value, price, stock FROM product_variation WHERE product_id = ? ORDER BY variation_type");
+    		 "SELECT variation_id, variation_type, variation_value, price, original_price, stock, image FROM product_variation WHERE product_id = ? ORDER BY variation_id ASC");
      varPs.setInt(1, productId);
      ResultSet varRs = varPs.executeQuery();
      while (varRs.next()) {
@@ -79,7 +129,9 @@ storeRatRs.close(); storeRatPs.close(); conn.close();
          v.put("type", varRs.getString("variation_type"));
          v.put("value", varRs.getString("variation_value"));
          v.put("price", varRs.getObject("price"));
+         v.put("originalPrice", varRs.getObject("original_price"));
          v.put("stock", varRs.getObject("stock"));
+         v.put("image", varRs.getString("image"));
          variations.add(v);
      }
      varRs.close(); varPs.close(); varConn.close();
@@ -88,21 +140,21 @@ storeRatRs.close(); storeRatPs.close(); conn.close();
  loggedUser = (String) session.getAttribute("userName");
  String loggedRole = (String) session.getAttribute("userRole");
  String userAvatar = (String) session.getAttribute("userAvatar");
- // Check if logged-in user is the seller of this product
- boolean isOwnProduct = false;
- try {
-     Integer sessionUserId2 = (Integer) session.getAttribute("userId");
-     if (sessionUserId2 != null && sellerId > 0) {
-         java.sql.Connection ownConn = com.shopeasy.DBConnection.getConnection();
-         java.sql.PreparedStatement ownPs = ownConn.prepareStatement(
-             "SELECT COUNT(*) FROM seller WHERE seller_id=? AND user_id=?");
-         ownPs.setInt(1, sellerId);
-         ownPs.setInt(2, sessionUserId2);
-         java.sql.ResultSet ownRs = ownPs.executeQuery();
-         if (ownRs.next() && ownRs.getInt(1) > 0) isOwnProduct = true;
-         ownRs.close(); ownPs.close(); ownConn.close();
-     }
- } catch (Exception ignored) {}
+//Check if logged-in user is the seller of this product
+boolean isOwnProduct = false;
+try {
+   Integer sessionUserId2 = (Integer) session.getAttribute("userId");
+   if (sessionUserId2 != null && sellerId > 0) {
+       java.sql.Connection ownConn = com.shopeasy.DBConnection.getConnection();
+       java.sql.PreparedStatement ownPs = ownConn.prepareStatement(
+           "SELECT COUNT(*) FROM seller WHERE seller_id=? AND user_id=?");
+       ownPs.setInt(1, sellerId);
+       ownPs.setInt(2, sessionUserId2);
+       java.sql.ResultSet ownRs = ownPs.executeQuery();
+       if (ownRs.next() && ownRs.getInt(1) > 0) isOwnProduct = true;
+       ownRs.close(); ownPs.close(); ownConn.close();
+   }
+} catch (Exception ignored) {}
     int cartCount = 0;
     try {
         Integer sessionUserId = (Integer) session.getAttribute("userId");
@@ -138,6 +190,10 @@ storeRatRs.close(); storeRatPs.close(); conn.close();
 .navbar-brand { font-weight: 800; color: #0d6efd !important; }
 .product-img { width: 100%; max-height: 440px; object-fit: contain; background: white; border-radius: 20px; padding: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); transition: transform 0.3s; }
 .product-img:hover { transform: scale(1.02); }
+.gallery-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 2px solid #dee2e6; cursor: pointer; transition: 0.2s; opacity: 0.7; }
+.gallery-thumb:hover, .gallery-thumb.active { border-color: #0d6efd; opacity: 1; }
+.gallery-dot { width: 8px; height: 8px; border-radius: 50%; background: #dee2e6; cursor: pointer; transition: 0.2s; border: none; padding: 0; }
+.gallery-dot.active { background: #0d6efd; }
 .product-card { background: white; border-radius: 20px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 32px; }
 .price-tag { font-size: 34px; font-weight: 900; color: #dc3545; letter-spacing: -0.5px; }
 .stock-badge { font-size: 12px; padding: 5px 14px; border-radius: 20px; font-weight: 600; }
@@ -205,55 +261,35 @@ function showLoader() {
 </div>
 
 <div class="container py-4">
-    <!-- BREADCRUMB -->
-  
-
     <div class="row g-4">
         <!-- PRODUCT IMAGE -->
-        <div class="col-md-5">
-            <% if (image != null && !image.isEmpty()) { %>
-                <img src="<%= image %>" class="product-img" alt="<%= name %>">
-            <% } else { %>
-                <div class="product-img d-flex align-items-center justify-content-center text-muted" style="height:420px;">
-                    <i class="bi bi-image" style="font-size:80px; opacity:0.2;"></i>
+      <div class="col-md-5">
+            <div style="background:white; border-radius:20px; padding:20px; box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+                <!-- Main Image -->
+                <div style="position:relative; overflow:hidden; border-radius:12px; background:#f8f9fa; height:380px; display:flex; align-items:center; justify-content:center;">
+                    <% if (image != null && !image.isEmpty()) { %>
+                        <img src="<%= image %>" id="mainProductImg" style="max-width:100%; max-height:340px; object-fit:contain; transition:opacity 0.3s;">
+                    <% } else { %>
+                        <img src="" id="mainProductImg" style="max-width:100%; max-height:340px; object-fit:contain; display:none;">
+                        <div id="noImagePlaceholder"><i class="bi bi-image" style="font-size:80px; opacity:0.2; color:#aaa;"></i></div>
+                    <% } %>
+                    <!-- Slide arrows — shown only when >1 gallery image -->
+                    <button id="prevSlide" onclick="slideGallery(-1)" style="display:none; position:absolute; left:8px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.35); border:none; border-radius:50%; width:36px; height:36px; color:white; font-size:16px; cursor:pointer; z-index:2;">‹</button>
+                    <button id="nextSlide" onclick="slideGallery(1)" style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.35); border:none; border-radius:50%; width:36px; height:36px; color:white; font-size:16px; cursor:pointer; z-index:2;">›</button>
                 </div>
-            <% } %>
+                <!-- Thumbnails -->
+                <div id="galleryThumbs" class="d-flex gap-2 mt-2 flex-wrap" style="display:none!important;"></div>
+                <!-- Dots -->
+                <div id="galleryDots" class="d-flex gap-1 justify-content-center mt-2"></div>
+            </div>
         </div>
 
         <!-- PRODUCT DETAILS -->
         <div class="col-md-7">
             <div class="product-card">
                 <h2 class="fw-bold mb-2"><%= name %></h2>
-<%
-double topAvgRating = 0;
-int topTotalReviews = 0;
-try {
-    Connection topRatConn = com.shopeasy.DBConnection.getConnection();
-    PreparedStatement topRatPs = topRatConn.prepareStatement(
-        "SELECT COUNT(*), AVG(rating) FROM review WHERE product_id = ?");
-    topRatPs.setInt(1, productId);
-    ResultSet topRatRs = topRatPs.executeQuery();
-    if (topRatRs.next()) {
-        topTotalReviews = topRatRs.getInt(1);
-        topAvgRating = topRatRs.getDouble(2);
-    }
-    topRatRs.close(); topRatPs.close(); topRatConn.close();
-} catch (Exception e) { e.printStackTrace(); }
-%>
-<%
-int totalSold = 0;
-try {
-    Connection soldConn = com.shopeasy.DBConnection.getConnection();
-    PreparedStatement soldPs = soldConn.prepareStatement(
-        "SELECT SUM(oi.quantity) FROM order_items oi " +
-        "JOIN orders o ON oi.order_id = o.order_id " +
-        "WHERE oi.product_id = ? AND o.status = 'Completed'");
-    soldPs.setInt(1, productId);
-    ResultSet soldRs = soldPs.executeQuery();
-    if (soldRs.next()) totalSold = soldRs.getInt(1);
-    soldRs.close(); soldPs.close(); soldConn.close();
-} catch (Exception e) { e.printStackTrace(); }
-%>
+
+
 <div class="d-flex align-items-center gap-2 mb-2">
     <% for (int s = 1; s <= 5; s++) { %>
         <i class="bi bi-star-fill" style="color:<%= s <= Math.round(topAvgRating) ? "#ffc107" : "#ddd" %>; font-size:14px;"></i>
@@ -286,9 +322,7 @@ try {
 </div>
 
 <div id="stockDisplay">
-<% if (!variations.isEmpty()) { %>
-    <span class="badge bg-secondary stock-badge mb-3"><i class="bi bi-tag"></i> Select a variation to see stock</span>
-<% } else if (stock > 10) { %>
+<% if (stock > 10) { %>
     <span class="badge bg-success stock-badge mb-3"><i class="bi bi-check-circle"></i> In Stock (<%= stock %> available)</span>
 <% } else if (stock > 0) { %>
     <span class="badge bg-warning text-dark stock-badge mb-3"><i class="bi bi-exclamation-circle"></i> Low Stock (<%= stock %> left)</span>
@@ -345,10 +379,12 @@ try {
             <button type="button"
     class="btn btn-outline-secondary btn-sm variation-btn"
     data-type="<%= entry.getKey() %>"
-    data-id="<%= v.get("id") %>"
+   data-id="<%= v.get("id") %>"
     data-value="<%= v.get("value") %>"
-    data-price="<%= v.get("price") != null ? v.get("price") : "" %>"
+   data-price="<%= v.get("price") != null ? v.get("price") : "" %>"
+    data-originalprice="<%= v.get("originalPrice") != null ? v.get("originalPrice") : "" %>"
     data-stock="<%= v.get("stock") != null ? v.get("stock") : "" %>"
+    data-image="<%= v.get("image") != null ? v.get("image") : "" %>"
     onclick="selectVariation(this, '<%= entry.getKey() %>')"
     style="border-radius:8px; min-width:52px; font-size:13px;">
     <%= v.get("value") %>
@@ -422,8 +458,8 @@ try {
     <div class="bg-white rounded-4 shadow-sm p-4 mt-2">
         <h5 class="fw-bold mb-4"><i class="bi bi-star-fill text-warning"></i> Customer Reviews</h5>
         <%
-        int totalReviews = 0;
-        double avgRating = 0;
+        int totalReviews = topTotalReviews;
+        double avgRating = topAvgRating;
         try {
             Connection revConn = com.shopeasy.DBConnection.getConnection();
             PreparedStatement revPs = revConn.prepareStatement(
@@ -432,17 +468,6 @@ try {
                 "WHERE r.product_id = ? ORDER BY r.review_id DESC");
             revPs.setInt(1, productId);
             ResultSet revRs = revPs.executeQuery();
-
-            // Get avg rating
-            PreparedStatement avgPs = revConn.prepareStatement(
-                "SELECT COUNT(*), AVG(rating) FROM review WHERE product_id = ?");
-            avgPs.setInt(1, productId);
-            ResultSet avgRs = avgPs.executeQuery();
-            if (avgRs.next()) {
-                totalReviews = avgRs.getInt(1);
-                avgRating = avgRs.getDouble(2);
-            }
-            avgRs.close(); avgPs.close();
         %>
 
         <!-- Rating Summary -->
@@ -529,34 +554,127 @@ try {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-document.querySelectorAll('.star-btn').forEach(star => {
-    star.addEventListener('mouseover', function() {
-        const val = parseInt(this.dataset.val);
-        document.querySelectorAll('.star-btn').forEach((s, i) => {
-            s.style.color = i < val ? '#ffc107' : '#ddd';
-        });
-    });
-    star.addEventListener('mouseout', function() {
-        const selected = parseInt(document.getElementById('ratingInput').value);
-        document.querySelectorAll('.star-btn').forEach((s, i) => {
-            s.style.color = i < selected ? '#ffc107' : '#ddd';
-        });
-    });
-    star.addEventListener('click', function() {
-        const val = parseInt(this.dataset.val);
-        document.getElementById('ratingInput').value = val;
-        document.querySelectorAll('.star-btn').forEach((s, i) => {
-            s.style.color = i < val ? '#ffc107' : '#ddd';
-        });
-    });
-});
-
-</script>
-<script>
 const basePrice = <%= price %>;
 const baseOriginalPrice = <%= originalPrice %>;
 const baseStock = <%= stock %>;
 
+//GALLERY SLIDESHOW
+let galleryImages = [];
+let galleryIndex = 0;
+let galleryLocked = false;
+
+function initGallery() {
+    const seen = new Set();
+    galleryImages = [];
+
+    // Load DB gallery images
+    const dbGallery = <%= galleryJson.toString() %>;
+    dbGallery.forEach(src => {
+        if (src && !seen.has(src)) { seen.add(src); galleryImages.push(src); }
+    });
+
+    // Fallback: variation images if no DB gallery
+    if (galleryImages.length === 0) {
+        const btns = document.querySelectorAll('.variation-btn');
+        btns.forEach(btn => {
+            const img = btn.dataset.image;
+            if (img && img !== '' && !seen.has(img)) { seen.add(img); galleryImages.push(img); }
+        });
+        const mainSrc = '<%= image != null ? image.replace("'", "\\'") : "" %>';
+        if (mainSrc && !seen.has(mainSrc)) galleryImages.unshift(mainSrc);
+    }
+
+    const dotsEl = document.getElementById('galleryDots');
+    dotsEl.innerHTML = '';
+    if (galleryImages.length > 1) {
+        document.getElementById('prevSlide').style.display = 'block';
+        document.getElementById('nextSlide').style.display = 'block';
+        galleryImages.forEach((img, i) => {
+            const dot = document.createElement('button');
+            dot.className = 'gallery-dot' + (i === 0 ? ' active' : '');
+            dot.onclick = () => setGalleryImage(i);
+            dotsEl.appendChild(dot);
+        });
+    }
+    if (galleryImages.length > 0) setGalleryImage(0);
+}
+
+function setGalleryImage(idx) {
+    if (galleryLocked) return;
+    galleryIndex = (idx + galleryImages.length) % galleryImages.length;
+    const mainImg = document.getElementById('mainProductImg');
+    mainImg.style.opacity = '0';
+    setTimeout(() => {
+        mainImg.src = galleryImages[galleryIndex];
+        mainImg.style.display = 'block';
+        mainImg.style.opacity = '1';
+        const placeholder = document.getElementById('noImagePlaceholder');
+        if (placeholder) placeholder.style.display = 'none';
+    }, 150);
+    document.querySelectorAll('.gallery-dot').forEach((d, i) => {
+        d.classList.toggle('active', i === galleryIndex);
+    });
+}
+
+function slideGallery(dir) {
+    if (galleryLocked) return;
+    setGalleryImage(galleryIndex + dir);
+}
+
+function lockGallery(imgSrc) {
+    galleryLocked = true;
+    const mainImg = document.getElementById('mainProductImg');
+    mainImg.style.opacity = '0';
+    setTimeout(() => {
+        mainImg.src = imgSrc;
+        mainImg.style.display = 'block';
+        mainImg.style.opacity = '1';
+    }, 150);
+    document.getElementById('prevSlide').style.display = 'none';
+    document.getElementById('nextSlide').style.display = 'none';
+    document.getElementById('galleryDots').innerHTML = '';
+}
+
+function unlockGallery() {
+    galleryLocked = false;
+    initGallery();
+}
+
+// Auto-select cheapest variation on load
+window.addEventListener('DOMContentLoaded', function() {
+    initGallery();
+    // Find cheapest variation button (lowest price), not necessarily first
+    const allBtns = document.querySelectorAll('.variation-btn');
+    let cheapestBtn = null;
+    let lowestPrice = Infinity;
+    allBtns.forEach(btn => {
+        const p = parseFloat(btn.dataset.price);
+        if (p < lowestPrice) { lowestPrice = p; cheapestBtn = btn; }
+    });
+
+    const firstBtn = cheapestBtn; // use cheapest for default display
+    if (firstBtn) {
+        // Show cheapest variation image
+        const varImage = firstBtn.dataset.image;
+        const mainImg = document.getElementById('mainProductImg');
+        if (mainImg && varImage && varImage !== '') mainImg.src = varImage;
+
+        // Update priceDisplay with cheapest variation price + discount
+        const price = parseFloat(firstBtn.dataset.price);
+        const original = firstBtn.dataset.originalprice ? parseFloat(firstBtn.dataset.originalprice) : 0;
+        let priceHtml = '';
+        if (original > 0 && original < price) {
+            const pct = Math.round((price - original) / price * 100);
+            priceHtml = '<div class="d-flex align-items-center gap-2 mb-1">' +
+                '<span class="text-muted text-decoration-line-through" style="font-size:15px;">₱' + price.toFixed(2) + '</span>' +
+                '<span class="badge bg-danger" style="font-size:12px;">-' + pct + '% OFF</span>' +
+                '</div><div class="price-tag mb-2">₱' + original.toFixed(2) + '</div>';
+        } else {
+            priceHtml = '<div class="price-tag mb-2">₱' + price.toFixed(2) + '</div>';
+        }
+        document.getElementById('priceDisplay').innerHTML = priceHtml;
+    }
+});
 function selectVariation(btn, type) {
     document.querySelectorAll('#varGroup_' + type + ' .variation-btn').forEach(b => {
         b.classList.remove('btn-dark');
@@ -566,51 +684,74 @@ function selectVariation(btn, type) {
     btn.classList.add('btn-dark');
     document.getElementById('selectedVariationId').value = btn.dataset.id;
 
-    // Update price display
-    const varPrice = btn.dataset.price ? parseFloat(btn.dataset.price) : null;
-    const varStock = null;
-    const displayPrice = varPrice !== null ? varPrice : baseOriginalPrice > 0 ? baseOriginalPrice : basePrice;
-    const displayOriginal = varPrice !== null ? basePrice : basePrice;
-    const displayStock = baseStock;
+ // Update price display
+    const varBasePrice = btn.dataset.price ? parseFloat(btn.dataset.price) : null;
+    const varSalePrice = btn.dataset.originalprice ? parseFloat(btn.dataset.originalprice) : null;
+    const rawStock = btn.dataset.stock;
+    const varStock = (rawStock !== undefined && rawStock !== '' && rawStock !== 'null') ? parseInt(rawStock) : null;
+    const safeStock = (varStock !== null && !isNaN(varStock) && varStock >= 0) ? varStock : null;
 
-    // Update price tag
-    const pct = varPrice !== null && basePrice > varPrice
-        ? Math.round((basePrice - varPrice) / basePrice * 100) : 0;
+ // Update main image if variation has its own image
+const varImage = btn.dataset.image;
+if (varImage && varImage !== '') {
+    lockGallery(varImage);
+} else {
+    unlockGallery();
+}
+ const mainImg = document.getElementById('mainProductImg');
+ if (mainImg) {
+     if (varImage && varImage !== '') {
+         mainImg.src = varImage;
+     } else {
+         mainImg.src = '<%= image != null ? image : "" %>';
+     }
+ }
+//Determine effective display price for this variant
+ // varBasePrice = original/crossed-out price, varSalePrice = sale/discounted price
+ let displayPrice, displayOriginalPrice, discountPct;
+ if (varBasePrice !== null) {
+     // Variant has its own pricing
+     displayOriginalPrice = varBasePrice;
+     displayPrice = varSalePrice !== null ? varSalePrice : varBasePrice;
+     discountPct = (varSalePrice !== null && varBasePrice > varSalePrice)
+         ? Math.round((varBasePrice - varSalePrice) / varBasePrice * 100) : 0;
+ } else {
+     // Fall back to base product pricing
+     displayOriginalPrice = basePrice;
+     displayPrice = baseOriginalPrice > 0 ? baseOriginalPrice : basePrice;
+     discountPct = (baseOriginalPrice > 0 && baseOriginalPrice < basePrice)
+         ? Math.round((basePrice - baseOriginalPrice) / basePrice * 100) : 0;
+ }
+ const displayStock = safeStock !== null ? safeStock : baseStock;
 
-    let priceHtml = '';
-    if (pct > 0) {
-        priceHtml = '<div class="d-flex align-items-center gap-2 mb-1">' +
-            '<span class="text-muted text-decoration-line-through" style="font-size:15px;">₱' + basePrice.toFixed(2) + '</span>' +
-            '<span class="badge bg-danger" style="font-size:12px;">-' + pct + '% OFF</span>' +
-            '</div>' +
-            '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
-    } else {
-        const baseDisc = baseOriginalPrice > 0 && baseOriginalPrice < basePrice
-            ? Math.round((basePrice - baseOriginalPrice) / basePrice * 100) : 0;
-        if (baseDisc > 0) {
-            priceHtml = '<div class="d-flex align-items-center gap-2 mb-1">' +
-                '<span class="text-muted text-decoration-line-through" style="font-size:15px;">₱' + basePrice.toFixed(2) + '</span>' +
-                '<span class="badge bg-danger" style="font-size:12px;">-' + baseDisc + '% OFF</span>' +
-                '</div>' +
-                '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
-        } else {
-            priceHtml = '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
-        }
-    }
-    document.getElementById('priceDisplay').innerHTML = priceHtml;
+ let priceHtml = '';
+ if (discountPct > 0) {
+     priceHtml = '<div class="d-flex align-items-center gap-2 mb-1">' +
+         '<span class="text-muted text-decoration-line-through" style="font-size:15px;">₱' + displayOriginalPrice.toFixed(2) + '</span>' +
+         '<span class="badge bg-danger" style="font-size:12px;">-' + discountPct + '% OFF</span>' +
+         '</div>' +
+         '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
+ } else {
+     priceHtml = '<div class="price-tag mb-2">₱' + displayPrice.toFixed(2) + '</div>';
+ }
+ document.getElementById('priceDisplay').innerHTML = priceHtml;
 
     // Update stock badge
     let stockHtml = '';
-    if (displayStock > 10) {
+    if (safeStock === null) {
+        // Variation has no stock info — keep showing base stock display, don't override
+    } else if (displayStock > 10) {
         stockHtml = '<span class="badge bg-success stock-badge mb-3"><i class="bi bi-check-circle"></i> In Stock (' + displayStock + ' available)</span>';
+        document.getElementById('stockDisplay').innerHTML = stockHtml;
     } else if (displayStock > 0) {
         stockHtml = '<span class="badge bg-warning text-dark stock-badge mb-3"><i class="bi bi-exclamation-circle"></i> Low Stock (' + displayStock + ' left)</span>';
+        document.getElementById('stockDisplay').innerHTML = stockHtml;
     } else {
         stockHtml = '<span class="badge bg-danger stock-badge mb-3"><i class="bi bi-x-circle"></i> Out of Stock</span>';
+        document.getElementById('stockDisplay').innerHTML = stockHtml;
     }
-    document.getElementById('stockDisplay').innerHTML = stockHtml;
-    document.getElementById('qtyInput').max = baseStock;
-    document.getElementById('availableText').textContent = '/ ' + baseStock + ' available';
+    document.getElementById('qtyInput').max = safeStock !== null ? displayStock : baseStock;
+    document.getElementById('availableText').textContent = '/ ' + (safeStock !== null ? displayStock : baseStock) + ' available';
 }
 
 function changeQty(delta) {
@@ -632,8 +773,9 @@ function buyNow(productId, hasVariation) {
     if (hasVariation) {
         const selectedId = document.getElementById('selectedVariationId').value;
         if (!selectedId) {
-            alert('Please select your preferred options first!');
-            return;
+        	showProductToast('Please select your preferred options first!', 'error');
+        	return;
+           
         }
     }
     const varId = hasVariation ? document.getElementById('selectedVariationId').value : '';
@@ -650,10 +792,10 @@ function buyNow(productId, hasVariation) {
         if (data.success) {
             window.location.href = 'checkout.jsp?buyNow=true';
         } else {
-            alert(data.message || 'Could not process Buy Now.');
+        	showProductToast(data.message || 'Could not process Buy Now.', 'error');
         }
     })
-    .catch(err => console.error(err));
+    .catch(() => showProductToast('Server error. Please try again.', 'error'));
 }
 
 function addToCart(productId, hasVariation) {
@@ -661,18 +803,10 @@ function addToCart(productId, hasVariation) {
                         ? document.getElementById('selectedVariationId').value 
                         : '';
 
-    if (hasVariation && !variationId) {
-        const toast = document.getElementById('cartToast');
-        toast.style.background = '#dc3545';
-        toast.innerHTML = '<i class="bi bi-exclamation-circle-fill me-2"></i> Please select a variation first!';
-        toast.style.display = 'block';
-        setTimeout(() => {
-            toast.style.display = 'none';
-            toast.style.background = '#198754';
-            toast.innerHTML = '<i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒';
-        }, 2500);
-        return;
-    }
+                        if (hasVariation && !variationId) {
+                            showProductToast('Please select a variation first!', 'error');
+                            return;
+                        }
 
     const qty = document.getElementById('qtyInput') ? document.getElementById('qtyInput').value : '1';
     let body = 'productId=' + productId + '&quantity=' + qty;
@@ -696,22 +830,13 @@ function addToCart(productId, hasVariation) {
                 badge.textContent = data.newCount;
             }
         } else {
-            alert(data.message || 'Error adding to cart');
+        	showProductToast(data.message || 'Error adding to cart.', 'error');
         }
     })
-    .catch(err => console.error(err));
+    .catch(() => showProductToast('Server error. Please try again.', 'error'));
 }
 
-function handleLoginSubmit(e, form) {
-    e.preventDefault();
-    var modal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
-    if (modal) modal.hide();
-    setTimeout(() => {
-        document.getElementById('loginLoadingOverlay').style.display = 'flex';
-        setTimeout(() => { form.submit(); }, 1500);
-    }, 300);
-    return false;
-}
+
 //WISHLIST
 function toggleWishlist(productId) {
     fetch('WishlistServlet', {
@@ -724,23 +849,21 @@ function toggleWishlist(productId) {
         if (data.success) {
             const icon = document.getElementById('wishlistIcon');
             const text = document.getElementById('wishlistText');
+            const wb = document.getElementById('wishlistBtn');
             if (data.action === 'added') {
                 icon.className = 'bi bi-heart-fill';
                 text.textContent = 'Wishlisted';
-                const wb = document.getElementById('wishlistBtn');
                 wb.style.background = '#dc3545';
                 wb.style.color = 'white';
-                icon.className = 'bi bi-heart-fill';
             } else {
                 icon.className = 'bi bi-heart';
                 text.textContent = 'Add to Wishlist';
-                const wb = document.getElementById('wishlistBtn');
                 wb.style.background = 'white';
                 wb.style.color = '#dc3545';
-                icon.className = 'bi bi-heart';
             }
         }
-    });
+    })
+    .catch(() => showProductToast('Could not update wishlist. Please try again.', 'error'));
 }
 
 // Check if already wishlisted on load
@@ -755,7 +878,8 @@ window.addEventListener('load', function() {
             wbLoad.style.background = '#dc3545';
             wbLoad.style.color = 'white';
         }
-    });
+    })
+    .catch(() => {});
 });
 
 window.addEventListener('pageshow', function(e) {
@@ -765,6 +889,21 @@ window.addEventListener('pageshow', function(e) {
         if (qtyInput) qtyInput.value = 1;
     }
 });
+
+function showProductToast(msg, type) {
+    const toast = document.getElementById('cartToast');
+    toast.style.background = (type === 'error') ? '#dc3545' : '#198754';
+    toast.innerHTML = (type === 'error')
+        ? '<i class="bi bi-exclamation-circle-fill me-2"></i>' + msg
+        : '<i class="bi bi-cart-check-fill me-2"></i>' + msg;
+    toast.style.display = 'block';
+    setTimeout(() => {
+        toast.style.display = 'none';
+        toast.style.background = '#198754';
+        toast.innerHTML = '<i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒';
+    }, 2500);
+}
+
 </script>
 
 <!-- Age Block Modal -->

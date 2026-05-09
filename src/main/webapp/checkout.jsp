@@ -166,7 +166,12 @@ if (cartTotal == null) cartTotal = 0.0;
                         <label class="form-label fw-bold" style="font-size:13px;">Phone Number</label>
                         <div class="input-group">
                             <span class="input-group-text">+63</span>
-                            <input type="tel" class="form-control" id="shipPhone" value="<%= session.getAttribute("userPhone") != null ? session.getAttribute("userPhone") : "" %>">
+                         <input type="tel" class="form-control" id="shipPhone" 
+       value="<%= session.getAttribute("userPhone") != null ? session.getAttribute("userPhone") : "" %>"
+       maxlength="10"
+       oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+       onblur="if(this.value.length > 0 && this.value.length < 10) { this.classList.add('is-invalid'); } else { this.classList.remove('is-invalid'); }">
+<div class="invalid-feedback" style="font-size:11px;">Phone number must be 10 digits.</div>
                         </div>
                     </div>
                 </div>
@@ -236,7 +241,13 @@ if (cartTotal == null) cartTotal = 0.0;
 
             <!-- ORDER ITEMS -->
             <div class="card-section">
-                <p class="section-title"><span class="step-badge">3</span> Order Items (<%= cartItems.size() %>)</p>
+             <%
+int totalQty = 0;
+for (Map<String, Object> item : cartItems) {
+    totalQty += item.get("quantity") != null ? (Integer) item.get("quantity") : 0;
+}
+%>
+<p class="section-title"><span class="step-badge">3</span> Order Items (<%= cartItems.size() %> <%= cartItems.size() == 1 ? "item" : "items" %>, <%= totalQty %> <%= totalQty == 1 ? "pc" : "pcs" %>)</p>
                 <% for (Map<String, Object> item : cartItems) { %>
                 <div class="d-flex gap-3 align-items-center mb-3 pb-3 border-bottom">
                     <% if (item.get("image") != null) { %>
@@ -268,16 +279,37 @@ if (cartTotal == null) cartTotal = 0.0;
         <div class="col-lg-4">
             <div class="summary-card">
                 <h6 class="fw-bold mb-3">Order Summary</h6>
+                <%
+                double ckSavings = 0;
+                for (Map<String, Object> item : cartItems) {
+                    double ckPrice = item.get("price") != null ? (Double) item.get("price") : 0;
+                    double ckOriginal = item.get("originalPrice") != null ? (Double) item.get("originalPrice") : 0;
+                    int ckQty = item.get("quantity") != null ? (Integer) item.get("quantity") : 0;
+                    if (ckOriginal > 0 && ckOriginal < ckPrice) {
+                        ckSavings += (ckPrice - ckOriginal) * ckQty;
+                    }
+                }
+                %>
+                <% if (ckSavings > 0) { %>
                 <div class="d-flex justify-content-between mb-2">
+                    <span class="text-success fw-bold"><i class="bi bi-tag-fill"></i> You save</span>
+                    <span class="text-success fw-bold">-₱<%= String.format("%.2f", ckSavings) %></span>
+                </div>
+                <% } %>
+           <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Items (<%= cartItems.size() %>)</span>
-                    <span>₱<%= String.format("%.2f", cartTotal) %></span>
+                    <span class="text-muted">₱<%= String.format("%.2f", cartTotal) %></span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Shipping</span>
                     <span class="text-success">Free</span>
                 </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted"><i class="bi bi-truck"></i> Estimated Delivery</span>
+                    <span class="text-muted" style="font-size:12px;">3-5 Business Days</span>
+                </div>
                 <hr>
-               <div id="walletDiscountRow" class="d-flex justify-content-between mb-2 text-success" style="display:none !important; font-size:13px;">
+              <div id="walletDiscountRow" class="d-flex justify-content-between mb-2 text-success" style="display:none; font-size:13px;">
                     <span><i class="bi bi-wallet2 me-1"></i>Wallet Applied</span>
                     <span id="walletDiscountAmt">-₱0.00</span>
                 </div>
@@ -315,6 +347,17 @@ if (cartTotal == null) cartTotal = 0.0;
 
     const cartTotal = <%= cartTotal %>;
 
+    function showToast(msg, color = '#198754') {
+        const existing = document.getElementById('checkoutToast');
+        if (existing) existing.remove();
+        const t = document.createElement('div');
+        t.id = 'checkoutToast';
+        t.style.cssText = 'position:fixed; bottom:24px; right:24px; z-index:99999; background:' + color + '; color:white; padding:12px 20px; border-radius:12px; font-size:14px; box-shadow:0 4px 16px rgba(0,0,0,0.15); animation:fadeIn 0.2s ease;';
+        t.innerText = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    }
+    
     function selectPayment(el, method) {
         document.querySelectorAll('.payment-option').forEach(o => o.classList.remove('selected'));
         document.querySelectorAll('[id^="check_"]').forEach(i => i.className = 'bi bi-circle text-muted ms-auto');
@@ -344,11 +387,27 @@ if (cartTotal == null) cartTotal = 0.0;
         const address = document.getElementById('shipAddress').value.trim();
         const phone = document.getElementById('shipPhone').value.trim();
 
-        if (!name || !address || !phone) {
-            alert('Please fill in all shipping details!');
+        if (!name) {
+            showToast('Please enter your full name!', '#dc3545');
+            document.getElementById('shipName').focus();
             return;
         }
-
+        if (!address) {
+            showToast('Please enter your delivery address!', '#dc3545');
+            document.getElementById('shipAddress').focus();
+            return;
+        }
+        if (!phone) {
+            showToast('Please enter your phone number!', '#dc3545');
+            document.getElementById('shipPhone').focus();
+            return;
+        }
+        const cleanPhone = phone.replace(/[\s\-\(\)]/g, '').replace(/^\+?63/, '').replace(/\D/g, '');
+        if (!/^\d{10}$/.test(cleanPhone)) {
+            showToast('Phone number must be exactly 10 digits! (e.g. 9171234567)', '#dc3545');
+            document.getElementById('shipPhone').focus();
+            return;
+        }
         const btn = document.querySelector('.place-order-btn');
         btn.disabled = true;
         btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Placing Order...';
@@ -361,22 +420,29 @@ if (cartTotal == null) cartTotal = 0.0;
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: 'shipName=' + encodeURIComponent(name) +
                   '&shipAddress=' + encodeURIComponent(address) +
-                  '&shipPhone=' + encodeURIComponent(phone) +
+                  '&shipPhone=' + encodeURIComponent(cleanPhone) +
                   '&paymentMethod=' + encodeURIComponent(selectedPayment) +
                   '&useWallet=' + (selectedPayment === 'Wallet' ? 'true' : 'false') +
                   '&walletDeduct=' + (selectedPayment === 'Wallet' ? Math.min(parseFloat(document.getElementById('walletBalance').value)||0, cartTotal).toFixed(2) : '0') +
                   '&isBuyNow=<%= isBuyNow ? "true" : "false" %>'
         }).then(res => res.json())
           .then(data => {
-    if (data.success) {
-        setTimeout(function() {
-            window.location.href = 'order_success.jsp?orderId=' + data.orderId;
-        }, 2500);
-    } else {
-                  alert('Error: ' + data.message);
+              if (data.success) {
+                  setTimeout(function() {
+                      window.location.href = 'order_success.jsp?orderId=' + data.orderId;
+                  }, 2500);
+              } else {
+                  overlay.style.display = 'none';
                   btn.disabled = false;
                   btn.innerHTML = '<i class="bi bi-bag-check"></i> Place Order';
+                  showToast('Error: ' + data.message, '#dc3545');
               }
+          }).catch(err => {
+              console.error('Checkout error:', err);
+              overlay.style.display = 'none';
+              btn.disabled = false;
+              btn.innerHTML = '<i class="bi bi-bag-check"></i> Place Order';
+              showToast('Connection error. Please try again.', '#dc3545');
           });
     }
     

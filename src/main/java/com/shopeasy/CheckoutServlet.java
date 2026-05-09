@@ -59,6 +59,28 @@ public class CheckoutServlet extends HttpServlet {
 
         try {
             Connection conn = DBConnection.getConnection();
+         // SERVER-SIDE STOCK VALIDATION
+            for (Map<String, Object> item : cartItems) {
+                int productId = (Integer) item.get("productId");
+                int requestedQty = (Integer) item.get("quantity");
+                
+                PreparedStatement stockCheckPs = conn.prepareStatement(
+                    "SELECT stock, name FROM product WHERE product_id=?");
+                stockCheckPs.setInt(1, productId);
+                ResultSet stockRs = stockCheckPs.executeQuery();
+                
+                if (stockRs.next()) {
+                    int availableStock = stockRs.getInt("stock");
+                    String productName = stockRs.getString("name");
+                    if (availableStock < requestedQty) {
+                        stockRs.close(); stockCheckPs.close(); conn.close();
+                        out.print("{\"success\":false,\"message\":\"Sorry, '" + 
+                            productName + "' only has " + availableStock + " left in stock!\"}");
+                        return;
+                    }
+                }
+                stockRs.close(); stockCheckPs.close();
+            }
 
             // Insert into orders table
             String fullAddress = shipName + " | " + shipPhone + " | " + shipAddress;
@@ -67,10 +89,11 @@ public class CheckoutServlet extends HttpServlet {
             try { walletDeduct = Double.parseDouble(request.getParameter("walletDeduct")); } catch (Exception ignored) {}
             double finalTotal = Math.max(0, cartTotal - walletDeduct);
 
+            // Always save original cartTotal so refund works correctly
             String orderSql = "INSERT INTO orders (customer_id, total_amount, status, payment_method, shipping_address) VALUES (?, ?, ?, ?, ?)";
             PreparedStatement orderPs = conn.prepareStatement(orderSql, PreparedStatement.RETURN_GENERATED_KEYS);
             orderPs.setInt(1, customerId);
-            orderPs.setDouble(2, finalTotal);
+            orderPs.setDouble(2, "Wallet".equals(paymentMethod) ? cartTotal : finalTotal);
             orderPs.setString(3, initialStatus);
             orderPs.setString(4, paymentMethod);
             orderPs.setString(5, fullAddress);
@@ -84,7 +107,7 @@ public class CheckoutServlet extends HttpServlet {
             orderPs.close();
 
             // Insert order items
-            String itemSql = "INSERT INTO order_items (order_id, product_id, seller_id, quantity, price, subtotal, variation_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            String itemSql = "INSERT INTO order_items (order_id, product_id, seller_id, quantity, price, discounted_price, subtotal, variation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement itemPs = conn.prepareStatement(itemSql);
 
             for (Map<String, Object> item : cartItems) {
@@ -93,12 +116,14 @@ public class CheckoutServlet extends HttpServlet {
                 itemPs.setInt(3, (Integer) item.get("sellerId"));
                 itemPs.setInt(4, (Integer) item.get("quantity"));
                 itemPs.setDouble(5, (Double) item.get("price"));
-                itemPs.setDouble(6, (Double) item.get("subtotal"));
+                Double discPrice = item.get("discountedPrice") != null ? (Double) item.get("discountedPrice") : (Double) item.get("price");
+                itemPs.setDouble(6, discPrice);
+                itemPs.setDouble(7, (Double) item.get("subtotal"));
                 Object varId = item.get("variationId");
                 if (varId != null) {
-                    itemPs.setInt(7, (Integer) varId);
+                    itemPs.setInt(8, (Integer) varId);
                 } else {
-                    itemPs.setNull(7, java.sql.Types.INTEGER);
+                    itemPs.setNull(8, java.sql.Types.INTEGER);
                 }
                 itemPs.addBatch();
 

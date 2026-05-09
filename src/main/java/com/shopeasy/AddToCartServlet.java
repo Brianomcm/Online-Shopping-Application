@@ -79,19 +79,58 @@ public class AddToCartServlet extends HttpServlet {
             ps.setInt(2, productId);
             if (variationId != null) ps.setInt(3, variationId);
             rs = ps.executeQuery();
-
+            int currentCartQty = 0;
             if (rs.next()) {
-                // Update quantity — set directly, not add
-                int itemId = rs.getInt("cartitem_id");
-                ps.close();
+                currentCartQty = rs.getInt("quantity");
+            }
+            rs.close(); ps.close();
+            // Get available stock
+            int availableStock = 0;
+            if (variationId != null) {
+                PreparedStatement stockPs = conn.prepareStatement(
+                    "SELECT stock FROM product_variation WHERE variation_id=?");
+                stockPs.setInt(1, variationId);
+                ResultSet stockRs = stockPs.executeQuery();
+                if (stockRs.next()) availableStock = stockRs.getInt("stock");
+                stockRs.close(); stockPs.close();
+            } else {
+                PreparedStatement stockPs = conn.prepareStatement(
+                    "SELECT stock FROM product WHERE product_id=?");
+                stockPs.setInt(1, productId);
+                ResultSet stockRs = stockPs.executeQuery();
+                if (stockRs.next()) availableStock = stockRs.getInt("stock");
+                stockRs.close(); stockPs.close();
+            }
+
+            // Check if adding would exceed stock
+            int newQty = currentCartQty + quantity;
+            if (newQty > availableStock) {
+                response.setContentType("application/json");
+                response.getWriter().print("{\"success\":false,\"message\":\"Only " + availableStock + " item(s) available in stock!\"}");
+                conn.close();
+                return;
+            }
+
+            // Re-check if item exists in cart
+            String checkSql2 = variationId != null
+                ? "SELECT cartitem_id FROM cartitem WHERE cart_id=? AND product_id=? AND variation_id=?"
+                : "SELECT cartitem_id FROM cartitem WHERE cart_id=? AND product_id=? AND variation_id IS NULL";
+            PreparedStatement ps2 = conn.prepareStatement(checkSql2);
+            ps2.setInt(1, cartId);
+            ps2.setInt(2, productId);
+            if (variationId != null) ps2.setInt(3, variationId);
+            ResultSet rs2 = ps2.executeQuery();
+
+            if (rs2.next()) {
+                int itemId = rs2.getInt("cartitem_id");
+                rs2.close(); ps2.close();
                 ps = conn.prepareStatement(
                     "UPDATE cartitem SET quantity=quantity+? WHERE cartitem_id=?");
                 ps.setInt(1, quantity);
                 ps.setInt(2, itemId);
                 ps.executeUpdate();
             } else {
-                // Insert new cart item
-                ps.close();
+                rs2.close(); ps2.close();
                 ps = conn.prepareStatement(
                     "INSERT INTO cartitem (cart_id, product_id, quantity, variation_id) VALUES (?,?,?,?)");
                 ps.setInt(1, cartId);
@@ -101,7 +140,7 @@ public class AddToCartServlet extends HttpServlet {
                 else ps.setNull(4, java.sql.Types.INTEGER);
                 ps.executeUpdate();
             }
-            rs.close(); ps.close();
+            ps.close();
 
             // Kunin ang bagong total count ng items sa cart
             int totalCount = 0;

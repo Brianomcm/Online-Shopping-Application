@@ -420,6 +420,17 @@ request.setAttribute("navBackUrl", "index.jsp");
 
 <script>
 
+function showSellerToast(msg) {
+    const existing = document.getElementById('sellerToast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'sellerToast';
+    toast.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#dc3545; color:white; padding:14px 28px; border-radius:14px; font-size:14px; font-weight:600; z-index:99999; box-shadow:0 6px 20px rgba(0,0,0,0.2);';
+    toast.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
 //Terms modal
 function openTerms(e) {
     e.preventDefault();
@@ -442,20 +453,20 @@ document.getElementById('termsModal').addEventListener('click', function(e) {
     if (e.target === this) closeTerms();
 });
 
-    // Toggle dropdown
-    function toggleDropdown() {
-        document.getElementById('navDropdown').classList.toggle('open');
+document.addEventListener('click', function(e) {
+    const profile = document.querySelector('.nav-profile');
+    if (!profile.contains(e.target)) {
+        document.getElementById('navDropdown').classList.remove('open');
     }
- // Logout with loading overlay
+});
+ // Logout with confirm modal
     function doLogout() {
-        document.getElementById('loadingOverlay').querySelector('p').innerHTML =
-            '<i class="fas fa-sign-out-alt"></i> Logging out…';
-        document.getElementById('loadingOverlay').querySelector('small').textContent =
-            'See you next time!';
-        document.getElementById('loadingOverlay').classList.add('show');
-        setTimeout(function() {
-            window.location.href = 'LogoutServlet';
-        }, 1200);
+        new bootstrap.Modal(document.getElementById('logoutConfirmModal')).show();
+    }
+    function confirmLogout() {
+        bootstrap.Modal.getInstance(document.getElementById('logoutConfirmModal')).hide();
+        document.getElementById('logoutOverlay').style.display = 'flex';
+        setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
     }
  
     document.addEventListener('click', function(e) {
@@ -471,10 +482,10 @@ document.getElementById('termsModal').addEventListener('click', function(e) {
 
         const desc = document.querySelector('textarea[name="shopDescription"]').value.trim();
         if (desc.length < 20) {
-            alert('Shop description must be at least 20 characters.');
+            showSellerToast('Shop description must be at least 20 characters.');
             return;
         }
-
+        
         // Show overlay — step 1
         document.getElementById('loadingOverlay').classList.add('show');
         document.getElementById('submitBtn').disabled = true;
@@ -487,6 +498,11 @@ document.getElementById('termsModal').addEventListener('click', function(e) {
             body: new URLSearchParams(formData)
         }).then(() => {
             // Servlet done — now run the animation steps
+        }).catch(() => {
+            document.getElementById('loadingOverlay').classList.remove('show');
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').innerHTML = '<i class="fas fa-store"></i> Open My Shop Now';
+            showSellerToast('Server error. Please try again.');
         });
 
         // Animation steps (independent of servlet)
@@ -511,6 +527,7 @@ document.getElementById('termsModal').addEventListener('click', function(e) {
         }, 9000);
     });
     </script>
+<%@ include file="modals.jsp" %>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     </body>
 </html>

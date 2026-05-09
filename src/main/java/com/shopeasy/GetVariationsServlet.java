@@ -20,8 +20,8 @@ public class GetVariationsServlet extends HttpServlet {
         try {
             Connection conn = DBConnection.getConnection();
             PreparedStatement ps = conn.prepareStatement(
-                "SELECT variation_id, variation_type, variation_value, price, stock " +
-                "FROM product_variation WHERE product_id=? ORDER BY variation_id");
+                    "SELECT variation_id, variation_type, variation_value, price, original_price, stock, image " +
+                    "FROM product_variation WHERE product_id=? ORDER BY variation_id");
             ps.setInt(1, Integer.parseInt(productId));
             ResultSet rs = ps.executeQuery();
 
@@ -34,7 +34,9 @@ public class GetVariationsServlet extends HttpServlet {
                     .append("\"type\":\"").append(rs.getString("variation_type")).append("\",")
                     .append("\"value\":\"").append(rs.getString("variation_value").replace("\"","\\\"")).append("\",")
                     .append("\"price\":").append(rs.getObject("price") != null ? rs.getDouble("price") : "null").append(",")
-                    .append("\"stock\":").append(rs.getObject("stock") != null ? rs.getInt("stock") : "null")
+                    .append("\"originalPrice\":").append(rs.getObject("original_price") != null ? rs.getDouble("original_price") : "null").append(",")
+                    .append("\"stock\":").append(rs.getObject("stock") != null ? rs.getInt("stock") : "null").append(",")
+                    .append("\"image\":").append(rs.getString("image") != null ? "\"" + rs.getString("image").replace("\"","\\\"") + "\"" : "null")
                     .append("}");
                 first = false;
             }

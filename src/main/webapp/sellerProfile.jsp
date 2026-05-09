@@ -18,21 +18,6 @@
             isOwnShop = sessionUserId.equals(Integer.parseInt(shopSellerUserId));
         }
     } catch (Exception ignored) {}
-    int cartCount = 0;
-    try {
-        Integer sessionUserId = (Integer) session.getAttribute("userId");
-        if (sessionUserId != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) {
-            java.sql.Connection cartConn = com.shopeasy.DBConnection.getConnection();
-            java.sql.PreparedStatement cartPs = cartConn.prepareStatement(
-                "SELECT SUM(ci.quantity) FROM cart c JOIN cartitem ci ON c.cart_id = ci.cart_id WHERE c.customer_id = ?");
-            Integer spCustId = (Integer) session.getAttribute("customerId");
-            if (spCustId == null) spCustId = sessionUserId;
-            cartPs.setInt(1, spCustId);
-            java.sql.ResultSet cartRs = cartPs.executeQuery();
-            if (cartRs.next()) cartCount = cartRs.getInt(1);
-            cartRs.close(); cartPs.close(); cartConn.close();
-        }
-    } catch (Exception e) { e.printStackTrace(); }
 
     String businessName = seller.get("business_name");
     if (businessName == null || businessName.isEmpty()) businessName = seller.get("name");
@@ -236,10 +221,14 @@
                                 <button class="btn btn-secondary btn-sm w-100" disabled style="cursor:not-allowed; opacity:0.7;">
                                     <i class="bi bi-slash-circle"></i> Your Product
                                 </button>
-                            <% } else if (loggedUser != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) { %>
+                           <% } else if (loggedUser != null && ("customer".equals(loggedRole) || "both".equals(loggedRole))) { %>
                                 <button class="btn btn-primary btn-sm w-100" onclick="addToCart(<%= prod.get("product_id") %>)">
                                     <i class="bi bi-cart-plus"></i> Add to Cart
                                 </button>
+                            <% } else if (isOwnShop) { %>
+                                <a href="seller.jsp?tab=products" class="btn btn-outline-success btn-sm w-100">
+                                    <i class="bi bi-pencil"></i> Edit in Shop
+                                </a>
                             <% } else { %>
                                 <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
                                     <i class="bi bi-cart-plus"></i> Add to Cart
@@ -253,14 +242,8 @@
         <% } %>
     </div>
 </div>
-<!-- LOGIN MODAL -->
 
 
-<!-- LOGIN LOADING OVERLAY -->
-<div id="loginLoadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
-    <div class="spinner-border text-primary mb-3" style="width:3.5rem; height:3.5rem;" role="status"></div>
-    <p class="fw-bold text-primary fs-5">Logging in...</p>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -276,11 +259,31 @@ function addToCart(productId) {
             const toast = document.getElementById('cartToast');
             toast.style.display = 'block';
             setTimeout(() => toast.style.display = 'none', 2500);
-            const badge = document.querySelector('.badge.bg-danger');
-            if (badge) badge.textContent = parseInt(badge.textContent || 0) + 1;
+            const badge = document.getElementById('cartBadge');
+            if (badge) badge.textContent = data.newCount;
+        } else {
+            const toast = document.getElementById('cartToast');
+            toast.style.background = '#dc3545';
+            toast.innerHTML = '<i class="bi bi-exclamation-circle-fill me-2"></i>' + (data.message || 'Error adding to cart.');
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                toast.style.background = '#198754';
+                toast.innerHTML = '<i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒';
+            }, 2500);
         }
     })
-    .catch(err => console.error(err));
+    .catch(() => {
+        const toast = document.getElementById('cartToast');
+        toast.style.background = '#dc3545';
+        toast.innerHTML = '<i class="bi bi-exclamation-circle-fill me-2"></i> Server error. Please try again.';
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+            toast.style.background = '#198754';
+            toast.innerHTML = '<i class="bi bi-cart-check-fill me-2"></i> Item added to cart! 🛒';
+        }, 2500);
+    });
 }
 </script>
 <div id="logoutOverlay" style="display:none; position:fixed; inset:0; background:rgba(255,255,255,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">

@@ -67,6 +67,24 @@ public class BuyNowServlet extends HttpServlet {
             int sellerId = rs.getInt("seller_id");
             rs.close(); ps.close();
 
+            // Get variation image if variationId is provided
+            if (variationId != null) {
+                PreparedStatement varImgPs = conn.prepareStatement(
+                    "SELECT image, price, original_price FROM product_variation WHERE variation_id=?");
+                varImgPs.setInt(1, variationId);
+                ResultSet varImgRs = varImgPs.executeQuery();
+                if (varImgRs.next()) {
+                    String varImg = varImgRs.getString("image");
+                    if (varImg != null && !varImg.isEmpty()) image = varImg;
+                    double varPrice = varImgRs.getDouble("price");
+                    double varOriginal = varImgRs.getDouble("original_price");
+                    if (varPrice > 0) price = varPrice;
+                    if (varOriginal > 0) originalPrice = varOriginal;
+                    usePrice = (originalPrice > 0 && originalPrice < price) ? originalPrice : price;
+                }
+                varImgRs.close(); varImgPs.close();
+            }
+
             if (quantity > stock) {
                 out.print("{\"success\":false,\"message\":\"Not enough stock\"}");
                 conn.close();

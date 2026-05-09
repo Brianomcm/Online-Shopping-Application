@@ -49,8 +49,8 @@
             <i class="bi bi-bag-heart-fill"></i> ShopEasy
         </a>
 
-        <% if ("full".equals(_navType)) { %>
-        <!-- SEARCH BAR -->
+     <% if ("full".equals(_navType)) { %>
+        <!-- DESKTOP SEARCH BAR -->
         <form class="d-none d-md-flex mx-3 flex-grow-1" action="index.jsp" method="get">
             <div class="input-group">
                 <input type="text" class="form-control" name="search"
@@ -151,8 +151,8 @@
                     <% } %>
 
                     <li><hr class="dropdown-divider my-1"></li>
-                    <li><a class="dropdown-item py-2 text-danger" href="LogoutServlet" style="font-size:13px;">
-                        <i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                 <li><a class="dropdown-item py-2 text-danger" href="#" onclick="doLogout()" style="font-size:13px;">
+    <i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
                 </ul>
             </div>
 
@@ -162,11 +162,11 @@
                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
                       id="cartBadge" style="font-size:9px;"><%= _navCartCount > 0 ? _navCartCount : "0" %></span>
             </a>
-            <a href="index.jsp" class="btn btn-outline-primary">
+       <a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#loginModal">
                 <i class="bi bi-person"></i>
                 <span class="d-none d-md-inline"> Login</span>
             </a>
-            <a href="index.jsp" class="btn btn-primary">
+            <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal">
                 <i class="bi bi-person-plus"></i>
                 <span class="d-none d-md-inline"> Register</span>
             </a>
@@ -174,6 +174,18 @@
         </div>
     </div>
 </nav>
+<% if ("full".equals(_navType)) { %>
+<!-- MOBILE SEARCH BAR -->
+<form class="container-fluid px-3 d-md-none mt-2 mb-1" action="index.jsp" method="get">
+    <div class="input-group">
+        <input type="text" class="form-control" name="search"
+               placeholder="Search products..." value="<%= _navSearchVal %>">
+        <button class="btn btn-primary" type="submit">
+            <i class="bi bi-search"></i>
+        </button>
+    </div>
+</form>
+<% } %>
 
 <!-- Seller Center Loading Overlay -->
 <div id="sellerCenterOverlay" style="display:none; position:fixed; inset:0; background:rgba(255,255,255,0.95);
@@ -188,11 +200,40 @@
 <style>
 @keyframes scSpin { to { transform: rotate(360deg); } }
 </style>
+<!-- LOGOUT OVERLAY -->
+<div id="logoutOverlay" style="display:none; position:fixed; inset:0; background:rgba(255,255,255,0.95);
+     z-index:9999; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
+    <div style="width:56px; height:56px; border:5px solid #e9ecef; border-top-color:#dc3545;
+         border-radius:50%; animation:scSpin 0.8s linear infinite;"></div>
+    <p style="font-size:16px; font-weight:600; color:#dc3545; margin:0;">Logging out...</p>
+</div>
+
+<!-- LOGOUT CONFIRM MODAL -->
+<div class="modal fade" id="logoutConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-5">
+                <div style="width:70px; height:70px; background:linear-gradient(135deg,#dc3545,#c0392b); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+                    <i class="bi bi-box-arrow-right" style="font-size:30px; color:white;"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Log Out?</h5>
+                <p class="text-muted mb-1" style="font-size:14px;">Are you sure you want to logout?</p>
+                <div class="d-flex gap-2 justify-content-center mt-4">
+                    <button class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger px-4" onclick="confirmLogout()">
+                        <i class="bi bi-box-arrow-right me-1"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function goToSellerCenter() {
     document.getElementById('sellerCenterOverlay').style.display = 'flex';
     setTimeout(function() {
-        window.location.href = 'SellerProfileServlet';
+        window.location.href = 'seller.jsp';
     }, 1500);
 }
 function goToBecomeSeller() {
@@ -215,5 +256,13 @@ function goToBecomeSeller() {
     setTimeout(function() {
         window.location.href = 'seller-apply.jsp';
     }, 1500);
+}
+function doLogout() {
+    new bootstrap.Modal(document.getElementById('logoutConfirmModal')).show();
+}
+function confirmLogout() {
+    bootstrap.Modal.getInstance(document.getElementById('logoutConfirmModal')).hide();
+    document.getElementById('logoutOverlay').style.display = 'flex';
+    setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
 }
 </script>

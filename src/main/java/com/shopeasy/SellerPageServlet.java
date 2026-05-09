@@ -80,13 +80,26 @@ public class SellerPageServlet extends HttpServlet {
                 prod.put("name", rs2.getString("name"));
                 prod.put("price", rs2.getDouble("price"));
                 prod.put("stock", rs2.getInt("stock"));
-                prod.put("image", rs2.getString("image"));
                 prod.put("category_name", rs2.getString("category_name"));
                 prod.put("description", rs2.getString("description"));
                 prod.put("avgRating", rs2.getDouble("avg_rating"));
                 prod.put("reviewCount", rs2.getInt("review_count"));
                 prod.put("totalSold", rs2.getInt("total_sold"));
                 prod.put("originalPrice", rs2.getDouble("original_price"));
+                // thumbnail > image > cheapest variation image
+                String pImg = rs2.getString("thumbnail");
+                if (pImg == null || pImg.isEmpty()) pImg = rs2.getString("image");
+                if (pImg == null || pImg.isEmpty()) {
+                    try {
+                        PreparedStatement varImgPs = conn.prepareStatement(
+                            "SELECT image FROM product_variation WHERE product_id=? AND image IS NOT NULL ORDER BY price ASC LIMIT 1");
+                        varImgPs.setInt(1, rs2.getInt("product_id"));
+                        ResultSet varImgRs = varImgPs.executeQuery();
+                        if (varImgRs.next()) pImg = varImgRs.getString("image");
+                        varImgRs.close(); varImgPs.close();
+                    } catch (Exception ignored) {}
+                }
+                prod.put("image", pImg);
                 products.add(prod);
             }
             rs2.close(); ps2.close();

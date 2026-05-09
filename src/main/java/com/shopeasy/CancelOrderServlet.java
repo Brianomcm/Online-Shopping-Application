@@ -21,7 +21,8 @@ public class CancelOrderServlet extends HttpServlet {
             return;
         }
 
-        int customerId = (int) session.getAttribute("userId");
+        Integer customerId = (Integer) session.getAttribute("customerId");
+        if (customerId == null) customerId = (int) session.getAttribute("userId");
         String orderIdParam = request.getParameter("orderId");
         String reason = request.getParameter("reason");
         String cancelType = request.getParameter("type");
@@ -75,8 +76,8 @@ public class CancelOrderServlet extends HttpServlet {
                     String payMethod = paymentRs.getString("payment_method");
                     double totalAmt = paymentRs.getDouble("total_amount");
                     if ("Wallet".equals(payMethod) && totalAmt > 0) {
-                        PreparedStatement walletPs = conn.prepareStatement(
-                            "UPDATE customers SET wallet_balance = wallet_balance + ? WHERE customer_id=?");
+                    	PreparedStatement walletPs = conn.prepareStatement(
+                    		    "UPDATE customer SET wallet_balance = wallet_balance + ? WHERE customer_id=?");
                         walletPs.setDouble(1, totalAmt);
                         walletPs.setInt(2, customerId);
                         walletPs.executeUpdate();

@@ -33,8 +33,8 @@ if (cartItems != null) {
         double siPrice = si.get("price") != null ? (Double) si.get("price") : 0;
         double siOriginal = si.get("originalPrice") != null ? (Double) si.get("originalPrice") : 0;
         int siQty = si.get("quantity") != null ? (Integer) si.get("quantity") : 0;
-        if (siOriginal > 0 && siOriginal < siPrice) {
-            totalSavings += (siPrice - siOriginal) * siQty;
+        if (siOriginal > 0 && siOriginal > siPrice) {
+            totalSavings += (siOriginal - siPrice) * siQty;
         }
     }
 }
@@ -229,18 +229,17 @@ for (java.util.Map.Entry<Integer, java.util.List<java.util.Map<String, Object>>>
     <h6 class="mb-1 fw-bold" style="font-size:13px; cursor:pointer; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;"><%= item.get("name") %></h6>
 </a>
 <%
-    double cartRealPrice = item.get("price") != null ? (Double) item.get("price") : 0;
-    double cartDiscPrice = item.get("originalPrice") != null ? (Double) item.get("originalPrice") : 0;
-    int cartDiscPct = 0;
-    double cartDisplayPrice = cartRealPrice;
-    if (cartDiscPrice > 0 && cartDiscPrice < cartRealPrice) {
-        cartDiscPct = (int) Math.round((cartRealPrice - cartDiscPrice) / cartRealPrice * 100);
-        cartDisplayPrice = cartDiscPrice;
-    }
+double cartRealPrice = item.get("price") != null ? (Double) item.get("price") : 0;       // original/higher
+double cartDiscPrice = item.get("originalPrice") != null ? (Double) item.get("originalPrice") : 0; // discounted/lower
+int cartDiscPct = 0;
+double cartDisplayPrice = (cartDiscPrice > 0 && cartDiscPrice < cartRealPrice) ? cartDiscPrice : cartRealPrice;
+if (cartDiscPrice > 0 && cartDiscPrice < cartRealPrice) {
+    cartDiscPct = (int) Math.round((cartRealPrice - cartDiscPrice) / cartRealPrice * 100);
+}
 %>
 <% if (cartDiscPct > 0) { %>
     <div class="d-flex align-items-center gap-2 mb-1">
-        <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= String.format("%.2f", cartRealPrice) %></span>
+ <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= String.format("%.2f", cartRealPrice) %></span>
         <span class="badge bg-danger" style="font-size:10px;">-<%= cartDiscPct %>% OFF</span>
     </div>
     <p class="text-danger fw-bold mb-1" style="font-size:13px;">₱<%= String.format("%.2f", cartDisplayPrice) %></p>
@@ -387,7 +386,7 @@ const originalPrices = {};
     double jsPrice = item.get("price") != null ? (Double)item.get("price") : 0;
     double jsOrigPrice = item.get("originalPrice") != null ? (Double)item.get("originalPrice") : 0;
 %>
-    originalPrices[<%= item.get("cartitemId") %>] = <%= jsPrice %>;
+originalPrices[<%= item.get("cartitemId") %>] = <%= jsPrice %>;
 <% } %>
 <% for (Map<String, Object> item : cartItems) { 
     double jsPrice = item.get("price") != null ? (Double)item.get("price") : 0;
@@ -618,7 +617,13 @@ function updateSelectAll() {
         if (cartBadge) cartBadge.innerText = checkedCount;
         // Update navbar cart badge
         const navBadge = document.getElementById('cartBadge');
-        if (navBadge) navBadge.innerText = checkedCount;
+        if (navBadge) {
+            let totalQty = 0;
+            document.querySelectorAll('[id^="qty_"]').forEach(el => {
+                totalQty += parseInt(el.innerText) || 0;
+            });
+            navBadge.innerText = totalQty;
+        }
         updateSelectAll();
     }
     function checkout() {

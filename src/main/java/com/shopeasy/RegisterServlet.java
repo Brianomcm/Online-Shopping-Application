@@ -31,6 +31,56 @@ public class RegisterServlet extends HttpServlet {
             Connection conn = DBConnection.getConnection();
             HttpSession session = request.getSession();
 
+         // ── CHECK: Duplicate phone ──
+            PreparedStatement checkPhone = conn.prepareStatement("SELECT customer_id FROM customer WHERE phone = ?");
+            checkPhone.setString(1, phone);
+            ResultSet phoneRs = checkPhone.executeQuery();
+            if (phoneRs.next()) {
+                checkPhone.close(); conn.close();
+                response.sendRedirect("index.jsp?error=phone_taken"
+                        + "&fn=" + java.net.URLEncoder.encode(firstName, "UTF-8")
+                        + "&ln=" + java.net.URLEncoder.encode(lastName, "UTF-8")
+                        + "&mi=" + java.net.URLEncoder.encode(middleInitial, "UTF-8")
+                        + "&un=" + java.net.URLEncoder.encode(username, "UTF-8")
+                        + "&em=" + java.net.URLEncoder.encode(email, "UTF-8")
+                        + "&ph=" + java.net.URLEncoder.encode(phone, "UTF-8"));
+                return;
+            }
+            checkPhone.close();
+            
+            // ── CHECK: Duplicate email ──
+            PreparedStatement checkEmail = conn.prepareStatement("SELECT user_id FROM users WHERE email = ?");
+            checkEmail.setString(1, email);
+            ResultSet emailRs = checkEmail.executeQuery();
+            if (emailRs.next()) {
+                checkEmail.close(); conn.close();
+                response.sendRedirect("index.jsp?error=email_taken"
+                        + "&fn=" + java.net.URLEncoder.encode(firstName, "UTF-8")
+                        + "&ln=" + java.net.URLEncoder.encode(lastName, "UTF-8")
+                        + "&mi=" + java.net.URLEncoder.encode(middleInitial, "UTF-8")
+                        + "&un=" + java.net.URLEncoder.encode(username, "UTF-8")
+                        + "&em=" + java.net.URLEncoder.encode(email, "UTF-8")
+                        + "&ph=" + java.net.URLEncoder.encode(phone, "UTF-8"));
+                return;
+            }
+            checkEmail.close();
+
+            // ── CHECK: Duplicate username ──
+            PreparedStatement checkUser = conn.prepareStatement("SELECT customer_id FROM customer WHERE username = ?");
+            checkUser.setString(1, username);
+            ResultSet userRs = checkUser.executeQuery();
+            if (userRs.next()) {
+                checkUser.close(); conn.close();
+                response.sendRedirect("index.jsp?error=username_taken"
+                    + "&fn=" + java.net.URLEncoder.encode(firstName, "UTF-8")
+                    + "&ln=" + java.net.URLEncoder.encode(lastName, "UTF-8")
+                    + "&mi=" + java.net.URLEncoder.encode(middleInitial, "UTF-8")
+                    + "&em=" + java.net.URLEncoder.encode(email, "UTF-8")
+                    + "&ph=" + java.net.URLEncoder.encode(phone, "UTF-8"));
+                return;
+            }
+            checkUser.close();
+
             // ── STEP 1: Insert into users table (always customer by default) ──
             String userSql = "INSERT INTO users (email, password, role, active_mode) VALUES (?, ?, 'customer', 'customer')";
             PreparedStatement userPs = conn.prepareStatement(userSql, PreparedStatement.RETURN_GENERATED_KEYS);
@@ -61,7 +111,7 @@ public class RegisterServlet extends HttpServlet {
             int customerId = 0;
             if (custKeys.next()) customerId = custKeys.getInt(1);
             custPs.close();
-            conn.close();
+            
 
             // ── STEP 3: Set session ───────────────────────────────────────────
             session.setAttribute("userId",      userId);
@@ -76,7 +126,23 @@ public class RegisterServlet extends HttpServlet {
             session.setAttribute("userRole",    "customer");
             session.setAttribute("activeMode",  "customer");
 
-            response.sendRedirect("index.jsp?loggedin=true");
+         // ── STEP 4: Generate Welcome Voucher ──
+            String welcomeCode = "WELCOME-" + Long.toHexString(System.currentTimeMillis()).toUpperCase().substring(0, 7);
+            java.sql.Timestamp vcExpiry = new java.sql.Timestamp(System.currentTimeMillis() + 7L * 86400 * 1000);
+            PreparedStatement vcPs = conn.prepareStatement(
+                "INSERT INTO customer_vouchers (customer_id, code, type, value, min_order, max_uses, expiry_date) VALUES (?,?,?,?,?,?,?)");
+            vcPs.setInt(1, customerId);
+            vcPs.setString(2, welcomeCode);
+            vcPs.setString(3, "fixed");
+            vcPs.setDouble(4, 50);
+            vcPs.setDouble(5, 150);
+            vcPs.setInt(6, 1);
+            vcPs.setTimestamp(7, vcExpiry);
+            vcPs.executeUpdate();
+            vcPs.close();
+            conn.close();
+
+            response.sendRedirect("index.jsp?loggedin=true&newuser=true");
 
         } catch (Exception e) {
             e.printStackTrace();

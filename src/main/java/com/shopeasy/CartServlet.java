@@ -105,9 +105,10 @@ public class CartServlet extends HttpServlet {
                 item.put("quantity",        rs.getInt("quantity"));
                 double basePrice = rs.getDouble("var_price") > 0 ? rs.getDouble("var_price") : rs.getDouble("price");
                 double baseOriginal = rs.getDouble("var_original_price") > 0 ? rs.getDouble("var_original_price") : rs.getDouble("original_price");
+                // price = original/higher, original_price = discounted/lower
                 double cartUsePrice = (baseOriginal > 0 && baseOriginal < basePrice) ? baseOriginal : basePrice;
-                item.put("price", basePrice);
-                item.put("originalPrice", baseOriginal);
+                item.put("price", basePrice);          // higher (for crossed-out display)
+                item.put("originalPrice", baseOriginal); // lower (actual selling price)
                 item.put("subtotal", cartUsePrice * rs.getInt("quantity"));
                 item.put("variationType",   rs.getString("variation_type"));
                 item.put("variationValue",  rs.getString("variation_value"));

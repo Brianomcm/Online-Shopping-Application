@@ -25,6 +25,11 @@ public class UpdateOrderServlet extends HttpServlet {
                 ps.setString(1, status);
                 ps.setString(2, reason);
                 ps.setInt(3, orderId);
+            } else if ("Completed".equals(status)) {
+                ps = conn.prepareStatement(
+                    "UPDATE orders SET status=?, completed_at=NOW() WHERE order_id=?");
+                ps.setString(1, status);
+                ps.setInt(2, orderId);
             } else {
                 ps = conn.prepareStatement(
                     "UPDATE orders SET status=? WHERE order_id=?");

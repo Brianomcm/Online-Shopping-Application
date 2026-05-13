@@ -24,6 +24,37 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
     response.sendRedirect("customer.jsp");
     return;
 }
+
+// Check seller suspension/deactivation
+String _sellerStatusCheck = null;
+String _sellerSuspendUntil = null;
+String _sellerSuspendReason = null;
+try {
+    int _scUserId = (int) session.getAttribute("userId");
+    java.sql.Connection _scConn = com.shopeasy.DBConnection.getConnection();
+    java.sql.PreparedStatement _scPs = _scConn.prepareStatement(
+        "SELECT status, suspend_until, suspend_reason FROM seller WHERE user_id=? LIMIT 1");
+    _scPs.setInt(1, _scUserId);
+    java.sql.ResultSet _scRs = _scPs.executeQuery();
+    if (_scRs.next()) {
+        _sellerStatusCheck = _scRs.getString("status");
+        java.sql.Timestamp _scUntil = _scRs.getTimestamp("suspend_until");
+        // Auto-reactivate if expired
+        if ("suspended".equals(_sellerStatusCheck) && _scUntil != null && _scUntil.before(new java.util.Date())) {
+            java.sql.PreparedStatement _reActPs = _scConn.prepareStatement(
+                "UPDATE seller SET status='active', suspend_until=NULL WHERE user_id=?");
+            _reActPs.setInt(1, _scUserId);
+            _reActPs.executeUpdate(); _reActPs.close();
+            _sellerStatusCheck = "active";
+        } else if (_scUntil != null) {
+            // Format suspend_until nicely
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MMMM d, yyyy 'at' h:mm a");
+            _sellerSuspendUntil = sdf.format(_scUntil);
+        }
+        _sellerSuspendReason = _scRs.getString("suspend_reason");
+    }
+    _scRs.close(); _scPs.close(); _scConn.close();
+} catch(Exception ex) {}
    
     String sellerName = (String) session.getAttribute("userName");
     String sellerEmail = (String) session.getAttribute("userEmail");
@@ -4002,5 +4033,44 @@ function closeMoreDrawer() {
     </div>
 </div>
 </div>
+
+<% if ("suspended".equals(_sellerStatusCheck) || "deactivated".equals(_sellerStatusCheck)) { %>
+<div style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:16px;padding:40px;max-width:460px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <% if ("suspended".equals(_sellerStatusCheck)) { %>
+            <div style="width:70px;height:70px;background:#fef9c3;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+                <i class="bi bi-pause-circle-fill" style="font-size:36px;color:#f59e0b;"></i>
+            </div>
+            <h5 style="font-weight:700;margin-bottom:8px;">Seller Center Temporarily Suspended</h5>
+            <p style="color:#6b7280;font-size:14px;margin-bottom:12px;">Your seller account has been temporarily restricted.</p>
+            <% if (_sellerSuspendReason != null && !_sellerSuspendReason.isEmpty()) { %>
+            <div style="background:#fef3c7;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px;color:#92400e;">
+                <strong>Reason:</strong> <%= _sellerSuspendReason %>
+            </div>
+            <% } %>
+            <% if (_sellerSuspendUntil != null) { %>
+            <div style="background:#f0fdf4;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:13px;color:#166534;">
+                <i class="bi bi-clock me-1"></i><strong>Auto-reactivates on:</strong> <%= _sellerSuspendUntil %>
+            </div>
+            <% } %>
+        <% } else { %>
+            <div style="width:70px;height:70px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+                <i class="bi bi-slash-circle-fill" style="font-size:36px;color:#ef4444;"></i>
+            </div>
+            <h5 style="font-weight:700;margin-bottom:8px;">Seller Center Permanently Deactivated</h5>
+            <p style="color:#6b7280;font-size:14px;margin-bottom:12px;">Your seller account has been permanently deactivated.</p>
+            <% if (_sellerSuspendReason != null && !_sellerSuspendReason.isEmpty()) { %>
+            <div style="background:#fee2e2;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:13px;color:#991b1b;">
+                <strong>Reason:</strong> <%= _sellerSuspendReason %>
+            </div>
+            <% } %>
+        <% } %>
+        <a href="index.jsp" class="btn btn-primary rounded-pill px-4">
+            <i class="bi bi-house me-1"></i> Go to Homepage
+        </a>
+    </div>
+</div>
+<% } %>
+
 </body>
 </html>

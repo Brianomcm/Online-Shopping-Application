@@ -6,6 +6,7 @@
         return;
     }
 String orderId = request.getParameter("orderId");
+String orderIds = request.getParameter("orderIds"); // e.g. "39,40"
 if (orderId == null || orderId.trim().isEmpty()) orderId = "N/A";
 %>
 <!DOCTYPE html>
@@ -44,7 +45,20 @@ if (orderId == null || orderId.trim().isEmpty()) orderId = "N/A";
         <div class="success-icon mb-3"><i class="bi bi-check-circle-fill"></i></div>
         <h4 class="fw-bold text-success mb-2">Order Placed Successfully!</h4>
         <p class="text-muted mb-1">Your order has been received.</p>
-        <p class="fw-bold mb-4">Order ID: <span class="text-primary">#SE-<%= orderId %></span></p>
+    <p class="fw-bold mb-4">
+<%
+if (orderIds != null && orderIds.contains(",")) {
+    String[] ids = orderIds.split(",");
+    out.print("Order IDs: ");
+    for (int i = 0; i < ids.length; i++) {
+        out.print("<span class=\"text-primary\">#SE-" + ids[i].trim() + "</span>");
+        if (i < ids.length - 1) out.print(" &amp; ");
+    }
+} else {
+    out.print("Order ID: <span class=\"text-primary\">#SE-" + orderId + "</span>");
+}
+%>
+</p>
         <div class="d-flex gap-2 justify-content-center flex-wrap">
             <a href="customer.jsp?tab=orders" class="btn btn-outline-primary">
     <i class="bi bi-bag"></i> View My Orders

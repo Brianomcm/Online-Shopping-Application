@@ -54,15 +54,11 @@ public class LoginServlet extends HttpServlet {
                 activeMode = "customer";
             }
 
-         // Check if banned
+         // Check if banned — store in session but still allow login
             String userStatus = userRs.getString("status");
-            if ("Banned".equals(userStatus)) {
-                conn.close();
-                response.sendRedirect("index.jsp?error=banned");
-                return;
-            }
-
             HttpSession session = request.getSession();
+            session.setAttribute("userStatus", userStatus);
+
             session.setAttribute("userId",     userId);
             session.setAttribute("userRole",   role);
             session.setAttribute("activeMode", activeMode);

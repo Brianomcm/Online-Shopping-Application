@@ -19,7 +19,44 @@ if (userMiddleInitial == null) userMiddleInitial = "";
     String userGender = (String) session.getAttribute("userGender");
     String userRole = (String) session.getAttribute("userRole");
     if (userRole == null) userRole = "customer";
-    String initial = (userName != null && !userName.isEmpty()) ? String.valueOf(userName.charAt(0)).toUpperCase() : "?";
+    String userBanReason = "";
+    try {
+        int banCheckId = (int) session.getAttribute("userId");
+        java.sql.Connection banConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement banPs = banConn.prepareStatement("SELECT status, ban_reason FROM users WHERE user_id=?");
+        banPs.setInt(1, banCheckId);
+        java.sql.ResultSet banRs = banPs.executeQuery();
+        String userStatus = "";
+        if (banRs.next()) {
+            userStatus = banRs.getString("status") != null ? banRs.getString("status") : "";
+            userBanReason = banRs.getString("ban_reason") != null ? banRs.getString("ban_reason") : "Violation of platform policies.";
+        }
+        banRs.close(); banPs.close(); banConn.close();
+        if ("Banned".equals(userStatus)) {
+    %>
+    <div class="modal fade show" id="bannedModal" tabindex="-1" style="display:block;background:rgba(0,0,0,0.6);" data-bs-backdrop="static" data-bs-keyboard="false">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title"><i class="bi bi-slash-circle me-2"></i>Account Banned</h5>
+          </div>
+          <div class="modal-body text-center py-4">
+            <i class="bi bi-slash-circle text-danger" style="font-size:48px;"></i>
+            <h5 class="mt-3 fw-bold">Your account has been banned</h5>
+            <p class="text-muted">Reason: <strong><%= userBanReason %></strong></p>
+            <p class="text-muted" style="font-size:13px;">If you believe this is a mistake, please contact support.</p>
+          </div>
+          <div class="modal-footer justify-content-center">
+            <a href="LogoutServlet" class="btn btn-danger"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>document.addEventListener('DOMContentLoaded',function(){new bootstrap.Modal(document.getElementById('bannedModal'),{backdrop:'static',keyboard:false}).show();});</script>
+    <%
+        }
+    } catch(Exception eBan) { /* ignore */ }
+    String initial = (userFirstName != null && !userFirstName.isEmpty()) ? String.valueOf(userFirstName.charAt(0)).toUpperCase() : "?";
 
     // Cart count
     int navCartCount = 0;
@@ -361,7 +398,7 @@ request.setAttribute("navCartCount", navCartCount);
     <img id="sidebarAvatar" src="" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:4px solid white; box-shadow: 0 0 0 3px #0d6efd, 0 4px 16px rgba(13,110,253,0.35); display:none;" alt="Avatar">
     <div id="sidebarInitials" class="avatar-circle-sm"><%= initial %></div>
 <% } %>
-                    <p class="fw-bold mb-0" style="font-size:15px;"><%= userName %></p>
+             <p class="fw-bold mb-0" style="font-size:15px;"><%= userFirstName %> <%= userMiddleInitial.isEmpty() ? "" : userMiddleInitial + ". " %><%= userLastName %></p>
                     <p class="text-muted mb-0" style="font-size:12px;"><%= userEmail %></p>
                     <span class="badge bg-primary mt-1" style="font-size:10px;">Customer</span>
                 </div>
@@ -668,7 +705,7 @@ request.setAttribute("navCartCount", navCartCount);
                             // BATCH 4 — Days since order
                             java.sql.Statement dayStmt = batchConn.createStatement();
                             java.sql.ResultSet dayBatchRs = dayStmt.executeQuery(
-                                "SELECT order_id, DATEDIFF(NOW(), order_date) as days FROM orders WHERE order_id IN (" + orderIdList + ")");
+                            		"SELECT order_id, DATEDIFF(NOW(), completed_at) as days FROM orders WHERE order_id IN (" + orderIdList + ")");
                             while (dayBatchRs.next()) orderDaysSince.put(dayBatchRs.getInt("order_id"), dayBatchRs.getInt("days"));
                             dayBatchRs.close(); dayStmt.close();
 
@@ -873,6 +910,13 @@ for (java.util.Map<String,Object> o : myOrders) {
         onclick="openRefundModal(<%= ord.get("id") %>)">
         <i class="bi bi-arrow-counterclockwise"></i> Request Refund
     </button>
+    <small class="text-muted d-block mt-1" style="font-size:11px;">
+        <i class="bi bi-clock"></i> <%= 7 - daysSince %> day<%= (7 - daysSince) != 1 ? "s" : "" %> left to request
+    </small>
+<% } else if ("Completed".equals(ord.get("status")) && refundStatus == null) { %>
+    <small class="text-muted" style="font-size:11px;">
+        <i class="bi bi-x-circle"></i> Refund period expired
+    </small>
 <% } %>
     <% } %>
     </div>

@@ -144,8 +144,10 @@ public class AdminServlet extends HttpServlet {
                 // -------------------------------------------------------
                 // BAN USER — deletes user from users table
                 // -------------------------------------------------------
-                case "banUser": {
-                    String userIdStr = request.getParameter("userId");
+            case "banUser": {
+                String userIdStr = request.getParameter("userId");
+                String banReason = request.getParameter("banReason");
+                if (banReason == null || banReason.trim().isEmpty()) banReason = "Violation of platform policies.";
                     if (userIdStr == null) { out.print("{\"success\":false,\"message\":\"Missing userId\"}"); break; }
                     int userId = Integer.parseInt(userIdStr);
 
@@ -162,8 +164,9 @@ public class AdminServlet extends HttpServlet {
                     checkRs.close(); checkPs.close();
 
                     PreparedStatement ps = conn.prepareStatement(
-                    	    "UPDATE users SET status='Banned' WHERE user_id=?");
-                    ps.setInt(1, userId);
+                    		"UPDATE users SET status='Banned', ban_reason=? WHERE user_id=?");
+                    ps.setString(1, banReason);
+                    ps.setInt(2, userId);
                     int rows = ps.executeUpdate();
                     ps.close();
                     if (rows > 0) {
@@ -322,26 +325,169 @@ public class AdminServlet extends HttpServlet {
                 // -------------------------------------------------------
                 case "suspendSeller": {
                     String sellerIdStr = request.getParameter("sellerId");
+                    String reason = request.getParameter("reason");
+                    String daysStr = request.getParameter("days");
                     if (sellerIdStr == null) { out.print("{\"success\":false,\"message\":\"Missing sellerId\"}"); break; }
+                    if (reason == null || reason.trim().isEmpty()) reason = "Violation of platform policies";
+                    int sellerId = Integer.parseInt(sellerIdStr);
+                    int days = 7;
+                    try { days = Integer.parseInt(daysStr); if (days < 1) days = 7; } catch(Exception ex) {}
+
+                    // Calculate suspend_until
+                    java.util.Calendar cal = java.util.Calendar.getInstance();
+                    cal.add(java.util.Calendar.DAY_OF_YEAR, days);
+                    java.sql.Timestamp suspendUntil = new java.sql.Timestamp(cal.getTimeInMillis());
+
+                    // Get seller user_id and business name
+                    int sellerUserId = 0; String sellerBizName = "";
+                    try {
+                        PreparedStatement infoPs = conn.prepareStatement("SELECT user_id, business_name FROM seller WHERE seller_id=?");
+                        infoPs.setInt(1, sellerId);
+                        ResultSet infoRs = infoPs.executeQuery();
+                        if (infoRs.next()) { sellerUserId = infoRs.getInt("user_id"); sellerBizName = infoRs.getString("business_name"); }
+                        infoRs.close(); infoPs.close();
+                    } catch(Exception ex) {}
+
+                    // Update seller status to suspended with suspend_until date
+                    PreparedStatement ps = conn.prepareStatement("UPDATE seller SET status='suspended', suspend_until=?, suspend_reason=? WHERE seller_id=?");
+                    ps.setTimestamp(1, suspendUntil);
+                    ps.setString(2, reason);
+                    ps.setInt(3, sellerId);
+                    int rows = ps.executeUpdate();
+                    ps.close();
+
+                    if (rows > 0) {
+                        // Notify seller
+                        if (sellerUserId > 0) {
+                            try {
+                                PreparedStatement notifPs = conn.prepareStatement(
+                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'seller', ?, 0)");
+                                notifPs.setInt(1, sellerUserId);
+                                notifPs.setString(2, "⚠️ Your seller account \"" + sellerBizName + "\" has been temporarily suspended for " + days + " day(s). Reason: " + reason + ". Your account will be automatically reactivated after " + days + " day(s).");
+                                notifPs.executeUpdate(); notifPs.close();
+                            } catch(Exception ex) {}
+                            // Also notify via customer notifications tab
+                            try {
+                                PreparedStatement custNotifPs = conn.prepareStatement(
+                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'customer', ?, 0)");
+                                custNotifPs.setInt(1, sellerUserId);
+                                custNotifPs.setString(2, "⚠️ Your seller account \"" + sellerBizName + "\" has been temporarily suspended for " + days + " day(s). Reason: " + reason + ". Your account will be automatically reactivated after " + days + " day(s).");
+                                custNotifPs.executeUpdate(); custNotifPs.close();
+                            } catch(Exception ex) {}
+                        }
+                        out.print("{\"success\":true,\"message\":\"Seller suspended for " + days + " day(s).\"}");
+                    } else {
+                        out.print("{\"success\":false,\"message\":\"Seller not found.\"}");
+                    }
+                    break;
+                }
+
+                // -------------------------------------------------------
+                // AUTO-REACTIVATE EXPIRED SUSPENSIONS
+                // -------------------------------------------------------
+                case "checkExpiredSuspensions": {
+                    PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE seller SET status='active', suspend_until=NULL WHERE status='suspended' AND suspend_until IS NOT NULL AND suspend_until <= NOW()");
+                    int rows = ps.executeUpdate();
+                    ps.close();
+                    out.print("{\"success\":true,\"reactivated\":" + rows + "}");
+                    break;
+                }
+
+                // -------------------------------------------------------
+                // DEACTIVATE SELLER
+                // -------------------------------------------------------
+                case "deactivateSeller": {
+                    String sellerIdStr = request.getParameter("sellerId");
+                    String reason = request.getParameter("reason");
+                    if (sellerIdStr == null) { out.print("{\"success\":false,\"message\":\"Missing sellerId\"}"); break; }
+                    if (reason == null || reason.trim().isEmpty()) reason = "Violation of platform policies";
                     int sellerId = Integer.parseInt(sellerIdStr);
 
-                    // Revert user role back to customer
-                    PreparedStatement rolePs = conn.prepareStatement(
-                        "UPDATE users SET role='customer', active_mode='customer' " +
-                        "WHERE user_id=(SELECT user_id FROM seller WHERE seller_id=?)");
-                    rolePs.setInt(1, sellerId);
-                    rolePs.executeUpdate();
-                    rolePs.close();
+                    // Get seller user_id and business name
+                    int sellerUserId = 0; String sellerBizName = "";
+                    try {
+                        PreparedStatement infoPs = conn.prepareStatement("SELECT user_id, business_name FROM seller WHERE seller_id=?");
+                        infoPs.setInt(1, sellerId);
+                        ResultSet infoRs = infoPs.executeQuery();
+                        if (infoRs.next()) { sellerUserId = infoRs.getInt("user_id"); sellerBizName = infoRs.getString("business_name"); }
+                        infoRs.close(); infoPs.close();
+                    } catch(Exception ex) {}
 
-                    // Delete from seller table
-                    PreparedStatement ps = conn.prepareStatement(
-                    	    "DELETE FROM seller WHERE seller_id=?");
+                    // Update seller status to deactivated
+                    PreparedStatement ps = conn.prepareStatement("UPDATE seller SET status='deactivated' WHERE seller_id=?");
                     ps.setInt(1, sellerId);
                     int rows = ps.executeUpdate();
                     ps.close();
 
                     if (rows > 0) {
-                        out.print("{\"success\":true,\"message\":\"Seller suspended successfully.\"}");
+                        // Notify seller
+                        if (sellerUserId > 0) {
+                            try {
+                                PreparedStatement notifPs = conn.prepareStatement(
+                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'seller', ?, 0)");
+                                notifPs.setInt(1, sellerUserId);
+                                notifPs.setString(2, "🚫 Your seller account \"" + sellerBizName + "\" has been permanently deactivated. Reason: " + reason + ". Please contact support for more information.");
+                                notifPs.executeUpdate(); notifPs.close();
+                            } catch(Exception ex) {}
+                            // Also notify via customer notifications tab
+                            try {
+                                PreparedStatement custNotifPs = conn.prepareStatement(
+                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'customer', ?, 0)");
+                                custNotifPs.setInt(1, sellerUserId);
+                                custNotifPs.setString(2, "🚫 Your seller account \"" + sellerBizName + "\" has been permanently deactivated. Reason: " + reason + ". Please contact support for more information.");
+                                custNotifPs.executeUpdate(); custNotifPs.close();
+                            } catch(Exception ex) {}
+                        }
+                        out.print("{\"success\":true,\"message\":\"Seller deactivated successfully.\"}");
+                    } else {
+                        out.print("{\"success\":false,\"message\":\"Seller not found.\"}");
+                    }
+                    break;
+                }
+
+                // -------------------------------------------------------
+                // REACTIVATE SELLER
+                // -------------------------------------------------------
+                case "reactivateSeller": {
+                    String sellerIdStr = request.getParameter("sellerId");
+                    if (sellerIdStr == null) { out.print("{\"success\":false,\"message\":\"Missing sellerId\"}"); break; }
+                    int sellerId = Integer.parseInt(sellerIdStr);
+
+                    // Get seller user_id and business name
+                    int sellerUserId = 0; String sellerBizName = "";
+                    try {
+                        PreparedStatement infoPs = conn.prepareStatement("SELECT user_id, business_name FROM seller WHERE seller_id=?");
+                        infoPs.setInt(1, sellerId);
+                        ResultSet infoRs = infoPs.executeQuery();
+                        if (infoRs.next()) { sellerUserId = infoRs.getInt("user_id"); sellerBizName = infoRs.getString("business_name"); }
+                        infoRs.close(); infoPs.close();
+                    } catch(Exception ex) {}
+
+                    PreparedStatement ps = conn.prepareStatement("UPDATE seller SET status='active' WHERE seller_id=?");
+                    ps.setInt(1, sellerId);
+                    int rows = ps.executeUpdate();
+                    ps.close();
+
+                    if (rows > 0) {
+                        if (sellerUserId > 0) {
+                            try {
+                                PreparedStatement notifPs = conn.prepareStatement(
+                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'seller', ?, 0)");
+                                notifPs.setInt(1, sellerUserId);
+                                notifPs.setString(2, "✅ Good news! Your seller account \"" + sellerBizName + "\" has been reactivated. You can now access your Seller Center.");
+                                notifPs.executeUpdate(); notifPs.close();
+                            } catch(Exception ex) {}
+                            // Also notify via customer notifications tab
+                            try {
+                                PreparedStatement custNotifPs = conn.prepareStatement(
+                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'customer', ?, 0)");
+                                custNotifPs.setInt(1, sellerUserId);
+                                custNotifPs.setString(2, "✅ Good news! Your seller account \"" + sellerBizName + "\" has been reactivated. You can now access your Seller Center.");
+                                custNotifPs.executeUpdate(); custNotifPs.close();
+                            } catch(Exception ex) {}
+                        }
+                        out.print("{\"success\":true,\"message\":\"Seller reactivated successfully.\"}");
                     } else {
                         out.print("{\"success\":false,\"message\":\"Seller not found.\"}");
                     }
@@ -738,6 +884,71 @@ public class AdminServlet extends HttpServlet {
                     vcPs.setInt(1, vcId);
                     vcPs.executeUpdate(); vcPs.close();
                     out.print("{\"success\":true,\"message\":\"Voucher activated.\"}");
+                    break;
+                }
+                case "deleteReview": {
+                    int reviewId = Integer.parseInt(request.getParameter("reviewId"));
+                    int userId = Integer.parseInt(request.getParameter("userId"));
+                    String reason = request.getParameter("reason");
+
+                    // Get product name for notification
+                    PreparedStatement rvInfoPs = conn.prepareStatement(
+                        "SELECT p.name, c.customer_id FROM review r " +
+                        "JOIN product p ON r.product_id = p.product_id " +
+                        "JOIN customer c ON r.customer_id = c.customer_id " +
+                        "WHERE r.review_id=?");
+                    rvInfoPs.setInt(1, reviewId);
+                    java.sql.ResultSet rvInfoRs = rvInfoPs.executeQuery();
+                    String productName = "a product";
+                    int custId = 0;
+                    if (rvInfoRs.next()) {
+                        productName = rvInfoRs.getString("name");
+                        custId = rvInfoRs.getInt("customer_id");
+                    }
+                    rvInfoRs.close(); rvInfoPs.close();
+
+                    // Delete the review
+                    PreparedStatement delRvPs = conn.prepareStatement("DELETE FROM review WHERE review_id=?");
+                    delRvPs.setInt(1, reviewId);
+                    delRvPs.executeUpdate(); delRvPs.close();
+
+                    // Add offense to user_violations
+                    PreparedStatement offPs = conn.prepareStatement(
+                        "SELECT COUNT(*)+1 as next_offense FROM user_violations WHERE user_id=?");
+                    offPs.setInt(1, userId);
+                    java.sql.ResultSet offRs = offPs.executeQuery();
+                    int nextOffense = 1;
+                    if (offRs.next()) nextOffense = offRs.getInt("next_offense");
+                    offRs.close(); offPs.close();
+
+                    PreparedStatement insOffPs = conn.prepareStatement(
+                        "INSERT INTO user_violations (user_id, offense_level, reason) VALUES (?,?,?)");
+                    insOffPs.setInt(1, userId);
+                    insOffPs.setInt(2, nextOffense);
+                    insOffPs.setString(3, "Review removed: " + reason);
+                    insOffPs.executeUpdate(); insOffPs.close();
+
+                    // Auto-ban on 3rd offense
+                    if (nextOffense >= 3) {
+                        PreparedStatement banPs = conn.prepareStatement(
+                            "UPDATE users SET status='Banned' WHERE user_id=?");
+                        banPs.setInt(1, userId);
+                        banPs.executeUpdate(); banPs.close();
+                    }
+
+                    // Notify customer
+                    String[] labels = {"", "1st", "2nd", "3rd"};
+                    String label = nextOffense <= 3 ? labels[nextOffense] : nextOffense + "th";
+                    String notifMsg = "⚠️ Your review on \"" + productName + "\" was removed by admin. " +
+                        "Reason: " + reason + ". This is your " + label + " offense." +
+                        (nextOffense >= 3 ? " Your account has been banned due to repeated violations." : " Please follow our community guidelines.");
+                    PreparedStatement notifPs = conn.prepareStatement(
+                        "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'customer', ?, 0)");
+                    notifPs.setInt(1, userId);
+                    notifPs.setString(2, notifMsg);
+                    notifPs.executeUpdate(); notifPs.close();
+
+                    out.print("{\"success\":true,\"message\":\"Review deleted and offense recorded.\"}");
                     break;
                 }
                 default:

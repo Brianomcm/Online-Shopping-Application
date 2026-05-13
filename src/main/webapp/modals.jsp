@@ -1,3 +1,12 @@
+<%
+    String preErr   = request.getParameter("error") != null ? request.getParameter("error") : "";
+    String preEmail = ("email_taken".equals(preErr)) ? "" : (request.getParameter("em") != null ? request.getParameter("em") : "");
+    String prePhone = ("phone_taken".equals(preErr)) ? "" : (request.getParameter("ph") != null ? request.getParameter("ph") : "");
+    String preUn    = ("username_taken".equals(preErr)) ? "" : (request.getParameter("un") != null ? request.getParameter("un") : "");
+    String preFn    = request.getParameter("fn") != null ? request.getParameter("fn") : "";
+    String preLn    = request.getParameter("ln") != null ? request.getParameter("ln") : "";
+    String preMi    = request.getParameter("mi") != null ? request.getParameter("mi") : "";
+%>
 <!-- LOGIN MODAL -->
 <div class="modal fade" id="loginModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered" style="max-width:420px; margin:auto;">
@@ -116,29 +125,30 @@
                 <div class="row g-2">
             <div class="col-md-5">
                         <label class="form-label fw-bold">Last Name</label>
-                        <input type="text" name="last_name" class="form-control" placeholder="Dela Cruz" required>
+                        <input type="text" name="last_name" class="form-control" placeholder="Dela Cruz" required value="<%= preLn %>">
                     </div>
                     <div class="col-md-5">
                         <label class="form-label fw-bold">First Name</label>
-                        <input type="text" name="first_name" class="form-control" placeholder="Juan" required>
+                        <input type="text" name="first_name" class="form-control" placeholder="Juan" required value="<%= preFn %>">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label fw-bold">M.I. <small class="text-muted fw-normal">(optional)</small></label>
-                        <input type="text" name="middle_initial" class="form-control" placeholder="A." maxlength="2">
+                        <input type="text" name="middle_initial" class="form-control" placeholder="A." maxlength="2" value="<%= preMi %>">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Username</label>
-                        <input type="text" name="username" class="form-control" placeholder="Choose a username" required>
+                        <input type="text" name="username" class="form-control" placeholder="Choose a username" required value="<%= preUn %>">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Email</label>
-                        <input type="email" name="email" class="form-control" placeholder="Enter your email" required>
+                  <input type="email" name="email" id="regEmail" class="form-control" placeholder="Enter your email" required oninput="validateEmail(this)" onkeyup="autoFillGmail(this, event)" autocomplete="off" value="<%= preEmail %>">
+<div id="regEmailError" class="invalid-feedback" style="display:none; font-size:11px;"></div>
                     </div>
   <div class="col-md-4">
                         <label class="form-label fw-bold">Phone Number</label>
                         <div class="input-group">
                             <span class="input-group-text">+63</span>
-                            <input type="tel" name="phone" id="regPhone" class="form-control" placeholder="9XX XXX XXXX" required maxlength="10" oninput="formatPHPhone(this)">
+                            <input type="tel" name="phone" id="regPhone" class="form-control" placeholder="9XX XXX XXXX" required maxlength="10" oninput="formatPHPhone(this)" value="<%= prePhone %>">
                         </div>
                         <div id="regPhoneError" class="invalid-feedback" style="display:none; font-size:11px;">
                             First digit must be 9 (e.g. 9171234567)
@@ -563,6 +573,35 @@ function checkPasswordStrength(val) {
     }
 }
 
+function autoFillGmail(input, e) {
+    const val = input.value;
+    const atIndex = val.indexOf('@');
+    if (atIndex !== -1 && val.length === atIndex + 1) {
+        // Just typed @, auto-suggest gmail.com
+        const suggestion = val + 'gmail.com';
+        input.value = suggestion;
+        // Select only "gmail.com" part so they can overwrite if gusto nila
+        input.setSelectionRange(atIndex + 1, suggestion.length);
+    }
+}
+
+function validateEmail(input) {
+    const val = input.value.trim();
+    const err = document.getElementById('regEmailError');
+    const allowed = ['@gmail.com', '@yahoo.com', '@outlook.com', '@hotmail.com', '@icloud.com'];
+    const hasFullDomain = allowed.some(domain => val.toLowerCase().endsWith(domain));
+    const valid = hasFullDomain && val.indexOf('@') > 0;
+    // Only show error if they finished typing (not still typing after @)
+    const stillTyping = val.includes('@') && !val.includes('.', val.indexOf('@'));
+    if (val.length > 0 && !valid && !stillTyping) {
+        input.classList.add('is-invalid');
+        if (err) { err.style.display = 'block'; err.textContent = 'Please use a valid email (e.g. @gmail.com, @yahoo.com)'; }
+    } else {
+        input.classList.remove('is-invalid');
+        if (err) err.style.display = 'none';
+    }
+}
+
 function formatPHPhone(input) {
     let val = input.value.replace(/\D/g, ''); // remove non-digits
     if (val.startsWith('0')) val = val.substring(1); // remove leading 0
@@ -587,6 +626,34 @@ function showComingSoon() {
     setTimeout(() => toast.remove(), 2500);
 }
 
+//── Show register modal + error on redirect back ──
+window.addEventListener('DOMContentLoaded', function() {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get('error');
+    if (err === 'email_taken' || err === 'username_taken' || err === 'phone_taken') {
+        const msg = err === 'email_taken'
+            ? 'Email is already registered. Please use a different email.'
+            : err === 'username_taken'
+            ? 'Username is already taken. Please choose another.'
+            : 'Phone number is already registered. Please use a different number.';
+        const regModal = new bootstrap.Modal(document.getElementById('registerModal'));
+        regModal.show();
+        setTimeout(function() {
+            const cb = document.getElementById('agreeTerms');
+            if (cb) { cb.disabled = false; cb.checked = false; }
+            let errDiv = document.getElementById('regDupeError');
+            if (!errDiv) {
+                errDiv = document.createElement('div');
+                errDiv.id = 'regDupeError';
+                errDiv.className = 'alert alert-danger py-2 px-3 mb-2';
+                errDiv.style.fontSize = '13px';
+                const form = document.getElementById('registerForm');
+                form.prepend(errDiv);
+            }
+            errDiv.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>' + msg;
+        }, 600);
+    }
+});
 </script>
 
 <!-- ===== SELLER BLOCKED MODAL (no birthday / underage) ===== -->

@@ -33,6 +33,105 @@ public class VoucherServlet extends HttpServlet {
         double cartTotal = 0;
         try { cartTotal = Double.parseDouble(request.getParameter("cartTotal")); } catch (Exception ignored) {}
 
+        if ("listAll".equals(action)) {
+            try {
+                Connection conn = DBConnection.getConnection();
+                int userId = (int) session.getAttribute("userId");
+                int customerId = (int) session.getAttribute("customerId");
+                StringBuilder sb = new StringBuilder("{\"vouchers\":[");
+                boolean first = true;
+
+                // ── Platform vouchers ──
+                PreparedStatement ps = conn.prepareStatement(
+                    "SELECT *, 'platform' as source FROM vouchers WHERE is_active=1 ORDER BY created_at DESC");
+                ResultSet rs = ps.executeQuery();
+                while (rs.next()) {
+                    if (!first) sb.append(",");
+                    first = false;
+                    String vCode = rs.getString("code");
+                    String type = rs.getString("type");
+                    double value = rs.getDouble("value");
+                    double minOrder = rs.getDouble("min_order");
+                    int maxUses = rs.getInt("max_uses");
+                    int usedCount = rs.getInt("used_count");
+                    String expiry = rs.getString("expiry_date");
+                    int voucherId = rs.getInt("voucher_id");
+
+                    boolean eligible = true;
+                    String reason = "";
+                    if (cartTotal < minOrder) { eligible = false; reason = "Min. order ₱" + String.format("%.0f", minOrder); }
+                    if (maxUses > 0 && usedCount >= maxUses) { eligible = false; reason = "Max uses reached"; }
+                    if (expiry != null) {
+                        try {
+                            java.sql.Timestamp expiryTs = java.sql.Timestamp.valueOf(expiry);
+                            if (expiryTs.before(new java.util.Date())) { eligible = false; reason = "Expired"; }
+                        } catch (Exception ignored) {}
+                    }
+                    PreparedStatement usedPs = conn.prepareStatement(
+                        "SELECT id FROM voucher_usage WHERE voucher_id=? AND voucher_type='platform' AND user_id=?");
+                    usedPs.setInt(1, voucherId); usedPs.setInt(2, userId);
+                    ResultSet usedRs = usedPs.executeQuery();
+                    if (usedRs.next()) { eligible = false; reason = "Already used"; }
+                    usedRs.close(); usedPs.close();
+
+                    boolean isFreeShip = "freeshipping".equals(type);
+                    double discount = isFreeShip ? 38 : ("fixed".equals(type) ? value : Math.min(cartTotal, cartTotal * value / 100));
+                    String desc = isFreeShip ? "Free Shipping 🚚" : "fixed".equals(type) ? "₱" + String.format("%.0f", value) + " off" : value + "% off your order";
+
+                    sb.append("{\"code\":\"").append(vCode).append("\"")
+                      .append(",\"type\":\"").append(type).append("\"")
+                      .append(",\"value\":").append(value)
+                      .append(",\"min_order\":").append(minOrder)
+                      .append(",\"discount\":").append(discount)
+                      .append(",\"description\":\"").append(desc).append("\"")
+                      .append(",\"expiry\":").append(expiry != null ? "\"" + expiry + "\"" : "null")
+                      .append(",\"eligible\":").append(eligible)
+                      .append(",\"reason\":\"").append(reason).append("\"")
+                      .append(",\"source\":\"platform\"")
+                      .append("}");
+                }
+                rs.close(); ps.close();
+
+                // ── Personal (welcome) vouchers ──
+                PreparedStatement ps2 = conn.prepareStatement(
+                    "SELECT * FROM customer_vouchers WHERE customer_id=? AND is_active=1 AND used_count < max_uses AND (expiry_date IS NULL OR expiry_date > NOW()) ORDER BY created_at DESC");
+                ps2.setInt(1, customerId);
+                ResultSet rs2 = ps2.executeQuery();
+                while (rs2.next()) {
+                    if (!first) sb.append(",");
+                    first = false;
+                    String vCode = rs2.getString("code");
+                    String type = rs2.getString("type");
+                    double value = rs2.getDouble("value");
+                    double minOrder = rs2.getDouble("min_order");
+                    String expiry = rs2.getString("expiry_date");
+                    boolean eligible = cartTotal >= minOrder;
+                    String reason = eligible ? "" : "Min. order ₱" + String.format("%.0f", minOrder);
+                    double discount = "fixed".equals(type) ? value : cartTotal * value / 100;
+                    String desc = "₱" + String.format("%.0f", value) + " off (Welcome Gift 🎁)";
+                    sb.append("{\"code\":\"").append(vCode).append("\"")
+                      .append(",\"type\":\"").append(type).append("\"")
+                      .append(",\"value\":").append(value)
+                      .append(",\"min_order\":").append(minOrder)
+                      .append(",\"discount\":").append(discount)
+                      .append(",\"description\":\"").append(desc).append("\"")
+                      .append(",\"expiry\":").append(expiry != null ? "\"" + expiry + "\"" : "null")
+                      .append(",\"eligible\":").append(eligible)
+                      .append(",\"reason\":\"").append(reason).append("\"")
+                      .append(",\"source\":\"personal\"")
+                      .append("}");
+                }
+                rs2.close(); ps2.close();
+                conn.close();
+                sb.append("]}");
+                out.print(sb.toString());
+            } catch (Exception e) {
+                e.printStackTrace();
+                out.print("{\"vouchers\":[]}");
+            }
+            return;
+        }
+        
         if ("list".equals(action)) {
             try {
                 Connection conn = DBConnection.getConnection();

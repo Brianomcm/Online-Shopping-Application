@@ -121,9 +121,27 @@ prod.put("sellerUserId", prodRs.getInt("seller_user_id"));
 
     // Get cart count
     int cartCount = 0;
+    String idxBanReason = "";
+    boolean idxIsBanned = false;
     try {
-        String sessionRole = (String) session.getAttribute("userRole");
+    	String sessionRole = (String) session.getAttribute("userRole");
         Integer sessionUserId = (Integer) session.getAttribute("userId");
+
+        // Ban check — show modal on homepage if banned
+        if (sessionUserId != null) {
+            try {
+                java.sql.Connection banConn = com.shopeasy.DBConnection.getConnection();
+                java.sql.PreparedStatement banPs = banConn.prepareStatement("SELECT status, ban_reason FROM users WHERE user_id=?");
+                banPs.setInt(1, sessionUserId);
+                java.sql.ResultSet banRs = banPs.executeQuery();
+                if (banRs.next()) {
+                    String banStatus = banRs.getString("status");
+                    idxBanReason = banRs.getString("ban_reason") != null ? banRs.getString("ban_reason") : "Violation of platform policies.";
+                    idxIsBanned = "Banned".equals(banStatus);
+                }
+                banRs.close(); banPs.close(); banConn.close();
+            } catch(Exception eBan) { /* ignore */ }
+        }
         if (sessionUserId != null && ("customer".equals(sessionRole) || "both".equals(sessionRole))) {
             java.sql.Connection cartConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement cartPs = cartConn.prepareStatement(
@@ -169,6 +187,32 @@ prod.put("sellerUserId", prodRs.getInt("seller_user_id"));
                 hasApprovedApplication = "approved".equals(appStatus);
             }
             pendingRs.close(); pendingPs.close(); pendingConn.close();
+        } catch(Exception ex) {}
+    }
+
+    // Check seller suspension/deactivation
+    String _idxSellerStatus = null;
+    if (pendingCheckId != null) {
+        try {
+            java.sql.Connection selConn2 = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement selPs2 = selConn2.prepareStatement(
+            		"SELECT status, suspend_until FROM seller WHERE user_id=? LIMIT 1");
+            selPs2.setInt(1, pendingCheckId);
+            java.sql.ResultSet selRs2 = selPs2.executeQuery();
+            if (selRs2.next()) {
+                _idxSellerStatus = selRs2.getString("status");
+                if ("suspended".equals(_idxSellerStatus)) {
+                    java.sql.Timestamp suspUntil2 = selRs2.getTimestamp("suspend_until");
+                    if (suspUntil2 != null && suspUntil2.before(new java.util.Date())) {
+                        java.sql.PreparedStatement reActPs2 = selConn2.prepareStatement(
+                            "UPDATE seller SET status='active', suspend_until=NULL WHERE user_id=?");
+                        reActPs2.setInt(1, pendingCheckId);
+                        reActPs2.executeUpdate(); reActPs2.close();
+                        _idxSellerStatus = "active";
+                    }
+                }
+            }
+            selRs2.close(); selPs2.close(); selConn2.close();
         } catch(Exception ex) {}
     }
 %>
@@ -557,8 +601,36 @@ input::-webkit-contacts-auto-fill-button {
         </div>
     </form>
 </nav>
-
-<!-- HERO CAROUSEL -->
+<%-- Seller Suspension / Deactivation Banner --%>
+<% if ("suspended".equals(_idxSellerStatus)) { %>
+<div id="sellerSuspendBanner" style="background:#fef3c7; border-bottom:2px solid #f59e0b; padding:10px 20px; display:flex; align-items:center; gap:10px; font-size:13px;">
+    <i class="bi bi-exclamation-triangle-fill" style="color:#d97706; font-size:18px; flex-shrink:0;"></i>
+    <div>
+        <strong style="color:#92400e;">Your Seller Center is temporarily suspended.</strong>
+        <span style="color:#78350f;"> You cannot access your seller dashboard at this time. Please contact support for assistance.</span>
+    </div>
+    <button onclick="dismissSuspendBanner()" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:18px;color:#92400e;">✕</button>
+</div>
+<% } else if ("deactivated".equals(_idxSellerStatus)) { %>
+<div id="sellerSuspendBanner" style="background:#fee2e2; border-bottom:2px solid #ef4444; padding:10px 20px; display:flex; align-items:center; gap:10px; font-size:13px;">
+    <i class="bi bi-slash-circle-fill" style="color:#dc2626; font-size:18px; flex-shrink:0;"></i>
+    <div>
+        <strong style="color:#991b1b;">Your Seller Center has been permanently deactivated.</strong>
+        <span style="color:#7f1d1d;"> Your seller account is no longer active. Please contact support for more information.</span>
+    </div>
+    <button onclick="dismissSuspendBanner()" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:18px;color:#991b1b;">✕</button>
+</div>
+<% } %>
+<script>
+if (sessionStorage.getItem('suspendBannerDismissed')) {
+    var b = document.getElementById('sellerSuspendBanner');
+    if (b) b.style.display = 'none';
+}
+function dismissSuspendBanner() {
+    document.getElementById('sellerSuspendBanner').style.display = 'none';
+    sessionStorage.setItem('suspendBannerDismissed', '1');
+}
+</script>
 <div id="heroCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="4000">
     <div class="carousel-indicators">
         <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="0" class="active"></button>
@@ -1003,6 +1075,32 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
 
     </div>
 </footer>
+
+
+<!-- WELCOME GIFT MODAL -->
+<div class="modal fade" id="welcomeGiftModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+        <div class="modal-content rounded-4 border-0 text-center" style="overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#0d6efd,#6610f2); padding:36px 24px 24px;">
+                <div style="font-size:56px;">🎁</div>
+                <h4 class="fw-bold text-white mt-2 mb-1">Welcome Gift!</h4>
+                <p class="text-white mb-0" style="font-size:14px; opacity:0.9;">Your account is ready. Here's a special treat from us!</p>
+            </div>
+            <div class="modal-body px-4 py-4">
+                <div class="border rounded-3 p-3 mb-3" style="background:#f0f4ff; border-color:#0d6efd !important;">
+                    <div class="fw-bold text-primary mb-1" style="font-size:18px;">🎟️ ₱50 OFF Voucher</div>
+                    <div class="text-muted" style="font-size:13px;">Min. order of ₱150 · One-time use · Valid for 7 days</div>
+                    <div class="mt-2 fw-bold" style="font-size:13px; color:#6610f2;">Check your vouchers at checkout!</div>
+                </div>
+                <p class="text-muted mb-3" style="font-size:13px;">Start exploring thousands of products and use your voucher on your first order.</p>
+                <button type="button" class="btn btn-primary w-100 fw-bold py-2 rounded-pill" data-bs-dismiss="modal" onclick="window.location.href='index.jsp'">
+                    <i class="bi bi-bag-heart-fill me-1"></i> Start Shopping!
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <%@ include file="modals.jsp" %>
 
 
@@ -1080,9 +1178,15 @@ function confirmLogout() {
         }
 
         if (urlParams.get('loggedin') === 'true') {
-            showCenterToast('Welcome! You are now logged in. 👋');
+            if (urlParams.get('newuser') === 'true') {
+                // Show welcome gift modal for new users (one time only)
+                setTimeout(() => {
+                    new bootstrap.Modal(document.getElementById('welcomeGiftModal')).show();
+                }, 800);
+            } else {
+                showCenterToast('Welcome! You are now logged in. 👋');
+            }
         }
-
         if (urlParams.get('error') === 'login') {
             var loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
             loginModal.show();
@@ -1429,5 +1533,25 @@ function showAlreadySellerModal() {
         </div>
     </div>
 </div>
+<% if (idxIsBanned) { %>
+<div class="modal fade show" id="bannedModalIdx" tabindex="-1" style="display:block;background:rgba(0,0,0,0.6);" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-slash-circle me-2"></i>Account Banned</h5>
+      </div>
+      <div class="modal-body text-center py-4">
+        <i class="bi bi-slash-circle text-danger" style="font-size:48px;"></i>
+        <h5 class="mt-3 fw-bold">Your account has been banned</h5>
+        <p class="text-muted">Reason: <strong><%= idxBanReason %></strong></p>
+        <p class="text-muted" style="font-size:13px;">If you believe this is a mistake, please contact support.</p>
+      </div>
+      <div class="modal-footer justify-content-center">
+        <a href="LogoutServlet" class="btn btn-danger"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+      </div>
+    </div>
+  </div>
+</div>
+<% } %>
 </body>
 </html>

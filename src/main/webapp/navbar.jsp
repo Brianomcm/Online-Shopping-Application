@@ -37,6 +37,35 @@ try {
             hasApprovedApplication = "approved".equals(appStatus);
         }
         navRs.close(); navPs.close(); navConn.close();
+} catch(Exception ex) {}
+}
+%>
+<%
+String _navSellerStatus = null;
+if (navUserIdObj != null) {
+    try {
+        int navUserIdInt2 = (navUserIdObj instanceof Integer)
+            ? (Integer) navUserIdObj
+            : Integer.parseInt(navUserIdObj.toString());
+        java.sql.Connection selConn = DBConnection.getConnection();
+        java.sql.PreparedStatement selPs = selConn.prepareStatement(
+            "SELECT status FROM seller WHERE user_id=? LIMIT 1");
+        selPs.setInt(1, navUserIdInt2);
+        java.sql.ResultSet selRs = selPs.executeQuery();
+        if (selRs.next()) {
+            _navSellerStatus = selRs.getString("status");
+            if ("suspended".equals(_navSellerStatus)) {
+                java.sql.Timestamp suspUntil = selRs.getTimestamp("suspend_until");
+                if (suspUntil != null && suspUntil.before(new java.util.Date())) {
+                    java.sql.PreparedStatement reActPs = selConn.prepareStatement(
+                        "UPDATE seller SET status='active', suspend_until=NULL WHERE user_id=?");
+                    reActPs.setInt(1, navUserIdInt2);
+                    reActPs.executeUpdate(); reActPs.close();
+                    _navSellerStatus = "active";
+                }
+            }
+        }
+        selRs.close(); selPs.close(); selConn.close();
     } catch(Exception ex) {}
 }
 %>
@@ -86,7 +115,8 @@ try {
 
     String _navType = request.getAttribute("navType") != null
         ? (String) request.getAttribute("navType") : "full";
-    int _navCartCount = _navCartCountDB;
+    Object _navCartCountAttr = request.getAttribute("navCartCount");
+    int _navCartCount = (_navCartCountAttr != null) ? (Integer) _navCartCountAttr : _navCartCountDB;
     String _navBackUrl = request.getAttribute("navBackUrl") != null
         ? (String) request.getAttribute("navBackUrl") : "index.jsp";
     String _navBackLabel = request.getAttribute("navBackLabel") != null
@@ -228,6 +258,34 @@ try {
         </div>
     </div>
 </nav>
+<%-- Seller Suspension / Deactivation Banner --%>
+<% if ("suspended".equals(_navSellerStatus)) { %>
+<div id="sellerSuspendBanner" style="background:#fef3c7; border-bottom:2px solid #f59e0b; padding:10px 20px; display:flex; align-items:center; gap:10px; font-size:13px;">
+    <i class="bi bi-exclamation-triangle-fill" style="color:#d97706; font-size:18px; flex-shrink:0;"></i>
+    <div>
+        <strong style="color:#92400e;">Your Seller Center is temporarily suspended.</strong>
+        <span style="color:#78350f;"> You cannot access your seller dashboard at this time. Please contact support for assistance.</span>
+    </div>
+    <button onclick="dismissSuspendBanner()" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:18px;color:#92400e;">✕</button>
+</div>
+<script>
+if (sessionStorage.getItem('suspendBannerDismissed')) {
+    document.getElementById('sellerSuspendBanner').style.display = 'none';
+}
+function dismissSuspendBanner() {
+    document.getElementById('sellerSuspendBanner').style.display = 'none';
+    sessionStorage.setItem('suspendBannerDismissed', '1');
+}
+</script>
+<% } else if ("deactivated".equals(_navSellerStatus)) { %>
+<div style="background:#fee2e2; border-bottom:2px solid #ef4444; padding:10px 20px; display:flex; align-items:center; gap:10px; font-size:13px;">
+    <i class="bi bi-slash-circle-fill" style="color:#dc2626; font-size:18px; flex-shrink:0;"></i>
+    <div>
+        <strong style="color:#991b1b;">Your Seller Center has been permanently deactivated.</strong>
+        <span style="color:#7f1d1d;"> Your seller account is no longer active. Please contact support for more information.</span>
+    </div>
+</div>
+<% } %>
 <% if ("full".equals(_navType)) { %>
 <!-- MOBILE SEARCH BAR -->
 <form class="container-fluid px-3 d-md-none mt-2 mb-1" action="index.jsp" method="get">

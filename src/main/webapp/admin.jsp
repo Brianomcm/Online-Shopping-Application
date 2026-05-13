@@ -241,9 +241,11 @@
         <a href="admin.jsp?tab=reports" class="<%= "reports".equals(tab) ? "active" : "" %>">
             <i class="bi bi-bar-chart-line-fill"></i> Sales Reports
         </a>
-
-    <a href="admin.jsp?tab=vouchers" class="<%= "vouchers".equals(tab) ? "active" : "" %>">
-            <i class="bi bi-ticket-perforated"></i> Vouchers
+<a href="admin.jsp?tab=reviews" class="<%= "reviews".equals(tab) ? "active" : "" %>">
+    <i class="bi bi-star-fill"></i> Reviews
+</a>
+<a href="admin.jsp?tab=vouchers" class="<%= "vouchers".equals(tab) ? "active" : "" %>">
+    <i class="bi bi-ticket-perforated"></i> Vouchers
         </a>
 
         <div class="nav-section-label">Approvals</div>
@@ -279,7 +281,8 @@
                     <% } else if ("payout_requests".equals(tab)) { %>Payout Requests
                     <% } else if ("products".equals(tab)) { %>Products
                     <% } else if ("orders".equals(tab)) { %>Orders
-                   <% } else if ("refunds".equals(tab)) { %>Refunds
+                    <% } else if ("refunds".equals(tab)) { %>Refunds
+                    <% } else if ("reviews".equals(tab)) { %>Review Management
                     <% } else if ("reports".equals(tab)) { %>Sales Reports
                     <% } %>
                 </h5>
@@ -755,24 +758,28 @@
                 </a>
             </li>
             <% } else { %>
+           <% if (uOffenseCount == 0) { %>
             <li>
                 <a class="dropdown-item text-warning" href="#"
                    onclick="sendOffense(<%= uid %>, '<%= uName.replace("'","") %>', 1)">
                     <i class="bi bi-exclamation-triangle me-2"></i>1st Offense
                 </a>
             </li>
+            <% } else if (uOffenseCount == 1) { %>
             <li>
                 <a class="dropdown-item text-warning" href="#"
                    onclick="sendOffense(<%= uid %>, '<%= uName.replace("'","") %>', 2)">
                     <i class="bi bi-exclamation-triangle-fill me-2"></i>2nd Offense
                 </a>
             </li>
+            <% } else if (uOffenseCount == 2) { %>
             <li>
                 <a class="dropdown-item text-danger" href="#"
                    onclick="sendOffense(<%= uid %>, '<%= uName.replace("'","") %>', 3)">
                     <i class="bi bi-x-octagon me-2"></i>3rd Offense
                 </a>
             </li>
+            <% } %>
          <li><hr class="dropdown-divider"></li>
 <% if (uOffenseCount > 0) { %>
 <li>
@@ -813,6 +820,15 @@
 
     <%-- ==================== SELLERS TAB ==================== --%>
     <% } else if ("sellers".equals(tab)) { %>
+        <%-- Auto-reactivate expired suspensions --%>
+        <%
+        try {
+            java.sql.Connection expConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement expPs = expConn.prepareStatement(
+                "UPDATE seller SET status='active', suspend_until=NULL WHERE status='suspended' AND suspend_until IS NOT NULL AND suspend_until <= NOW()");
+            expPs.executeUpdate(); expPs.close(); expConn.close();
+        } catch(Exception ex) {}
+        %>
         <div class="admin-card">
             <div class="admin-card-header">
                 <h6><i class="bi bi-shop me-2 text-success"></i>All Sellers</h6>
@@ -834,7 +850,8 @@
                         try {
                             Connection conn = DBConnection.getConnection();
                             PreparedStatement ps = conn.prepareStatement(
-                                    "SELECT s.seller_id, s.user_id, s.business_name, s.business_type, 'approved' as status, " +
+                                    "SELECT s.seller_id, s.user_id, s.business_name, s.business_type, " +
+                                    "COALESCE(s.status, 'active') as status, " +
                                     "s.name as owner_name, u.email " +
                                     "FROM seller s " +
                                     "LEFT JOIN users u ON s.user_id = u.user_id " +
@@ -863,10 +880,12 @@
                             <td>
                                 <% if ("pending".equals(status)) { %>
                                     <span class="badge bg-warning text-dark" style="font-size:11px;">Pending</span>
-                             <% } else if ("active".equals(status) || "approved".equals(status)) { %>
-    <span class="badge bg-success" style="font-size:11px;">Active</span>
-<% } else if ("suspended".equals(status)) { %>
-                                    <span class="badge bg-danger" style="font-size:11px;">Suspended</span>
+                                <% } else if ("active".equals(status) || "approved".equals(status)) { %>
+                                    <span class="badge bg-success" style="font-size:11px;">Active</span>
+                                <% } else if ("suspended".equals(status)) { %>
+                                    <span class="badge bg-warning text-dark" style="font-size:11px;">Suspended</span>
+                                <% } else if ("deactivated".equals(status)) { %>
+                                    <span class="badge bg-danger" style="font-size:11px;">Deactivated</span>
                                 <% } else { %>
                                     <span class="badge bg-secondary" style="font-size:11px;"><%= status %></span>
                                 <% } %>
@@ -874,21 +893,34 @@
                             <td class="d-flex gap-1 flex-wrap">
                                 <% if ("pending".equals(status)) { %>
                                     <button class="btn btn-success btn-sm"
-onclick="approveSeller(<%= saUserId %>, '<%= bName.replace("'","") %>')">
+                                        onclick="approveSeller(<%= saUserId %>, '<%= bName.replace("'","") %>')">
                                         <i class="bi bi-check-lg me-1"></i>Approve
                                     </button>
                                     <button class="btn btn-danger btn-sm"
-                                           onclick="rejectSeller(<%= saUserId %>, '<%= bName.replace("'","") %>')">
+                                        onclick="rejectSeller(<%= saUserId %>, '<%= bName.replace("'","") %>')">
                                         <i class="bi bi-x-lg me-1"></i>Reject
                                     </button>
-                                <% } else if ("active".equals(status)) { %>
-                                    <button class="btn btn-outline-danger btn-sm"
-                                            onclick="suspendSeller(<%= sid %>, '<%= bName.replace("'","") %>')">
+                                <% } else if ("active".equals(status) || "approved".equals(status)) { %>
+                                    <button class="btn btn-outline-warning btn-sm"
+                                        onclick="openSellerAction(<%= sid %>, '<%= bName.replace("'","") %>', 'suspend')">
                                         <i class="bi bi-pause-circle me-1"></i>Suspend
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm"
+                                        onclick="openSellerAction(<%= sid %>, '<%= bName.replace("'","") %>', 'deactivate')">
+                                        <i class="bi bi-slash-circle me-1"></i>Deactivate
                                     </button>
                                 <% } else if ("suspended".equals(status)) { %>
                                     <button class="btn btn-outline-success btn-sm"
-                                            onclick="approveSeller(<%= sid %>, '<%= bName.replace("'","") %>')">
+                                        onclick="reactivateSeller(<%= sid %>, '<%= bName.replace("'","") %>')">
+                                        <i class="bi bi-play-circle me-1"></i>Reactivate
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm"
+                                        onclick="openSellerAction(<%= sid %>, '<%= bName.replace("'","") %>', 'deactivate')">
+                                        <i class="bi bi-slash-circle me-1"></i>Deactivate
+                                    </button>
+                                <% } else if ("deactivated".equals(status)) { %>
+                                    <button class="btn btn-outline-success btn-sm"
+                                        onclick="reactivateSeller(<%= sid %>, '<%= bName.replace("'","") %>')">
                                         <i class="bi bi-play-circle me-1"></i>Reactivate
                                     </button>
                                 <% } %>
@@ -1075,8 +1107,10 @@ onclick="approveSeller(<%= saUserId %>, '<%= bName.replace("'","") %>')">
                         try {
                             Connection paConn = DBConnection.getConnection();
                             PreparedStatement paPs = paConn.prepareStatement(
-                            		"SELECT p.product_id, p.name, p.price, p.stock, p.image, p.thumbnail, p.status, p.created_at, " +
-                            				"s.business_name, c.name as category_name " +
+                            		"SELECT p.product_id, p.name, p.price, p.stock, p.thumbnail, p.status, p.created_at, " +
+                            				"(SELECT pg.image FROM product_gallery pg WHERE pg.product_id = p.product_id ORDER BY pg.sort_order LIMIT 1) as gallery_img, " +
+                            				"(SELECT pv.image FROM product_variation pv WHERE pv.product_id = p.product_id AND pv.image IS NOT NULL LIMIT 1) as var_img, " +
+                            						"s.business_name, c.name as category_name " +
                                 "FROM product p " +
                                 "LEFT JOIN seller s ON p.seller_id = s.seller_id " +
                                 "LEFT JOIN category c ON p.category_id = c.category_id " +
@@ -1091,8 +1125,9 @@ onclick="approveSeller(<%= saUserId %>, '<%= bName.replace("'","") %>')">
                                 String pName = paRs.getString("name"); if (pName == null) pName = "-";
                                 double pPrice = paRs.getDouble("price");
                                 int pStock = paRs.getInt("stock");
-                                String pImage = paRs.getString("image"); 
-                                if (pImage == null || pImage.isEmpty()) pImage = paRs.getString("thumbnail");
+                                String pImage = paRs.getString("thumbnail");
+                                if (pImage == null || pImage.isEmpty()) pImage = paRs.getString("gallery_img");
+                                if (pImage == null || pImage.isEmpty()) pImage = paRs.getString("var_img");
                                 if (pImage == null) pImage = "";
                                 String pStatus = paRs.getString("status"); if (pStatus == null) pStatus = "pending";
                                 String pSeller = paRs.getString("business_name"); if (pSeller == null) pSeller = "-";
@@ -1339,6 +1374,7 @@ onclick="approveSeller(<%= saUserId %>, '<%= bName.replace("'","") %>')">
                             Connection conn = DBConnection.getConnection();
                             String sql = "SELECT p.product_id, p.name as product_name, p.price, p.stock, " +
                                     "p.image, p.thumbnail, p.status, p.created_at, " +
+                                    "(SELECT pv.image FROM product_variation pv WHERE pv.product_id = p.product_id AND pv.image IS NOT NULL LIMIT 1) as var_img, " +
                                     "s.business_name, c.name as category_name " +
                                     "FROM product p " +
                                     "LEFT JOIN seller s ON p.seller_id = s.seller_id " +
@@ -1363,8 +1399,9 @@ onclick="approveSeller(<%= saUserId %>, '<%= bName.replace("'","") %>')">
                                 int pStock = rs.getInt("stock");
                                 String sellerName = rs.getString("business_name"); if (sellerName == null) sellerName = "-";
                                 String pCat = rs.getString("category_name"); if (pCat == null) pCat = "-";
-                                String pImg = rs.getString("image");
-                                if (pImg == null || pImg.isEmpty()) pImg = rs.getString("thumbnail");
+                                String pImg = rs.getString("thumbnail");
+                                if (pImg == null || pImg.isEmpty()) pImg = rs.getString("image");
+                                if (pImg == null || pImg.isEmpty()) pImg = rs.getString("var_img");
                                 if (pImg == null) pImg = "";
                                 String pDate = rs.getString("created_at");
                                 if (pDate != null && pDate.length() >= 10) pDate = pDate.substring(0,10); else pDate = "—";
@@ -1772,10 +1809,89 @@ onclick="approveSeller(<%= saUserId %>, '<%= bName.replace("'","") %>')">
                 </table>
             </div>
         </div>
-    <% } %>
-
-<%-- VOUCHERS TAB --%>
-<% if ("vouchers".equals(tab)) { %>
+    <% } else if ("reviews".equals(tab)) {
+    java.sql.Connection revConn = com.shopeasy.DBConnection.getConnection();
+    java.sql.PreparedStatement revPs = revConn.prepareStatement(
+        "SELECT r.review_id, r.rating, r.comment, r.photo, r.created_at, " +
+        "p.name AS product_name, " +
+        "COALESCE(p.image, p.thumbnail, " +
+        "(SELECT pg.image FROM product_gallery pg WHERE pg.product_id = p.product_id ORDER BY pg.sort_order LIMIT 1), " +
+        "(SELECT pv.image FROM product_variation pv WHERE pv.product_id = p.product_id AND pv.image IS NOT NULL LIMIT 1)) AS product_image, " +
+        "CONCAT(c.first_name, ' ', c.last_name) AS customer_name, c.customer_id, " +
+        "u.user_id " +
+        "FROM review r " +
+        "JOIN product p ON r.product_id = p.product_id " +
+        "JOIN customer c ON r.customer_id = c.customer_id " +
+        "JOIN users u ON c.user_id = u.user_id " +
+        "ORDER BY r.created_at DESC");
+    java.sql.ResultSet revRs = revPs.executeQuery();
+%>
+<div class="card-box">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-bold mb-0"><i class="bi bi-star-fill text-warning me-2"></i>Customer Reviews</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Product</th>
+                    <th>Rating</th>
+                    <th>Review</th>
+                    <th>Photo</th>
+                    <th>Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            <% 
+            java.text.SimpleDateFormat revSdf = new java.text.SimpleDateFormat("MMM d, yyyy");
+            boolean hasRevs = false;
+            while (revRs.next()) { hasRevs = true; %>
+                <tr>
+                    <td><span class="fw-semibold"><%= revRs.getString("customer_name") %></span></td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <% String revProdImg = revRs.getString("product_image");
+                               if (revProdImg != null && !revProdImg.isEmpty()) { %>
+                                <img src="<%= revProdImg %>" style="width:36px; height:36px; object-fit:cover; border-radius:6px;">
+                            <% } %>
+                            <span style="font-size:12px;"><%= revRs.getString("product_name") %></span>
+                        </div>
+                    </td>
+                    <td>
+                        <% for (int s = 1; s <= 5; s++) { %>
+                            <i class="bi bi-star-fill" style="color:<%= s <= revRs.getInt("rating") ? "#ffc107" : "#ddd" %>; font-size:12px;"></i>
+                        <% } %>
+                    </td>
+                    <td style="max-width:200px; font-size:12px;"><%= revRs.getString("comment") != null ? revRs.getString("comment") : "<span class='text-muted'>No comment</span>" %></td>
+                    <td>
+                        <% String revPhoto = revRs.getString("photo");
+                           if (revPhoto != null && !revPhoto.isEmpty()) { %>
+                            <img src="<%= revPhoto %>" style="width:40px; height:40px; object-fit:cover; border-radius:6px; cursor:pointer;"
+                                 onclick="window.open('<%= revPhoto %>', '_blank')">
+                        <% } else { %>
+                            <span class="text-muted" style="font-size:12px;">None</span>
+                        <% } %>
+                    </td>
+                    <td style="font-size:12px;"><%= revSdf.format(revRs.getTimestamp("created_at")) %></td>
+                    <td>
+                        <button class="btn btn-danger btn-sm"
+                            onclick="deleteReview(<%= revRs.getInt("review_id") %>, <%= revRs.getInt("user_id") %>, '<%= revRs.getString("product_name").replace("'", "\\'") %>')">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    </td>
+                </tr>
+            <% } %>
+            <% if (!hasRevs) { %>
+                <tr><td colspan="7" class="text-center text-muted py-4">No reviews yet.</td></tr>
+            <% } %>
+            </tbody>
+        </table>
+    </div>
+</div>
+<% revRs.close(); revPs.close(); revConn.close();
+} else if ("vouchers".equals(tab)) { %>
 <div class="card border-0 shadow-sm" style="border-radius:16px; overflow: visible;">
     <div class="card-body p-4" style="overflow: visible;">
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -2170,6 +2286,37 @@ function updateVoucher(id) {
     </div>
 </div>
 
+<!-- Ban Reason Modal -->
+<div class="modal fade" id="banReasonModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+    <h5 class="modal-title" id="banModalTitle"><i class="bi bi-slash-circle me-2"></i>Ban User</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Ban <strong id="banUserName"></strong>?</p>
+        <input type="hidden" id="banUserId">
+        <label class="form-label fw-bold">Select Reason:</label>
+<select class="form-select" id="banReasonSelect" onchange="toggleCustomReason(this.value)">
+          <option value="">-- Select a reason --</option>
+          <option value="Violation of platform policies.">Violation of platform policies</option>
+          <option value="Fraudulent activity detected.">Fraudulent activity</option>
+          <option value="Harassment or abusive behavior.">Harassment or abusive behavior</option>
+          <option value="Selling prohibited items.">Selling prohibited items</option>
+          <option value="Multiple policy violations.">Multiple policy violations</option>
+          <option value="Spam or fake account.">Spam or fake account</option>
+          <option value="other">Other (specify...)</option>
+        </select>
+        <input type="text" class="form-control mt-2" id="banReasonCustom" placeholder="Type custom reason..." style="display:none;">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmBan()"><i class="bi bi-slash-circle me-1"></i>Ban User</button>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- LOGOUT OVERLAY -->
 <div id="logoutOverlay" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.95);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
     <div style="width:56px;height:56px;border:5px solid #e9ecef;border-top-color:#dc3545;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
@@ -2224,11 +2371,23 @@ function updateVoucher(id) {
     }
     
     function sendOffense(userId, name, offense) {
-        const labels = {1: '1st Offense', 2: '2nd Offense', 3: '3rd Offense'};
-        const colors = {1: '#f59e0b', 2: '#f97316', 3: '#ef4444'};
+        // 3rd offense — use ban modal directly
+        if (offense === 3) {
+            document.getElementById('banUserId').value = userId;
+            document.getElementById('banUserName').textContent = name;
+            document.getElementById('banReasonSelect').value = '';
+            document.getElementById('banModalTitle').textContent = '3rd Offense — User will be banned';
+            if (document.getElementById('banReasonCustom')) document.getElementById('banReasonCustom').style.display = 'none';
+            // Override confirmBan to send offense 3 + ban
+            window._pendingOffense3 = {userId, name};
+            new bootstrap.Modal(document.getElementById('banReasonModal')).show();
+            return;
+        }
+        const labels = {1: '1st Offense', 2: '2nd Offense'};
+        const colors = {1: '#f59e0b', 2: '#f97316'};
         const label = labels[offense];
         const color = colors[offense];
-        const extra = offense >= 3 ? '<br><small class="text-danger">⚠️ This will auto-ban the user!</small>' : '';
+        const extra = '';
 
         // Show reason input modal
 const reasons = ['Spam review','Fake review','Offensive language','Harassment','Duplicate review','Misleading information','Inappropriate content','Suspicious activity'];
@@ -2275,16 +2434,39 @@ const reasons = ['Spam review','Fake review','Offensive language','Harassment','
     }
     
     function banUser(userId, name) {
-        showConfirm('<i class="bi bi-slash-circle" style="color:white;font-size:24px;"></i>',
-            '#ef4444', 'Ban User?', 'Are you sure you want to ban ' + name + '?',
-            'btn-danger', function() {
-                fetch('AdminServlet?action=banUser&userId=' + userId, {method:'POST'})
-                    .then(r => r.json())
-                    .then(d => { showToast(d.message || 'User banned.', d.success ? 'success' : 'danger'); if(d.success) setTimeout(()=>location.reload(),1500); })
-                    .catch(() => showToast('Action recorded.', 'success'));
-            });
+        document.getElementById('banUserId').value = userId;
+        document.getElementById('banUserName').textContent = name;
+        document.getElementById('banReasonSelect').value = '';
+        new bootstrap.Modal(document.getElementById('banReasonModal')).show();
     }
 
+    function confirmBan() {
+        const userId = document.getElementById('banUserId').value;
+        let reason = document.getElementById('banReasonSelect').value;
+        if (!reason) { alert('Please select a reason.'); return; }
+        if (reason === 'other') {
+            reason = document.getElementById('banReasonCustom').value.trim();
+            if (!reason) { alert('Please type a reason.'); return; }
+        }
+        bootstrap.Modal.getInstance(document.getElementById('banReasonModal')).hide();
+        // Reset title for next time
+        if (document.getElementById('banModalTitle')) document.getElementById('banModalTitle').textContent = 'Ban User';
+
+        if (window._pendingOffense3) {
+            // Send 3rd offense first, then ban
+            const o3id = window._pendingOffense3.userId;
+            window._pendingOffense3 = null;
+            fetch('AdminServlet?action=sendOffense&userId=' + o3id + '&offense=3&reason=' + encodeURIComponent(reason), {method:'POST'})
+                .then(() => fetch('AdminServlet?action=banUser&userId=' + o3id + '&banReason=' + encodeURIComponent(reason), {method:'POST'}))
+                .then(r => r.json())
+                .then(d => { showToast('3rd Offense issued & user banned.', 'success'); setTimeout(()=>location.reload(),1500); });
+        } else {
+            fetch('AdminServlet?action=banUser&userId=' + userId + '&banReason=' + encodeURIComponent(reason), {method:'POST'})
+                .then(r => r.json())
+                .then(d => { showToast(d.message || 'User banned.', d.success ? 'success' : 'danger'); if(d.success) setTimeout(()=>location.reload(),1500); });
+        }
+    }
+    
     function activateUser(userId, name) {
         showConfirm('<i class="bi bi-check-circle" style="color:white;font-size:24px;"></i>',
             '#22c55e', 'Activate User?', 'Activate account of ' + name + '?',
@@ -2320,7 +2502,9 @@ const reasons = ['Spam review','Fake review','Offensive language','Harassment','
                 });
             });
     }
-
+    function toggleCustomReason(val) {
+        document.getElementById('banReasonCustom').style.display = val === 'other' ? 'block' : 'none';
+    }
     // PAYOUT FUNCTIONS
     let _approvePayoutId = null;
     let _rejectPayoutId = null;
@@ -2425,14 +2609,88 @@ const reasons = ['Spam review','Fake review','Offensive language','Harassment','
             });
     }
 
-    function suspendSeller(sellerId, name) {
-        showConfirm('<i class="bi bi-pause-circle" style="color:white;font-size:24px;"></i>',
-            '#f59e0b', 'Suspend Seller?', 'Suspend ' + name + '?',
-            'btn-warning', function() {
-                fetch('AdminServlet?action=suspendSeller&sellerId=' + sellerId, {method:'POST'})
+    let _sellerActionId = null, _sellerActionType = null;
+    function openSellerAction(sellerId, name, type) {
+        _sellerActionId = sellerId;
+        _sellerActionType = type;
+        const isSuspend = type === 'suspend';
+        document.getElementById('sellerActionTitle').textContent = isSuspend ? 'Suspend Seller?' : 'Deactivate Seller?';
+        document.getElementById('sellerActionIcon').className = isSuspend ? 'bi bi-pause-circle-fill' : 'bi bi-slash-circle-fill';
+        document.getElementById('sellerActionIconWrap').style.background = isSuspend ? '#fef9c3' : '#fee2e2';
+        document.getElementById('sellerActionIcon').style.color = isSuspend ? '#f59e0b' : '#ef4444';
+        document.getElementById('sellerActionName').textContent = name;
+        document.getElementById('sellerActionDesc').textContent = isSuspend
+            ? 'This will temporarily restrict access to the Seller Center. You can reactivate anytime.'
+            : 'This will permanently deactivate the seller account. The seller will lose access to their Seller Center.';
+        document.getElementById('sellerActionBtn').className = isSuspend ? 'btn btn-warning flex-fill' : 'btn btn-danger flex-fill';
+        document.getElementById('sellerActionBtn').textContent = isSuspend ? 'Suspend' : 'Deactivate';
+        document.getElementById('sellerActionReason').value = '';
+        document.getElementById('sellerActionOther').style.display = 'none';
+        document.getElementById('sellerActionOther').value = '';
+        document.getElementById('sellerActionError').style.display = 'none';
+        // Show duration picker only for suspend
+        document.getElementById('sellerDurationWrap').style.display = isSuspend ? 'block' : 'none';
+        document.querySelectorAll('.durBtn').forEach(b => b.classList.remove('active','btn-warning','btn-secondary'));
+        document.querySelectorAll('.durBtn').forEach(b => { b.classList.add(b.dataset.days==='0'?'btn-outline-secondary':'btn-outline-warning'); });
+        document.getElementById('sellerCustomDaysWrap').style.display = 'none';
+        document.getElementById('sellerCustomDays').value = '';
+        document.getElementById('sellerDurationError').style.display = 'none';
+        window._sellerSuspendDays = 0;
+        new bootstrap.Modal(document.getElementById('sellerActionModal')).show();
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        var el = document.getElementById('sellerActionReason');
+        if (el) el.addEventListener('change', function() {
+            document.getElementById('sellerActionOther').style.display = this.value === 'Others' ? 'block' : 'none';
+            document.getElementById('sellerActionError').style.display = 'none';
+        });
+    });
+    function selectDuration(days) {
+        window._sellerSuspendDays = days;
+        document.querySelectorAll('.durBtn').forEach(b => {
+            b.classList.remove('btn-warning','btn-secondary','btn-outline-warning','btn-outline-secondary','active');
+            if (parseInt(b.dataset.days) === days) {
+                b.classList.add(days === 0 ? 'btn-secondary' : 'btn-warning');
+            } else {
+                b.classList.add(b.dataset.days === '0' ? 'btn-outline-secondary' : 'btn-outline-warning');
+            }
+        });
+        document.getElementById('sellerCustomDaysWrap').style.display = days === 0 ? 'block' : 'none';
+        document.getElementById('sellerDurationError').style.display = 'none';
+    }
+    function confirmSellerAction() {
+        const select = document.getElementById('sellerActionReason').value;
+        const other = document.getElementById('sellerActionOther').value.trim();
+        if (!select) { document.getElementById('sellerActionError').style.display = 'block'; return; }
+        const reason = select === 'Others' ? (other || 'Others') : select;
+        const actionName = _sellerActionType === 'suspend' ? 'suspendSeller' : 'deactivateSeller';
+        // Validate duration for suspend
+        let days = 0;
+        if (_sellerActionType === 'suspend') {
+            days = window._sellerSuspendDays || 0;
+            if (days === 0) {
+                // custom
+                days = parseInt(document.getElementById('sellerCustomDays').value) || 0;
+            }
+            if (!days || days < 1) {
+                document.getElementById('sellerDurationError').style.display = 'block';
+                return;
+            }
+        }
+        bootstrap.Modal.getInstance(document.getElementById('sellerActionModal')).hide();
+        fetch('AdminServlet?action=' + actionName + '&sellerId=' + _sellerActionId + '&reason=' + encodeURIComponent(reason) + '&days=' + days, {method:'POST'})
+            .then(r => r.json())
+            .then(d => { showToast(d.message || 'Done.', d.success ? 'success' : 'danger'); if(d.success) setTimeout(()=>location.reload(),1500); })
+            .catch(() => { showToast('Done.', 'success'); setTimeout(()=>location.reload(),1500); });
+    }
+    function reactivateSeller(sellerId, name) {
+        showConfirm('<i class="bi bi-play-circle" style="color:white;font-size:24px;"></i>',
+            '#22c55e', 'Reactivate Seller?', 'Reactivate seller account of ' + name + '?',
+            'btn-success', function() {
+                fetch('AdminServlet?action=reactivateSeller&sellerId=' + sellerId, {method:'POST'})
                     .then(r => r.json())
-                    .then(d => { showToast(d.message || 'Seller suspended.', d.success ? 'success' : 'danger'); if(d.success) setTimeout(()=>location.reload(),1500); })
-                    .catch(() => { showToast('Seller suspended.', 'success'); setTimeout(()=>location.reload(),1500); });
+                    .then(d => { showToast(d.message || 'Seller reactivated.', d.success ? 'success' : 'danger'); if(d.success) setTimeout(()=>location.reload(),1500); })
+                    .catch(() => { showToast('Seller reactivated.', 'success'); setTimeout(()=>location.reload(),1500); });
             });
     }
 
@@ -2584,6 +2842,122 @@ const reasons = ['Spam review','Fake review','Offensive language','Harassment','
             });
         }
     });
+ // DELETE REVIEW
+    let _delReviewId = null, _delUserId = null;
+    function deleteReview(reviewId, userId, productName) {
+        _delReviewId = reviewId;
+        _delUserId = userId;
+        document.getElementById('delReviewProductName').textContent = productName;
+        document.getElementById('delReviewReason').value = '';
+        document.getElementById('delReviewReasonOther').style.display = 'none';
+        document.getElementById('delReviewReasonOther').value = '';
+        document.getElementById('delReviewError').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('deleteReviewModal')).show();
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('delReviewReason').addEventListener('change', function() {
+            document.getElementById('delReviewReasonOther').style.display = this.value === 'Others' ? 'block' : 'none';
+            document.getElementById('delReviewError').style.display = 'none';
+        });
+    });
+    function confirmDeleteReview() {
+        const select = document.getElementById('delReviewReason').value;
+        const other = document.getElementById('delReviewReasonOther').value.trim();
+        if (!select) { document.getElementById('delReviewError').style.display = 'block'; return; }
+        const reason = select === 'Others' ? (other || 'Others') : select;
+        bootstrap.Modal.getInstance(document.getElementById('deleteReviewModal')).hide();
+        fetch('AdminServlet?action=deleteReview&reviewId=' + _delReviewId + '&userId=' + _delUserId + '&reason=' + encodeURIComponent(reason), {method:'POST'})
+            .then(r => r.text())
+            .then(() => { showToast('Review deleted.', 'success'); setTimeout(() => location.reload(), 1200); });
+    }
 </script>
+<!-- SELLER ACTION MODAL (Suspend / Deactivate) -->
+<div class="modal fade" id="sellerActionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body p-4">
+                <div class="text-center mb-3">
+                    <div id="sellerActionIconWrap" style="width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                        <i id="sellerActionIcon" style="font-size:24px;"></i>
+                    </div>
+                    <h6 class="fw-bold mb-1" id="sellerActionTitle"></h6>
+                    <p class="text-muted mb-0" style="font-size:13px;">Seller: <strong id="sellerActionName"></strong></p>
+                </div>
+                <p class="text-muted text-center" style="font-size:12px;" id="sellerActionDesc"></p>
+                <!-- Duration picker — suspend only -->
+                <div class="mb-3" id="sellerDurationWrap">
+                    <label class="form-label fw-semibold" style="font-size:13px;">Suspension Duration</label>
+                    <div class="d-flex gap-2 flex-wrap" id="sellerDurationBtns">
+                        <button type="button" class="btn btn-sm btn-outline-warning durBtn" data-days="7" onclick="selectDuration(7)">7 Days</button>
+                        <button type="button" class="btn btn-sm btn-outline-warning durBtn" data-days="14" onclick="selectDuration(14)">14 Days</button>
+                        <button type="button" class="btn btn-sm btn-outline-warning durBtn" data-days="30" onclick="selectDuration(30)">30 Days</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary durBtn" data-days="0" onclick="selectDuration(0)">Custom</button>
+                    </div>
+                    <div id="sellerCustomDaysWrap" style="display:none;" class="mt-2">
+                        <input type="number" id="sellerCustomDays" class="form-control form-control-sm"
+                            min="1" max="365" placeholder="Enter number of days (e.g. 21)">
+                    </div>
+                    <div id="sellerDurationError" class="text-danger mt-1" style="font-size:12px;display:none;">Please select or enter a duration.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" style="font-size:13px;">Reason</label>
+                    <select class="form-select form-select-sm" id="sellerActionReason">
+                        <option value="">— Select reason —</option>
+                        <option>Violation of platform policies</option>
+                        <option>Fraudulent activity</option>
+                        <option>Selling prohibited items</option>
+                        <option>Multiple customer complaints</option>
+                        <option>Fake products / misrepresentation</option>
+                        <option>Non-fulfillment of orders</option>
+                        <option>Others</option>
+                    </select>
+                    <textarea id="sellerActionOther" class="form-control form-control-sm mt-2" rows="2"
+                        placeholder="Specify reason..." style="display:none;"></textarea>
+                    <div id="sellerActionError" class="text-danger mt-1" style="font-size:12px;display:none;">Please select a reason.</div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-light flex-fill" data-bs-dismiss="modal">Cancel</button>
+                    <button id="sellerActionBtn" class="btn flex-fill" onclick="confirmSellerAction()">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DELETE REVIEW MODAL -->
+<div class="modal fade" id="deleteReviewModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body p-4">
+                <div class="text-center mb-3">
+                    <div style="width:56px;height:56px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                        <i class="bi bi-trash-fill" style="color:#ef4444;font-size:24px;"></i>
+                    </div>
+                    <h6 class="fw-bold mb-1">Delete Review?</h6>
+                    <p class="text-muted mb-0" style="font-size:13px;">Review on: <strong id="delReviewProductName"></strong></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" style="font-size:13px;">Reason for deletion</label>
+                    <select class="form-select form-select-sm" id="delReviewReason">
+                        <option value="">— Select reason —</option>
+                        <option>Inappropriate content</option>
+                        <option>Fake review</option>
+                        <option>Spam</option>
+                        <option>Offensive language</option>
+                        <option>Others</option>
+                    </select>
+                    <textarea id="delReviewReasonOther" class="form-control form-control-sm mt-2" rows="2"
+                        placeholder="Specify reason..." style="display:none;"></textarea>
+                    <div id="delReviewError" class="text-danger mt-1" style="font-size:12px;display:none;">Please select a reason.</div>
+                </div>
+                <p class="text-muted text-center mb-3" style="font-size:12px;">This will also add an <strong>offense</strong> to the user's record.</p>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-light flex-fill" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger flex-fill" onclick="confirmDeleteReview()"><i class="bi bi-trash me-1"></i>Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

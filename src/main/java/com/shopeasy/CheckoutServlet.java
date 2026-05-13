@@ -96,57 +96,81 @@ public class CheckoutServlet extends HttpServlet {
                 if (vd != null) voucherDiscount = (Double) vd;
             }
 
-            double shippingFee = cartTotal >= 500 ? 0 : 38;
-            double finalTotal = Math.max(0, cartTotal + shippingFee - walletDeduct - voucherDiscount);
-
-            // Always save original cartTotal so refund works correctly
-            String orderSql = "INSERT INTO orders (customer_id, total_amount, status, payment_method, shipping_address) VALUES (?, ?, ?, ?, ?)";
-            PreparedStatement orderPs = conn.prepareStatement(orderSql, PreparedStatement.RETURN_GENERATED_KEYS);
-            orderPs.setInt(1, customerId);
-            orderPs.setDouble(2, "Wallet".equals(paymentMethod) ? cartTotal : finalTotal);
-            orderPs.setString(3, initialStatus);
-            orderPs.setString(4, paymentMethod);
-            orderPs.setString(5, fullAddress);
-            orderPs.executeUpdate();
-
-            ResultSet generatedKeys = orderPs.getGeneratedKeys();
-            int orderId = 0;
-            if (generatedKeys.next()) {
-                orderId = generatedKeys.getInt(1);
-            }
-            orderPs.close();
-
-            // Insert order items
-            String itemSql = "INSERT INTO order_items (order_id, product_id, seller_id, quantity, price, discounted_price, subtotal, variation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-            PreparedStatement itemPs = conn.prepareStatement(itemSql);
-
+         // Group items by seller
+            java.util.LinkedHashMap<Integer, List<Map<String, Object>>> itemsBySeller = new java.util.LinkedHashMap<>();
             for (Map<String, Object> item : cartItems) {
-                itemPs.setInt(1, orderId);
-                itemPs.setInt(2, (Integer) item.get("productId"));
-                itemPs.setInt(3, (Integer) item.get("sellerId"));
-                itemPs.setInt(4, (Integer) item.get("quantity"));
-                itemPs.setDouble(5, (Double) item.get("price"));
-                Double discPrice = item.get("discountedPrice") != null ? (Double) item.get("discountedPrice") : (Double) item.get("price");
-                itemPs.setDouble(6, discPrice);
-                itemPs.setDouble(7, (Double) item.get("subtotal"));
-                Object varId = item.get("variationId");
-                if (varId != null) {
-                    itemPs.setInt(8, (Integer) varId);
-                } else {
-                    itemPs.setNull(8, java.sql.Types.INTEGER);
-                }
-                itemPs.addBatch();
-
-                // Reduce stock
-                String stockSql = "UPDATE product SET stock = stock - ? WHERE product_id = ?";
-                PreparedStatement stockPs = conn.prepareStatement(stockSql);
-                stockPs.setInt(1, (Integer) item.get("quantity"));
-                stockPs.setInt(2, (Integer) item.get("productId"));
-                stockPs.executeUpdate();
-                stockPs.close();
+                int sid = (Integer) item.get("sellerId");
+                itemsBySeller.computeIfAbsent(sid, k -> new java.util.ArrayList<>()).add(item);
             }
-            itemPs.executeBatch();
-            itemPs.close();
+
+            // Distribute voucher discount proportionally across sellers
+            double shippingFee = cartTotal >= 500 ? 0 : 38;
+            double totalDiscount = walletDeduct + voucherDiscount;
+
+            int lastOrderId = 0;
+            java.util.List<Integer> allOrderIds = new java.util.ArrayList<>();
+
+            String orderSql = "INSERT INTO orders (customer_id, total_amount, status, payment_method, shipping_address) VALUES (?, ?, ?, ?, ?)";
+            String itemSql = "INSERT INTO order_items (order_id, product_id, seller_id, quantity, price, discounted_price, subtotal, variation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+            for (Map.Entry<Integer, List<Map<String, Object>>> entry : itemsBySeller.entrySet()) {
+                List<Map<String, Object>> sellerItems = entry.getValue();
+
+                // Compute this seller's subtotal
+                double sellerSubtotal = 0;
+                for (Map<String, Object> item : sellerItems) {
+                    sellerSubtotal += (Double) item.get("subtotal");
+                }
+
+                // Proportional discount for this seller
+                double sellerDiscount = (cartTotal > 0) ? (sellerSubtotal / cartTotal) * totalDiscount : 0;
+                double sellerShipping = sellerSubtotal >= 500 ? 0 : 38;
+                double sellerFinal = Math.max(0, sellerSubtotal + sellerShipping - sellerDiscount);
+
+                PreparedStatement orderPs = conn.prepareStatement(orderSql, PreparedStatement.RETURN_GENERATED_KEYS);
+                orderPs.setInt(1, customerId);
+                orderPs.setDouble(2, "Wallet".equals(paymentMethod) ? sellerSubtotal : sellerFinal);
+                orderPs.setString(3, initialStatus);
+                orderPs.setString(4, paymentMethod);
+                orderPs.setString(5, fullAddress);
+                orderPs.executeUpdate();
+
+                ResultSet generatedKeys = orderPs.getGeneratedKeys();
+                int orderId = 0;
+                if (generatedKeys.next()) orderId = generatedKeys.getInt(1);
+                orderPs.close();
+
+                allOrderIds.add(orderId);
+                lastOrderId = orderId;
+
+                PreparedStatement itemPs = conn.prepareStatement(itemSql);
+                for (Map<String, Object> item : sellerItems) {
+                    itemPs.setInt(1, orderId);
+                    itemPs.setInt(2, (Integer) item.get("productId"));
+                    itemPs.setInt(3, (Integer) item.get("sellerId"));
+                    itemPs.setInt(4, (Integer) item.get("quantity"));
+                    itemPs.setDouble(5, (Double) item.get("price"));
+                    Double discPrice = item.get("discountedPrice") != null ? (Double) item.get("discountedPrice") : (Double) item.get("price");
+                    itemPs.setDouble(6, discPrice);
+                    itemPs.setDouble(7, (Double) item.get("subtotal"));
+                    Object varId = item.get("variationId");
+                    if (varId != null) { itemPs.setInt(8, (Integer) varId); }
+                    else { itemPs.setNull(8, java.sql.Types.INTEGER); }
+                    itemPs.addBatch();
+
+                    // Reduce stock
+                    PreparedStatement stockPs = conn.prepareStatement("UPDATE product SET stock = stock - ? WHERE product_id = ?");
+                    stockPs.setInt(1, (Integer) item.get("quantity"));
+                    stockPs.setInt(2, (Integer) item.get("productId"));
+                    stockPs.executeUpdate();
+                    stockPs.close();
+                }
+                itemPs.executeBatch();
+                itemPs.close();
+            }
+
+            int orderId = lastOrderId;
+            double finalTotal = Math.max(0, cartTotal + shippingFee - totalDiscount);
 
          // Wallet deduction if payment method is Wallet
             String useWallet = request.getParameter("useWallet");
@@ -254,8 +278,21 @@ public class CheckoutServlet extends HttpServlet {
                 session.removeAttribute("appliedVoucherDiscount");
                 session.removeAttribute("appliedVoucherId");
             }
+            
+         // Record personal (welcome) voucher usage
+            String voucherCodeParam = request.getParameter("voucherCode");
+            if (voucherCodeParam != null && !voucherCodeParam.isEmpty() && voucherCodeParam.startsWith("WELCOME-")) {
+                Connection vcConn2 = DBConnection.getConnection();
+                PreparedStatement cvPs = vcConn2.prepareStatement(
+                    "UPDATE customer_vouchers SET used_count = used_count + 1, is_active = 0 WHERE code=? AND customer_id=?");
+                cvPs.setString(1, voucherCodeParam.toUpperCase().trim());
+                cvPs.setInt(2, customerId);
+                cvPs.executeUpdate();
+                cvPs.close();
+                vcConn2.close();
+            }
 
-            out.print("{\"success\":true,\"orderId\":" + orderId + "}");
+            out.print("{\"success\":true,\"orderId\":" + orderId + ",\"orderIds\":" + allOrderIds.toString().replace(" ","") + "}");
 
         } catch (Exception e) {
             e.printStackTrace();

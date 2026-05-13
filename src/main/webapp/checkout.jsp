@@ -367,12 +367,10 @@ for (Map<String, Object> item : cartItems) {
                     if (cartTotal >= 500) ckSavings += 38;
                 }
                 %>
-             <% if (ckSavings > 0) { %>
-                <div class="d-flex justify-content-between mb-2">
+       <div class="d-flex justify-content-between mb-2" id="youSaveRow" style="<%= ckSavings > 0 ? "" : "display:none;" %>">
                     <span class="text-success fw-bold"><i class="bi bi-tag-fill"></i> You save</span>
-                    <span class="text-success fw-bold">-₱<%= String.format("%.2f", ckSavings) %></span>
+                    <span class="text-success fw-bold" id="youSaveAmt">-₱<%= String.format("%.2f", ckSavings) %></span>
                 </div>
-                <% } %>
                <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Shipping</span>
                     <span id="shippingDisplay" class="<%= cartTotal >= 500 ? "text-success fw-bold" : "text-danger fw-bold" %>">
@@ -530,7 +528,7 @@ const orderTotal = cartTotal + shippingFee;
         }
     }
     function openVoucherModal(filterType) {
-        fetch('VoucherServlet?action=list&cartTotal=<%= cartTotal %>&filterType=' + (filterType || 'platform'))
+    	fetch('VoucherServlet?action=listAll&cartTotal=<%= cartTotal %>&filterType=' + (filterType || 'platform'))
             .then(r => r.json())
             .then(d => {
                 const list = document.getElementById('voucherListContainer');
@@ -647,6 +645,19 @@ const orderTotal = cartTotal + shippingFee;
         const newTotal = Math.max(0, cartTotal + currentShipping - voucherDiscount - walletAmt);
         document.getElementById('finalTotalDisplay').textContent = '₱' + newTotal.toFixed(2);
 
+        // Update You save
+        const baseSavings = <%= ckSavings %>;
+        const shippingSaved = freeShipApplied ? 38 : 0;
+        const totalSaved = baseSavings + voucherDiscount + shippingSaved;
+        const youSaveRow = document.getElementById('youSaveRow');
+        const youSaveAmt = document.getElementById('youSaveAmt');
+        if (totalSaved > 0) {
+            youSaveRow.style.display = 'flex';
+            youSaveAmt.textContent = '-₱' + totalSaved.toFixed(2);
+        } else {
+            youSaveRow.style.display = 'none';
+        }
+
         // Update shipping display
         const shipDisplay = document.getElementById('shippingDisplay');
         const shipHint = document.getElementById('freeShipHint');
@@ -717,7 +728,8 @@ const orderTotal = cartTotal + shippingFee;
           .then(data => {
               if (data.success) {
                   setTimeout(function() {
-                      window.location.href = 'order_success.jsp?orderId=' + data.orderId;
+                	  let orderIdsParam = data.orderIds ? data.orderIds.join(',') : data.orderId;
+                	  window.location.href = 'order_success.jsp?orderId=' + data.orderId + '&orderIds=' + orderIdsParam;
                   }, 2500);
               } else {
                   overlay.style.display = 'none';

@@ -27,6 +27,10 @@ public class ProfileServlet extends HttpServlet {
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 session.setAttribute("userName", rs.getString("name"));
+                session.setAttribute("userFirstName", rs.getString("first_name"));
+                session.setAttribute("userLastName", rs.getString("last_name"));
+                String mi = rs.getString("middle_initial");
+                session.setAttribute("userMiddleInitial", mi != null ? mi : "");
                 session.setAttribute("userUsername", rs.getString("username"));
                 session.setAttribute("userPhone", rs.getString("phone"));
                 session.setAttribute("userBirthday", rs.getString("birthday"));

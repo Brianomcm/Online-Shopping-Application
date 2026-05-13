@@ -5,7 +5,13 @@
         response.sendRedirect("index.jsp");
         return;
     }
-    String userName = (String) session.getAttribute("userName");
+String userName = (String) session.getAttribute("userName");
+String userFirstName = (String) session.getAttribute("userFirstName");
+String userLastName = (String) session.getAttribute("userLastName");
+String userMiddleInitial = (String) session.getAttribute("userMiddleInitial");
+if (userFirstName == null) userFirstName = "";
+if (userLastName == null) userLastName = "";
+if (userMiddleInitial == null) userMiddleInitial = "";
     String userEmail = (String) session.getAttribute("userEmail");
     String userPhone = (String) session.getAttribute("userPhone");
     String userUsername = (String) session.getAttribute("userUsername");
@@ -14,6 +20,21 @@
     String userRole = (String) session.getAttribute("userRole");
     if (userRole == null) userRole = "customer";
     String initial = (userName != null && !userName.isEmpty()) ? String.valueOf(userName.charAt(0)).toUpperCase() : "?";
+
+    // Cart count
+    int navCartCount = 0;
+    try {
+        int cartUserId = (int) session.getAttribute("userId");
+        java.sql.Connection cartConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement cartPs = cartConn.prepareStatement(
+            "SELECT COALESCE(SUM(ci.quantity), 0) FROM cart c " +
+            "JOIN cartitem ci ON c.cart_id = ci.cart_id " +
+            "WHERE c.customer_id = ?");
+        cartPs.setInt(1, cartUserId);
+        java.sql.ResultSet cartRs = cartPs.executeQuery();
+        if (cartRs.next()) navCartCount = cartRs.getInt(1);
+        cartRs.close(); cartPs.close(); cartConn.close();
+    } catch (Exception ex) { ex.printStackTrace(); }
 %>
  <!-- NOTIFICATIONS TAB -->
             <%
@@ -224,7 +245,93 @@
 #starRating {
     pointer-events: auto !important;
 }
+/* MOBILE BOTTOM NAV */
+@media (max-width: 767px) {
+    .col-md-3 { display: none !important; }
+    .col-md-9 { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; }
+    body { padding-bottom: 70px; }
+    .mobile-bottom-nav {
+        display: flex !important;
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        background: white;
+        border-top: 1px solid #e8f0fe;
+        z-index: 1000;
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    }
+    .mobile-bottom-nav a {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 4px;
+        color: #888;
+        text-decoration: none;
+        font-size: 10px;
+        gap: 3px;
+        transition: 0.2s;
+        border-top: 2px solid transparent;
+    }
+    .mobile-bottom-nav a.active {
+        color: #0d6efd;
+        border-top-color: #0d6efd;
+    }
+    .mobile-bottom-nav a i { font-size: 18px; }
+    .container.pb-5.mt-5 { margin-top: 10px !important; padding-top: 0 !important; }
+}
+@media (min-width: 768px) {
+    .mobile-bottom-nav { display: none !important; }
+}
 
+
+@media (max-width: 576px) {
+    /* General card sections */
+    .card-section { padding: 14px 12px !important; border-radius: 12px !important; }
+    .section-title { font-size: 13px !important; }
+
+    /* Notifications header — stack vertically */
+    #tab-notifications .d-flex.justify-content-between { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+    #tab-notifications .d-flex.gap-2 { width: 100%; }
+    #tab-notifications .d-flex.gap-2 button { flex: 1; font-size: 11px !important; padding: 5px 6px !important; }
+
+    /* Push enable bar */
+    #pushEnableBar { padding: 10px !important; }
+    #pushEnableBar p { font-size: 11px !important; }
+    #pushToggleBtn { font-size: 11px !important; padding: 5px 10px !important; }
+
+    /* Orders tabs — scrollable */
+    #orderTabs { font-size: 11px !important; }
+    #orderTabs .nav-link { padding: 6px 8px !important; font-size: 11px !important; white-space: nowrap; }
+    #orderTabs .badge { font-size: 9px !important; }
+
+    /* Order cards */
+    .order-card, [class*="card mb-3"] { border-radius: 12px !important; }
+    .order-card .fw-bold { font-size: 13px !important; }
+
+    /* Wishlist */
+    #tab-wishlist .d-flex { gap: 8px !important; }
+    #tab-wishlist img { width: 60px !important; height: 60px !important; }
+    #tab-wishlist .fw-bold { font-size: 13px !important; }
+
+    /* Wallet */
+    #tab-wallet h2 { font-size: 28px !important; }
+    #tab-wallet .p-4 { padding: 16px !important; }
+
+    /* Security */
+    #tab-security .form-control { font-size: 13px !important; }
+    #tab-security .btn { font-size: 13px !important; }
+
+    /* Reviews */
+    #tab-reviews img { width: 52px !important; height: 52px !important; }
+    #tab-reviews .fw-bold { font-size: 13px !important; }
+    #tab-reviews p { font-size: 12px !important; }
+
+    /* Address */
+    #tab-address .fw-semibold { font-size: 13px !important; }
+    #tab-address .text-muted { font-size: 11px !important; }
+    #tab-address .btn-sm { font-size: 11px !important; padding: 4px 8px !important; }
+}
     </style>
 </head>
 <body>
@@ -233,6 +340,7 @@
 <%
 request.setAttribute("navType", "simple");
 request.setAttribute("navBackUrl", "index.jsp");
+request.setAttribute("navCartCount", navCartCount);
 %>
 <%@ include file="navbar.jsp" %>
 
@@ -364,53 +472,76 @@ request.setAttribute("navBackUrl", "index.jsp");
         <form action="UpdateProfileServlet" method="post" id="profileForm">
     <input type="hidden" id="profilePictureData" name="profilePicture" value="">
     
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Full Name</label>
-                    <input type="text" name="fullname" id="inputFullname" class="form-control" value="<%= userName != null ? userName : "" %>" readonly>
+         <div class="row g-3">
+                <%-- ROW 1: Name --%>
+                <div class="col-12">
+                 <div class="row g-2">
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold" style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Last Name</label>
+                            <input type="text" name="last_name" id="inputLastName" class="form-control" value="<%= userLastName %>" placeholder="Last Name" readonly>
+                        </div>
+                     <div class="col-md-5">
+                            <label class="form-label fw-bold" style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">First Name</label>
+                            <input type="text" name="first_name" id="inputFirstName" class="form-control" value="<%= userFirstName %>" placeholder="First Name" readonly>
+                        </div>
+                       <div class="col-md-2">
+                            <label class="form-label fw-bold" style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">M.I.</label>
+                            <input type="text" name="middle_initial" id="inputMI" class="form-control" value="<%= userMiddleInitial %>" placeholder="M.I." maxlength="2" readonly>
+                        </div>
+                    </div>
                 </div>
+
+                <%-- ROW 2: Username + Email --%>
                 <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Username</label>
+                    <label class="form-label fw-bold" style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Username</label>
                     <input type="text" name="username" id="inputUsername" class="form-control" value="<%= userUsername != null ? userUsername : "" %>" readonly>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label fw-bold" style="font-size:13px;">Email <span class="text-muted" style="font-size:11px;"><i class="bi bi-lock-fill"></i> Locked</span></label>
-                    <input type="email" class="form-control" value="<%= userEmail != null ? userEmail : "" %>" readonly style="background:#f8f9fa;">
-                    <small class="text-muted">Email cannot be changed</small>
+                    <label class="form-label fw-bold" style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Email <i class="bi bi-lock-fill text-muted ms-1" style="font-size:11px;"></i></label>
+                    <input type="email" class="form-control" value="<%= userEmail != null ? userEmail : "" %>" readonly style="background:#f8f9fa; color:#94a3b8;">
                 </div>
+
+                <%-- ROW 3: Phone + Birthday --%>
                 <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Phone Number</label>
+                    <label class="form-label fw-bold" style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Phone Number</label>
                     <div class="input-group">
                         <span class="input-group-text">+63</span>
-                       <input type="tel" name="phone" id="inputPhone" class="form-control" value="<%= userPhone != null ? userPhone : "" %>" readonly oninput="formatPHPhone(this)">
+                        <input type="tel" name="phone" id="inputPhone" class="form-control" value="<%= userPhone != null ? userPhone : "" %>" readonly oninput="formatPHPhone(this)">
                     </div>
                 </div>
                 <div class="col-md-6">
-               <label class="form-label fw-bold" style="font-size:13px;">Birthday 
-    <% if (userBirthday == null || userBirthday.isEmpty()) { %>
-        <span class="text-danger" style="font-size:11px;">* One-time edit only</span>
-    <% } else { %>
-        <span class="text-muted" style="font-size:11px;"><i class="bi bi-lock-fill"></i> Locked</span>
-    <% } %>
-</label>
-<input type="text" name="birthday" id="inputBirthday" class="form-control" value="<%= userBirthday != null ? userBirthday : "" %>" placeholder="Select your birthday" readonly>
+                    <label class="form-label fw-bold" style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">
+                        Birthday
+                        <% if (userBirthday == null || userBirthday.isEmpty()) { %>
+                            <span class="text-danger ms-1" style="font-size:10px; text-transform:none;">* one-time edit</span>
+                        <% } else { %>
+                            <i class="bi bi-lock-fill text-muted ms-1" style="font-size:11px;"></i>
+                        <% } %>
+                    </label>
+                    <input type="text" name="birthday" id="inputBirthday" class="form-control" value="<%= userBirthday != null ? userBirthday : "" %>" placeholder="Select your birthday" readonly>
                 </div>
+
+                <%-- ROW 4: Gender --%>
                 <div class="col-md-6">
-                    <label class="form-label fw-bold" style="font-size:13px;">Gender</label>
+                    <label class="form-label fw-bold" style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Gender</label>
                     <select name="gender" id="inputGender" class="form-select" disabled>
-    <option value="" disabled <%= (userGender == null || userGender.isEmpty()) ? "selected" : "" %>>Select your gender</option>
-    <option <%= "Male".equals(userGender) ? "selected" : "" %>>Male</option>
-    <option <%= "Female".equals(userGender) ? "selected" : "" %>>Female</option>
-    <option <%= "Prefer not to say".equals(userGender) ? "selected" : "" %>>Prefer not to say</option>
-</select>
+                        <option value="" disabled <%= (userGender == null || userGender.isEmpty()) ? "selected" : "" %>>Select your gender</option>
+                        <option <%= "Male".equals(userGender) ? "selected" : "" %>>Male</option>
+                        <option <%= "Female".equals(userGender) ? "selected" : "" %>>Female</option>
+                        <option <%= "Prefer not to say".equals(userGender) ? "selected" : "" %>>Prefer not to say</option>
+                    </select>
                 </div>
-                <div class="col-12 text-end" id="saveSection" style="display:none;">
-                    <button type="button" class="btn btn-outline-secondary me-2" onclick="cancelEdit()">
-                        <i class="bi bi-x"></i> Cancel
-                    </button>
-                    <button type="submit" class="btn btn-primary px-4">
-                        <i class="bi bi-check2"></i> Save Changes
-                    </button>
+       <div class="col-md-6 d-flex align-items-end">
+                    <div id="saveSection" style="display:none; width:100%;">
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
+                                <i class="bi bi-x"></i> Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="bi bi-check2"></i> Save Changes
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </form>
@@ -828,6 +959,9 @@ for (java.util.Map<String,Object> o : myOrders) {
     </span>
 <% } %>
         </div>
+     <p class="mb-1 fw-semibold" style="font-size:13px;">
+            <i class="bi bi-person-circle text-primary me-1"></i><%= userName %>
+        </p>
         <div class="mb-1" id="rvStars-<%= rvId %>">
             <% for (int s = 1; s <= 5; s++) { %>
                 <i class="bi bi-star-fill" style="color:<%= s <= rvRating ? "#ffc107" : "#ddd" %>; font-size:13px;"></i>
@@ -994,18 +1128,54 @@ for (java.util.Map<String,Object> o : myOrders) {
             if (wlCustId == null) wlCustId = (int) session.getAttribute("userId");
             java.sql.Connection wlConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement wlPs = wlConn.prepareStatement(
-            		"SELECT p.product_id, p.name, p.price, p.original_price, p.image, p.stock " +
+            		"SELECT p.product_id, p.name, p.price, p.original_price, p.image, p.thumbnail, p.stock, " +
+            				"w.variation_id, w.variation_value, w.variation_type " +
             				"FROM wishlist w JOIN product p ON w.product_id = p.product_id " +
-                "WHERE w.customer_id = ? ORDER BY w.created_at DESC");
+            				"WHERE w.customer_id = ? ORDER BY w.created_at DESC");
             wlPs.setInt(1, wlCustId);
             java.sql.ResultSet wlRs = wlPs.executeQuery();
             boolean hasWishlist = false;
             while (wlRs.next()) {
                 hasWishlist = true;
         %>
-        <div class="d-flex align-items-center gap-3 p-3 mb-3 border rounded-3" id="wl-<%= wlRs.getInt("product_id") %>">
-            <% if (wlRs.getString("image") != null && !wlRs.getString("image").isEmpty()) { %>
-                <img src="<%= wlRs.getString("image") %>"
+    <div class="d-flex align-items-center gap-3 p-3 mb-3 border rounded-3" id="wl-<%= wlRs.getInt("product_id") %>">
+            <a href="product.jsp?id=<%= wlRs.getInt("product_id") %>" style="text-decoration:none; flex-shrink:0;">
+  <% 
+  String wlVarId = wlRs.getString("variation_id");
+  String wlVarValue = wlRs.getString("variation_value");
+  String wlVarType = wlRs.getString("variation_type");
+  boolean wlHasVar = wlVarId != null && !wlVarId.isEmpty();
+  String wlImg = wlRs.getString("image");
+  if (wlImg == null || wlImg.isEmpty()) wlImg = wlRs.getString("thumbnail");
+  double wlOrigPrice = wlRs.getDouble("original_price");
+  double wlRealPrice = wlRs.getDouble("price");
+  if (wlHasVar) {
+      try {
+          java.sql.Connection wlVarConn = com.shopeasy.DBConnection.getConnection();
+          java.sql.PreparedStatement wlVarPs = wlVarConn.prepareStatement(
+              "SELECT image, price, original_price FROM product_variation WHERE variation_id=?");
+          wlVarPs.setInt(1, Integer.parseInt(wlVarId));
+          java.sql.ResultSet wlVarRs = wlVarPs.executeQuery();
+          if (wlVarRs.next()) {
+              String vImg = wlVarRs.getString("image");
+              if (vImg != null && !vImg.isEmpty()) wlImg = vImg;
+              double vPrice = wlVarRs.getDouble("price");
+              double vOrigPrice = wlVarRs.getDouble("original_price");
+              if (vPrice > 0) { wlRealPrice = vPrice; wlOrigPrice = vOrigPrice; }
+          }
+          wlVarRs.close(); wlVarPs.close(); wlVarConn.close();
+      } catch (Exception ignored) {}
+  }
+  int wlDiscPct = 0;
+  double wlDisplayPrice = wlRealPrice;
+  double wlStrikePrice = 0;
+  if (wlOrigPrice > 0 && wlRealPrice > 0 && wlOrigPrice < wlRealPrice) {
+	    wlDiscPct = (int) Math.round((wlRealPrice - wlOrigPrice) / wlRealPrice * 100);
+	    wlDisplayPrice = wlOrigPrice;
+	    wlStrikePrice = wlRealPrice;
+	}
+  if (wlImg != null && !wlImg.isEmpty()) { %>
+    <img src="<%= wlImg %>"
                      style="width:70px; height:70px; object-fit:cover; border-radius:10px; border:1px solid #eee;">
             <% } else { %>
                 <div style="width:70px; height:70px; background:#f0f0f0; border-radius:10px;
@@ -1013,39 +1183,39 @@ for (java.util.Map<String,Object> o : myOrders) {
                     <i class="bi bi-image text-muted"></i>
                 </div>
             <% } %>
-            <div class="flex-grow-1">
+            </a>
+   <div class="flex-grow-1">
+                <a href="product.jsp?id=<%= wlRs.getInt("product_id") %>" style="text-decoration:none; color:inherit;">
                 <p class="mb-0 fw-bold" style="font-size:14px;"><%= wlRs.getString("name") %></p>
-                <%
-double wlOrigPrice = wlRs.getDouble("original_price");
-double wlRealPrice = wlRs.getDouble("price");
-int wlDiscPct = 0;
-if (wlOrigPrice > 0 && wlOrigPrice < wlRealPrice) {
-    wlDiscPct = (int) Math.round((wlRealPrice - wlOrigPrice) / wlRealPrice * 100);
-}
-%>
-<% if (wlDiscPct > 0) { %>
-    <div class="d-flex align-items-center gap-2">
-        <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= String.format("%.2f", wlRealPrice) %></span>
-        <span class="badge bg-danger" style="font-size:10px;">-<%= wlDiscPct %>% OFF</span>
-    </div>
-    <p class="mb-0 text-primary fw-bold">₱<%= String.format("%.2f", wlOrigPrice) %></p>
-<% } else { %>
-    <p class="mb-0 text-primary fw-bold">₱<%= String.format("%.2f", wlRealPrice) %></p>
+                </a>
+            <% if (wlHasVar) { %>
+<span class="badge bg-light text-dark border mb-1" style="font-size:10px;">
+    <i class="bi bi-tag"></i> <%= wlVarType %>: <%= wlVarValue %>
+</span>
 <% } %>
+                <%
+           
+                %>
+                <% if (wlDiscPct > 0) { %>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted text-decoration-line-through" style="font-size:11px;">₱<%= String.format("%.2f", wlStrikePrice) %></span>
+                        <span class="badge bg-danger" style="font-size:10px;">-<%= wlDiscPct %>% OFF</span>
+                    </div>
+                    <p class="mb-0 text-primary fw-bold">₱<%= String.format("%.2f", wlDisplayPrice) %></p>
+                <% } else { %>
+                    <p class="mb-0 text-primary fw-bold">₱<%= String.format("%.2f", wlDisplayPrice) %></p>
+                <% } %>
                 <% if (wlRs.getInt("stock") > 0) { %>
                     <span class="badge bg-success" style="font-size:10px;">In Stock</span>
                 <% } else { %>
                     <span class="badge bg-danger" style="font-size:10px;">Out of Stock</span>
                 <% } %>
             </div>
-            <div class="d-flex flex-column gap-2">
-                <a href="product.jsp?id=<%= wlRs.getInt("product_id") %>"
-                   class="btn btn-primary btn-sm">
-                    <i class="bi bi-eye"></i> View
-                </a>
-                <button type="button" class="btn btn-outline-danger btn-sm"
+        <div class="d-flex flex-column gap-2">
+    <button type="button" class="btn btn-outline-danger"
+    style="width:42px; height:42px; display:flex; align-items:center; justify-content:center;"
     onclick="removeWishlist(<%= wlRs.getInt("product_id") %>, this)">
-    <i class="bi bi-trash"></i>
+    <i class="bi bi-trash" style="font-size:16px;"></i>
 </button>
             </div>
         </div>
@@ -1130,24 +1300,42 @@ if (wlOrigPrice > 0 && wlOrigPrice < wlRealPrice) {
           
             <div id="tab-notifications" class="tab-content-section">
                 <div class="card-section">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <p class="section-title mb-0">
-                            <i class="bi bi-bell-fill text-primary"></i> Notifications
-                            <% if (unreadCount > 0) { %>
-                            <span class="badge bg-danger ms-2" style="font-size:11px;"><%= unreadCount %> new</span>
-                            <% } %>
-                        </p>
-                        <% if (!notifList.isEmpty()) { %>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-outline-primary btn-sm" onclick="markAllRead()">
-                                <i class="bi bi-check2-all"></i> Mark all read
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" onclick="clearAllNotifs()">
-                                <i class="bi bi-trash"></i> Clear all
-                            </button>
-                        </div>
-                        <% } %>
-                    </div>
+                 <div class="d-flex justify-content-between align-items-center mb-3">
+    <p class="section-title mb-0">
+        <i class="bi bi-bell-fill text-primary"></i> Notifications
+        <% if (unreadCount > 0) { %>
+        <span class="badge bg-danger ms-2" style="font-size:11px;"><%= unreadCount %> new</span>
+        <% } %>
+    </p>
+    <% if (!notifList.isEmpty()) { %>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary btn-sm" onclick="markAllRead()">
+            <i class="bi bi-check2-all"></i> Mark all read
+        </button>
+        <button class="btn btn-outline-danger btn-sm" onclick="clearAllNotifs()">
+            <i class="bi bi-trash"></i> Clear all
+        </button>
+    </div>
+    <% } %>
+</div>
+
+<!-- Enable Push Button -->
+<div id="pushEnableBar" class="d-flex align-items-center justify-content-between p-3 mb-3 rounded-3"
+     style="background:#e8f0fe; border:1px solid #c5d8fb;">
+    <div class="d-flex align-items-center gap-2">
+        <div style="width:36px; height:36px; border-radius:50%; background:#0d6efd; display:flex; align-items:center; justify-content:center;">
+            <i class="bi bi-bell-fill" style="color:white; font-size:14px;"></i>
+        </div>
+        <div>
+            <p class="mb-0 fw-bold" style="font-size:13px;">Enable Push Notifications</p>
+            <p class="mb-0 text-muted" style="font-size:11px;">Get notified about your orders and updates</p>
+        </div>
+    </div>
+    <button class="btn btn-primary btn-sm px-3 fw-bold" id="pushToggleBtn" onclick="requestNotifPermission()">
+        <i class="bi bi-bell-fill me-1"></i> Enable
+    </button>
+</div>
+               
 
                     <div id="notifList">
                     <% if (notifList.isEmpty()) { %>
@@ -1337,10 +1525,12 @@ window.addEventListener('load', function() {
     }
 });
 
-    function enableEdit() {
-        document.getElementById('inputFullname').removeAttribute('readonly');
-        document.getElementById('inputUsername').removeAttribute('readonly');
-        document.getElementById('inputPhone').removeAttribute('readonly');
+function enableEdit() {
+    document.getElementById('inputLastName').removeAttribute('readonly');
+    document.getElementById('inputFirstName').removeAttribute('readonly');
+    document.getElementById('inputMI').removeAttribute('readonly');
+    document.getElementById('inputUsername').removeAttribute('readonly');
+    document.getElementById('inputPhone').removeAttribute('readonly');
      // Lock birthday if already set
         const bdayVal = document.getElementById('inputBirthday').value;
         if (!bdayVal || bdayVal.trim() === '') {
@@ -1408,8 +1598,8 @@ window.addEventListener('load', function() {
             document.getElementById('securityError').style.display = 'block';
             return;
         }
-        if (newPw.length < 6) {
-            document.getElementById('securityErrorText').textContent = 'Password must be at least 6 characters.';
+        if (newPw.length < 4) {
+            document.getElementById('securityErrorText').textContent = 'Password must be at least 4 characters.'
             document.getElementById('securityError').style.display = 'block';
             return;
         }
@@ -1463,8 +1653,8 @@ window.addEventListener('load', function() {
         const text = document.getElementById('strengthText');
         const currentVal = document.getElementById('currentPw').value.trim();
         let score = 0;
-        if (val.length >= 6) score++;
-        if (val.length >= 10) score++;
+        if (val.length >= 4) score++;
+        if (val.length >= 8) score++;
         if (/[A-Z]/.test(val)) score++;
         if (/[0-9]/.test(val)) score++;
         if (/[^A-Za-z0-9]/.test(val)) score++;
@@ -1707,7 +1897,7 @@ window.addEventListener('load', function() {
         const productId = document.getElementById('reviewProductId').value;
         const photo = document.getElementById('reviewPhotoData').value;
         if (rating === 0) { showToast('Please select a star rating!', 'error'); return; }
-        if (comment === '') { showToast('Please write a comment!', 'error'); return; }
+     // comment is optional
         
         const formData = new URLSearchParams();
         formData.append('orderId', orderId);
@@ -1955,7 +2145,7 @@ window.addEventListener('load', function() {
 
         document.getElementById('editReviewError').style.display = 'none';
 
-        if (rating === 0 || comment === '') {
+        if (rating === 0) {
             document.getElementById('editReviewError').style.display = 'block';
             return;
         }
@@ -2165,7 +2355,7 @@ window.addEventListener('load', function() {
         <input type="hidden" id="editReviewPhotoData">
 
         <div id="editReviewError" class="alert alert-danger py-2 mb-2" style="display:none; font-size:13px;">
-            Please select a rating and write a comment.
+       Please select a rating.
         </div>
 
         <div class="d-flex gap-2 justify-content-end mt-3">
@@ -2325,7 +2515,162 @@ function submitAddressForm() {
     err.style.display = 'none';
     document.getElementById('addrPhone').closest('form').submit();
 }
-</script>
 
+
+let lastNotifId = 0;
+function startNotifPolling() {
+    if (Notification.permission !== 'granted') return;
+    fetch('NotificationServlet?action=getLatest')
+        .then(r => r.json())
+        .then(data => { if (data.latestId) lastNotifId = data.latestId; })
+        .catch(() => {});
+
+    setInterval(() => {
+        if (document.hidden) return; // skip if tab not visible
+        fetch('NotificationServlet?action=getNew&since=' + lastNotifId)
+            .then(r => r.json())
+            .then(data => {
+                if (data.notifications && data.notifications.length > 0) {
+                    data.notifications.forEach(n => {
+                        new Notification('ShopEasy', {
+                            body: n.message,
+                            icon: '/Online_Shopping/favicon.ico'
+                        });
+                        lastNotifId = Math.max(lastNotifId, n.id);
+                    });
+                }
+            });
+    }, 30000); // every 30 seconds
+}
+
+window.addEventListener('load', function() {
+    updatePushBtn();
+    if (Notification.permission === 'granted') {
+        startNotifPolling();
+        // Check agad after 3 seconds para hindi pa kailangan maghintay ng 30s
+        setTimeout(() => {
+            fetch('NotificationServlet?action=getNew&since=' + lastNotifId)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.notifications && data.notifications.length > 0) {
+                        data.notifications.forEach(n => {
+                            new Notification('ShopEasy', {
+                                body: n.message,
+                                icon: '/Online_Shopping/favicon.ico'
+                            });
+                            lastNotifId = Math.max(lastNotifId, n.id);
+                        });
+                    }
+                });
+        }, 3000);
+    }
+});
+
+function updatePushBtn() {
+    const bar = document.getElementById('pushEnableBar');
+    const btn = document.getElementById('pushToggleBtn');
+    if (!bar || !btn) return;
+    if (!('Notification' in window)) { bar.style.display = 'none'; return; }
+    if (Notification.permission === 'granted') {
+        bar.style.background = '#d1fae5'; bar.style.borderColor = '#6ee7b7';
+        btn.className = 'btn btn-success btn-sm px-3 fw-bold';
+        btn.innerHTML = '<i class="bi bi-bell-fill me-1"></i> Enabled ✓';
+        btn.disabled = true;
+    } else if (Notification.permission === 'denied') {
+        bar.style.background = '#fff0f0'; bar.style.borderColor = '#f5c2c7';
+        btn.className = 'btn btn-danger btn-sm px-3 fw-bold';
+        btn.innerHTML = '<i class="bi bi-bell-slash me-1"></i> Blocked';
+        btn.disabled = true;
+    }
+}
+
+function requestNotifPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+        window.open('chrome://settings/content/notifications');
+        showToast('Opening browser settings — set localhost to Block to disable.', 'error');
+        return;
+    }
+    Notification.requestPermission().then(perm => {
+        updatePushBtn();
+        if (perm === 'granted') { showToast('Notifications enabled! ✅'); startNotifPolling(); }
+    });
+}
+function showTabMobile(tab, el) {
+    if (tab === 'more') {
+        const drawer = document.getElementById('moreDrawer');
+        drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none';
+        return;
+    }
+    closeMoreDrawer();
+    // Use existing showTab logic
+    document.querySelectorAll('.tab-content-section').forEach(t => {
+        t.classList.remove('active');
+        t.style.display = 'none';
+    });
+    document.getElementById('tab-' + tab).style.display = 'block';
+    document.getElementById('tab-' + tab).classList.add('active');
+    // Update bottom nav active state
+    document.querySelectorAll('.mobile-bottom-nav a').forEach(a => a.classList.remove('active'));
+    el.classList.add('active');
+    window.scrollTo(0, 0);
+}
+
+function closeMoreDrawer() {
+    document.getElementById('moreDrawer').style.display = 'none';
+}
+</script>
+<!-- MOBILE BOTTOM NAV -->
+<div class="mobile-bottom-nav" style="display:none;">
+    <a href="#" onclick="showTabMobile('profile', this)" class="active" id="mbnav-profile">
+        <i class="bi bi-person-fill"></i>
+        <span>Profile</span>
+    </a>
+    <a href="#" onclick="showTabMobile('orders', this)" id="mbnav-orders">
+        <i class="bi bi-bag-fill"></i>
+        <span>Orders</span>
+    </a>
+    <a href="#" onclick="showTabMobile('wishlist', this)" id="mbnav-wishlist">
+        <i class="bi bi-heart-fill"></i>
+        <span>Wishlist</span>
+    </a>
+    <a href="#" onclick="showTabMobile('wallet', this)" id="mbnav-wallet">
+        <i class="bi bi-wallet2"></i>
+        <span>Wallet</span>
+    </a>
+    <a href="#" onclick="showTabMobile('notifications', this)" id="mbnav-notifs">
+        <i class="bi bi-bell-fill"></i>
+        <span>Notifs
+        <% if (unreadCount > 0) { %>
+        <span class="badge bg-danger" style="font-size:8px; padding:2px 4px; border-radius:10px; position:absolute; margin-top:-8px; margin-left:2px;"><%= unreadCount %></span>
+        <% } %>
+        </span>
+    </a>
+    <a href="#" onclick="showTabMobile('more', this)" id="mbnav-more">
+        <i class="bi bi-grid-fill"></i>
+        <span>More</span>
+    </a>
+</div>
+
+<!-- MORE DRAWER (mobile) -->
+<div id="moreDrawer" style="display:none; position:fixed; bottom:70px; left:0; right:0; background:white; border-top:1px solid #e8f0fe; z-index:999; padding:12px; box-shadow:0 -4px 16px rgba(0,0,0,0.1);">
+    <div class="row g-2 text-center">
+        <div class="col-4">
+            <a href="#" onclick="showTabMobile('reviews', document.getElementById('mbnav-more')); closeMoreDrawer();" class="d-flex flex-column align-items-center gap-1 text-decoration-none text-muted p-2 rounded-3" style="font-size:12px;">
+                <i class="bi bi-star-fill text-warning" style="font-size:22px;"></i>Reviews
+            </a>
+        </div>
+        <div class="col-4">
+            <a href="#" onclick="showTabMobile('address', document.getElementById('mbnav-more')); closeMoreDrawer();" class="d-flex flex-column align-items-center gap-1 text-decoration-none text-muted p-2 rounded-3" style="font-size:12px;">
+                <i class="bi bi-geo-alt-fill text-primary" style="font-size:22px;"></i>Addresses
+            </a>
+        </div>
+        <div class="col-4">
+            <a href="#" onclick="showTabMobile('security', document.getElementById('mbnav-more')); closeMoreDrawer();" class="d-flex flex-column align-items-center gap-1 text-decoration-none text-muted p-2 rounded-3" style="font-size:12px;">
+                <i class="bi bi-shield-lock-fill text-success" style="font-size:22px;"></i>Security
+            </a>
+        </div>
+    </div>
+</div>
 </body>
 </html>

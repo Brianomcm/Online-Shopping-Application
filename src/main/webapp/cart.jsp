@@ -70,6 +70,15 @@ if (cartItems != null) {
         .avatar-circle { width: 36px; height: 36px; border-radius: 50%; background: #0d6efd; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; overflow: hidden; }
         .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
         .toast-msg { background: #198754; color: white; padding: 12px 20px; border-radius: 12px; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); margin-top: 8px; }
+   
+   
+@media (max-width: 576px) {
+    .cart-item-row { padding: 8px 4px !important; }
+    .qty-btn { width: 26px !important; height: 26px !important; font-size: 13px !important; }
+    .qty-display { width: 28px !important; font-size: 13px !important; }
+    .product-img { width: 60px !important; height: 60px !important; }
+    .product-img-placeholder { width: 60px !important; height: 60px !important; }
+}
     </style>
 </head>
 <body>
@@ -99,7 +108,7 @@ if (cartItems != null) {
 <%@ include file="navbar.jsp" %>
 <!-- BREADCRUMB -->
 <div class="bg-white border-bottom px-4 py-2">
-    <nav aria-label="breadcrumb">
+   <nav aria-label="breadcrumb" class="d-none d-md-block">
         <ol class="breadcrumb mb-0" style="font-size:13px;">
             <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none text-primary">Home</a></li>
             <%
@@ -163,7 +172,7 @@ if (cartItems.isEmpty()) { %>
     <% } else { %>
     <div class="row g-4">
         <!-- Cart Items -->
-       <div class="col-lg-8">
+      <div class="col-lg-8 order-2 order-lg-1">
 <%
 // Group items by seller
 java.util.LinkedHashMap<Integer, java.util.List<java.util.Map<String, Object>>> shopGroups = new java.util.LinkedHashMap<>();
@@ -217,7 +226,7 @@ for (java.util.Map.Entry<Integer, java.util.List<java.util.Map<String, Object>>>
         <!-- Product Info -->
         <div class="flex-grow-1">
           <a href="product.jsp?id=<%= item.get("productId") %>" style="text-decoration:none; color:inherit;">
-    <h6 class="mb-1 fw-bold" style="font-size:13px; cursor:pointer;"><%= item.get("name") %></h6>
+    <h6 class="mb-1 fw-bold" style="font-size:13px; cursor:pointer; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;"><%= item.get("name") %></h6>
 </a>
 <%
     double cartRealPrice = item.get("price") != null ? (Double) item.get("price") : 0;
@@ -255,16 +264,16 @@ for (java.util.Map.Entry<Integer, java.util.List<java.util.Map<String, Object>>>
 <% } %>
         </div>
         <!-- Quantity + Remove -->
-        <div class="d-flex flex-column align-items-end gap-2">
+   <div class="d-flex flex-column align-items-end gap-2" style="flex-shrink:0; min-width:80px;">
             <button class="remove-btn" onclick="removeItem(<%= item.get("cartitemId") %>)">
                 <i class="bi bi-trash"></i>
             </button>
-            <div class="d-flex align-items-center gap-1">
+          <div class="d-flex align-items-center gap-1">
                 <button class="qty-btn" onclick="changeQty(<%= item.get("cartitemId") %>, -1, <%= item.get("stock") %>)">−</button>
                 <span class="qty-display" id="qty_<%= item.get("cartitemId") %>"><%= item.get("quantity") %></span>
                 <button class="qty-btn" onclick="changeQty(<%= item.get("cartitemId") %>, 1, <%= item.get("stock") %>)">+</button>
             </div>
-            <span class="text-muted fw-bold" style="font-size:13px;" id="sub_<%= item.get("cartitemId") %>">
+            <span class="text-muted fw-bold" style="font-size:13px; white-space:nowrap; min-width:70px; text-align:right;" id="sub_<%= item.get("cartitemId") %>">
                 ₱<%= String.format("%.2f", item.get("subtotal")) %>
             </span>
         </div>
@@ -276,7 +285,7 @@ for (java.util.Map.Entry<Integer, java.util.List<java.util.Map<String, Object>>>
         </div>
 
         <!-- Order Summary -->
-        <div class="col-lg-4">
+    <div class="col-lg-4 order-1 order-lg-2">
             <div class="summary-card">
                 <h6 class="fw-bold mb-3">Order Summary</h6>
                 <div class="d-flex justify-content-between mb-2">

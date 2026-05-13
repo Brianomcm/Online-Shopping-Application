@@ -88,6 +88,18 @@ public class CartServlet extends HttpServlet {
                         imgRs.close(); imgPs.close(); imgConn.close();
                     } catch (Exception ignored) {}
                 }
+             // Fallback to product_gallery if still no image
+                if (cartImg == null || cartImg.isEmpty()) {
+                    try {
+                        Connection galConn = DBConnection.getConnection();
+                        PreparedStatement galPs = galConn.prepareStatement(
+                            "SELECT image FROM product_gallery WHERE product_id=? ORDER BY sort_order ASC LIMIT 1");
+                        galPs.setInt(1, rs.getInt("product_id"));
+                        ResultSet galRs = galPs.executeQuery();
+                        if (galRs.next()) cartImg = galRs.getString("image");
+                        galRs.close(); galPs.close(); galConn.close();
+                    } catch (Exception ignored) {}
+                }
                 item.put("image", cartImg);
                 item.put("stock",           rs.getInt("stock"));
                 item.put("quantity",        rs.getInt("quantity"));

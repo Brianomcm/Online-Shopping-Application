@@ -315,6 +315,131 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
     cursor: grab;
 }
 #productCropCanvas:active { cursor: grabbing; }
+/* MOBILE BOTTOM NAV */
+@media (max-width: 767px) {
+    .col-md-3 { display: none !important; }
+    .col-md-9 { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; }
+    body { padding-bottom: 70px; }
+    .mobile-bottom-nav {
+        display: flex !important;
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        background: white;
+        border-top: 1px solid #d1f0e0;
+        z-index: 1000;
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    }
+    .mobile-bottom-nav a {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 4px;
+        color: #888;
+        text-decoration: none;
+        font-size: 10px;
+        gap: 3px;
+        border-top: 2px solid transparent;
+    }
+    .mobile-bottom-nav a.active {
+        color: #198754;
+        border-top-color: #198754;
+    }
+    .mobile-bottom-nav a i { font-size: 18px; }
+}
+@media (min-width: 768px) {
+    .mobile-bottom-nav { display: none !important; }
+}
+
+@media (max-width: 767px) {
+    /* Stat cards — mas compact */
+    .stat-box { padding: 10px 8px !important; border-radius: 12px !important; }
+    .stat-box .stat-num { font-size: 20px !important; }
+    .stat-box .stat-label { font-size: 11px !important; }
+    .row.g-3.mb-4 .col-6 { padding: 4px !important; }
+
+    /* Card sections */
+    .card-section { padding: 14px 12px !important; border-radius: 12px !important; }
+    .section-title { font-size: 13px !important; }
+
+    /* Dashboard summary cards — row instead of stacked */
+    #section-stats .col-md-4 { 
+        flex: 0 0 33.33% !important; 
+        max-width: 33.33% !important; 
+        padding: 4px !important; 
+    }
+    #section-stats .p-3 { padding: 10px 8px !important; }
+    #section-stats h4 { font-size: 18px !important; }
+    #section-stats p { font-size: 10px !important; }
+
+    /* Today's summary */
+    #tab-sales .col-6 .p-3 { padding: 10px 8px !important; }
+    #tab-sales h3 { font-size: 20px !important; }
+    #tab-sales p[style*="11px"] { font-size: 10px !important; }
+
+    /* Orders status tabs — scrollable single row */
+    #orderStatusTabs { 
+        flex-wrap: nowrap !important; 
+        overflow-x: auto !important; 
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+    }
+    #orderStatusTabs .nav-link { 
+        font-size: 11px !important; 
+        padding: 5px 8px !important; 
+        white-space: nowrap !important; 
+    }
+
+    /* Products list */
+    .product-row { padding: 10px 8px !important; border-radius: 10px !important; }
+    .product-img { width: 48px !important; height: 48px !important; }
+
+    /* Reviews */
+    #tab-reviews img { width: 50px !important; height: 50px !important; }
+    #tab-reviews .fw-bold { font-size: 12px !important; }
+    #tab-reviews p { font-size: 11px !important; }
+
+    /* Notifications */
+    #tab-notifications .d-flex.justify-content-between { 
+        flex-direction: column !important; 
+        gap: 8px !important; 
+    }
+    #tab-notifications .d-flex.gap-2 { width: 100%; }
+    #tab-notifications .d-flex.gap-2 button { 
+        flex: 1; font-size: 11px !important; padding: 5px 6px !important; 
+    }
+
+    /* Payout */
+    #tab-payout .p-4 { padding: 16px !important; }
+    #tab-payout h2 { font-size: 28px !important; }
+    #tab-payout .col-md-4 { 
+        flex: 0 0 33.33% !important; 
+        max-width: 33.33% !important; 
+    }
+    .payout-method-card { padding: 10px 6px !important; }
+    .payout-method-card p { font-size: 11px !important; }
+    .payout-method-card div[style*="48px"] { 
+        width: 36px !important; height: 36px !important; 
+    }
+}
+@media (max-width: 767px) {
+    .row.g-3.mb-4 { 
+        gap: 0 !important; 
+        row-gap: 0px !important;
+        margin-bottom: 4px !important;
+    }
+    .row.g-3.mb-4 > [class*="col"] {
+        padding: 1px !important;
+    }
+    .stat-box { 
+        padding: 8px 6px !important;
+        margin: 0 !important;
+        border-radius: 8px !important;
+    }
+    .stat-box .stat-num { font-size: 18px !important; }
+    .stat-box .stat-label { font-size: 10px !important; }
+}
     </style>
 </head>
 <body>
@@ -331,12 +456,13 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
             <i class="bi bi-bag-heart-fill"></i> ShopEasy
         </a>
         <div class="d-flex align-items-center gap-3">
-      <a href="index.jsp" class="btn btn-outline-secondary d-flex align-items-center gap-1">
+   <a href="index.jsp" class="btn btn-outline-secondary d-flex align-items-center gap-1 d-none d-md-flex">
     <i class="bi bi-house"></i> Home
 </a>
 <a href="SellerPageServlet?id=<%= (Integer) session.getAttribute("sellerId") %>" 
    class="btn btn-outline-success d-flex align-items-center gap-1">
-    <i class="bi bi-shop"></i> View My Shop
+    <i class="bi bi-shop"></i>
+    <span class="d-none d-md-inline">View My Shop</span>
 </a>
             <!-- PROFILE DROPDOWN -->
             <div class="dropdown">
@@ -344,7 +470,9 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                         type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:13px;">
                     <%
                     String sellerNavAvatar = (sellerPicture != null && !sellerPicture.isEmpty()) ? sellerPicture : (String) session.getAttribute("userAvatar");
-                        String sellerNavName = (String) session.getAttribute("userName");
+                    String sellerNavName = (String) session.getAttribute("userName");
+                    String sellerFirstName = (String) session.getAttribute("userFirstName");
+                    if (sellerFirstName != null && !sellerFirstName.isEmpty()) sellerNavName = sellerFirstName;
                         String sellerNavInitial = (sellerNavName != null && !sellerNavName.isEmpty()) ? String.valueOf(sellerNavName.charAt(0)).toUpperCase() : "S";
                         if (sellerNavAvatar != null && !sellerNavAvatar.isEmpty()) {
                     %>
@@ -352,7 +480,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
                     <% } else { %>
                        <div style="width:28px; height:28px; border-radius:50%; background:#0d6efd; color:white; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;"><%= sellerNavInitial %></div>
                     <% } %>
-                 <span class="d-none d-sm-inline fw-semibold"><%= (sellerNavName != null && !sellerNavName.isEmpty()) ? sellerNavName.split(" ")[0] : "Me" %></span>
+              <span class="d-none d-sm-inline fw-semibold"><%= (sellerNavName != null && !sellerNavName.isEmpty()) ? sellerNavName : "Me" %></span> 
                     <i class="bi bi-chevron-down" style="font-size:10px;"></i>
                 </button>
                <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width:220px; border-radius:12px; margin-top:6px;">
@@ -766,14 +894,20 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
         <p class="mb-1 fw-bold text-success">₱<%= String.format("%.2f", realPrice) %></p>
     <% } %>
 <% } %>
-    <%  int stock = displayStock;
+   <%  String prodStatus = product.get("status");
+        if ("pending".equals(prodStatus)) { %>
+        <span class="badge bg-warning text-dark stock-badge">⏳ Pending Review</span>
+    <% } else if ("rejected".equals(prodStatus)) { %>
+        <span class="badge bg-danger stock-badge">❌ Rejected</span>
+    <% } else {
+        int stock = displayStock;
         if (stock > 5) { %>
         <span class="badge bg-success stock-badge">In Stock</span>
     <% } else if (stock > 0) { %>
         <span class="badge bg-warning text-dark stock-badge">Low Stock</span>
     <% } else { %>
         <span class="badge bg-danger stock-badge">Out of Stock</span>
-    <% } %>
+    <% } } %>
 </div>
 
       <div class="d-flex flex-column gap-1">
@@ -832,7 +966,7 @@ if (!"seller".equals(sellerUserRole) && !"both".equals(sellerUserRole)) {
             java.sql.Connection sOrdConn = com.shopeasy.DBConnection.getConnection();
 
             String sOrdSql = "SELECT DISTINCT o.order_id, o.status, o.order_date, o.total_amount AS total_price, " +
-            	    "o.payment_method, c.name AS buyer_name, c.email AS buyer_email, " +
+            		"o.payment_method, CONCAT(c.first_name, IFNULL(CONCAT(' ', c.middle_initial, '.'), ''), ' ', c.last_name) AS buyer_name, c.email AS buyer_email, " +
             	    		"o.shipping_address AS address, " +
             	    				"o.shipping_address AS addr_name, NULL AS phone " +
             	    "FROM orders o " +
@@ -1833,7 +1967,7 @@ try {
                 <p class="text-muted mb-1" style="font-size:14px;">
                     <span id="bankAmountText" class="fw-bold text-primary"></span> bank transfer is now being processed.
                 </p>
-                <p class="text-muted" style="font-size:12px;">Expected arrival: <strong>1-3 banking days</strong>. We'll notify you once it's completed.</p>
+              <p class="text-muted" style="font-size:12px;">Your request is now <strong>pending admin approval</strong>. We'll notify you once it's processed.</p>
              <button class="btn btn-primary px-4 mt-2" onclick="bootstrap.Modal.getInstance(document.getElementById('payoutBankModal')).hide(); setTimeout(()=>window.location.href='seller.jsp?tab=payout',300)">Got It</button>
             </div>
         </div>
@@ -1927,26 +2061,18 @@ function proceedPayout() {
     })
         .then(r => r.json())
         .then(data => {
-        	if (!data.success) {
+            if (!data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('payoutLoadingModal')).hide();
                 showSellerToast(data.message || 'Error processing payout.', 'error');
                 return;
             }
-            const isInstant = (method === 'GCash' || method === 'Maya');
-            const delay = isInstant ? 2500 : 3000;
             setTimeout(() => {
                 bootstrap.Modal.getInstance(document.getElementById('payoutLoadingModal')).hide();
                 setTimeout(() => {
-                    if (isInstant) {
-                    	document.getElementById('successMethodText').innerText = method;
-                        document.getElementById('successAmountText').innerText = '₱' + receive.toFixed(2);
-                        new bootstrap.Modal(document.getElementById('payoutSuccessModal')).show();
-                    } else {
-                        document.getElementById('bankAmountText').innerText = '₱' + receive.toFixed(2);
-                        new bootstrap.Modal(document.getElementById('payoutBankModal')).show();
-                    }
+                    document.getElementById('bankAmountText').innerText = '₱' + receive.toFixed(2);
+                    new bootstrap.Modal(document.getElementById('payoutBankModal')).show();
                 }, 300);
-            }, delay);
+            }, 2000);
         })
         .catch(() => {
             bootstrap.Modal.getInstance(document.getElementById('payoutLoadingModal')).hide();
@@ -2363,8 +2489,9 @@ window.addEventListener('load', function() {
             msg === 'banner' ? 'Banner updated successfully! ✅' :
             msg === 'profile' ? 'Profile saved successfully! ✅' :
             msg === 'avatar' ? 'Profile picture updated! ✅' :
-            msg === 'product' ? 'Product saved successfully! ✅' :
-            msg === 'deleted' ? 'Product deleted! ✅' :
+            	msg === 'product' ? 'Product saved successfully! ✅' :
+                    msg === 'product_pending' ? '⏳ Product submitted for review! Admin will approve it shortly.' :
+                    msg === 'deleted' ? 'Product deleted! ✅' :
             'Saved successfully! ✅';
         document.getElementById('successBar').style.display = 'block';
         setTimeout(() => { document.getElementById('successBar').style.display = 'none'; }, 3000);
@@ -2398,6 +2525,57 @@ window.addEventListener('load', function() {
     srch.setAttribute('readonly', '');
     setTimeout(() => { srch.value = ''; }, 100);
     setTimeout(() => { srch.value = ''; }, 500);
+    document.querySelector('form[action="UpdateSellerServlet"]').addEventListener('submit', function(e) {
+        e.preventDefault();
+        document.getElementById('savingOverlay').style.display = 'flex';
+        setTimeout(() => { this.submit(); }, 1500);
+    });
+
+ // Sale Price validation - Add Product form
+    document.getElementById('addSimpleOrigPrice').addEventListener('input', function() {
+        const basePrice = parseFloat(document.getElementById('addSimplePrice').value) || 0;
+        const salePrice = parseFloat(this.value);
+        const err = document.getElementById('addSalePriceError');
+        if (!isNaN(salePrice) && this.value !== '' && salePrice > basePrice) {
+            this.style.borderColor = 'red';
+            err.style.display = 'block';
+        } else {
+            this.style.borderColor = '';
+            err.style.display = 'none';
+        }
+    });
+    document.getElementById('productForm').addEventListener('submit', function(e) {
+        const basePrice = parseFloat(document.getElementById('addSimplePrice').value) || 0;
+        const salePrice = parseFloat(document.getElementById('addSimpleOrigPrice').value);
+        if (!isNaN(salePrice) && document.getElementById('addSimpleOrigPrice').value !== '' && salePrice > basePrice) {
+            e.preventDefault();
+            document.getElementById('addSimpleOrigPrice').focus();
+            return false;
+        }
+    });
+
+    // Sale Price validation - Edit Product form
+    document.getElementById('editOriginalPrice').addEventListener('input', function() {
+        const basePrice = parseFloat(document.getElementById('editProductPrice').value) || 0;
+        const salePrice = parseFloat(this.value);
+        const err = document.getElementById('editSalePriceError');
+        if (!isNaN(salePrice) && this.value !== '' && salePrice > basePrice) {
+            this.style.borderColor = 'red';
+            err.style.display = 'block';
+        } else {
+            this.style.borderColor = '';
+            err.style.display = 'none';
+        }
+    });
+    document.querySelector('form[action="EditProductServlet"]').addEventListener('submit', function(e) {
+        const basePrice = parseFloat(document.getElementById('editProductPrice').value) || 0;
+        const salePrice = parseFloat(document.getElementById('editOriginalPrice').value);
+        if (!isNaN(salePrice) && document.getElementById('editOriginalPrice').value !== '' && salePrice > basePrice) {
+            e.preventDefault();
+            document.getElementById('editOriginalPrice').focus();
+            return false;
+        }
+    });
 });
 function doLogout() {
     new bootstrap.Modal(document.getElementById('logoutConfirmModal')).show();
@@ -2407,29 +2585,7 @@ function confirmLogout() {
     document.getElementById('logoutOverlay').style.display = 'flex';
     setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
 }
-    
-   
 
-    document.querySelector('form[action="UpdateSellerServlet"]').addEventListener('submit', function(e) {
-        e.preventDefault();
-        document.getElementById('savingOverlay').style.display = 'flex';
-        setTimeout(() => { this.submit(); }, 1500);
-    });
-
-    document.getElementById('productForm').addEventListener('submit', function(e) {
-        // Validate — if variation mode, make sure at least 1 variation exists
-        const isVariation = document.getElementById('addTypeVariation') && document.getElementById('addTypeVariation').checked;
-        if (isVariation) {
-            const rows = document.querySelectorAll('#variationsContainer .border');
-            if (rows.length === 0) {
-                e.preventDefault();
-                alert('Please add at least one variation, or switch to Single Product.');
-                return;
-            }
-        }
-        document.getElementById('savingOverlay').style.display = 'flex';
-    });
-    
     function removeBanner() {
       
         document.getElementById('bannerData').value = '';
@@ -2447,9 +2603,10 @@ function confirmLogout() {
         document.getElementById('variationsContainer').innerHTML = '';
         document.getElementById('productImageData').value = '';
         document.getElementById('productThumbnailData').value = '';
-        document.getElementById('galleryAddPreviews').innerHTML = '';
-        document.getElementById('galleryImagesData').value = '';
         addGalleryFiles = [];
+        document.getElementById('galleryImagesData').value = '';
+        document.getElementById('productImageData').value = '';
+        renderGalleryPreviews('add');
         document.getElementById('productThumbnailPreview').style.display = 'none';
         // Reset to simple mode
         document.getElementById('addTypeSimple').checked = true;
@@ -2725,9 +2882,7 @@ function confirmLogout() {
 
     function editProduct(id) {
         const btn = document.querySelector('button[data-pid="' + id + '"]');
-        const card = btn ? btn.closest('.product-row') : null;
-        const thumbImg = card ? card.querySelector('img.product-img') : null;
-        const thumbnail = (thumbImg && thumbImg.src && !thumbImg.src.endsWith('/seller.jsp')) ? thumbImg.src : '';
+        const thumbnail = '';
 
         const name = btn ? btn.dataset.name : '';
         const price = btn ? btn.dataset.price : '';
@@ -2744,17 +2899,25 @@ function confirmLogout() {
         const container = document.getElementById('editVariationsContainer');
         container.innerHTML = '<p class="text-muted" style="font-size:12px;"><i class="bi bi-hourglass-split"></i> Loading...</p>';
 
-        // Reset thumbnail preview
+     // Reset thumbnail preview
         document.getElementById('editThumbnailPreview').style.display = 'none';
         document.getElementById('editThumbPreviewImg').src = '';
         document.getElementById('editThumbnailData').value = '';
+        document.getElementById('removeThumbnailFlag').value = 'false';
 
-        // Show existing thumbnail if available
-        if (thumbnail && thumbnail !== '') {
-            document.getElementById('editThumbPreviewImg').src = thumbnail;
-            document.getElementById('editThumbnailPreview').style.display = 'block';
-        }
-
+     // Load thumbnail from DB via fetch
+        fetch('GetProductThumbnailServlet?productId=' + id)
+            .then(r => r.json())
+            .then(data => {
+                if (data.thumbnail && data.thumbnail !== '') {
+                    document.getElementById('editThumbPreviewImg').src = data.thumbnail;
+                    document.getElementById('editThumbnailPreview').style.display = 'block';
+                } else {
+                    document.getElementById('editThumbnailPreview').style.display = 'none';
+                }
+            }).catch(() => {
+                document.getElementById('editThumbnailPreview').style.display = 'none';
+            });
         fetch('GetVariationsServlet?productId=' + id)
             .then(r => r.json())
             .then(vars => {
@@ -2779,6 +2942,22 @@ function confirmLogout() {
                 document.getElementById('editProductStock').value = stock;
             });
 
+        
+     // Load existing gallery images
+editGalleryFiles = [];
+        document.getElementById('editGalleryPreviews').innerHTML = '';
+        document.getElementById('editGalleryImagesData').value = '';
+        fetch('GetProductThumbnailServlet?productId=' + id + '&gallery=true')
+        .then(r => r.json())
+        .then(data => {
+            if (data.gallery && data.gallery.length > 0) {
+                editGalleryFiles = data.gallery;
+                document.getElementById('editGalleryImageData').value = editGalleryFiles[0] || '';
+                document.getElementById('editGalleryImagesData').value = JSON.stringify(editGalleryFiles);
+            }
+            renderGalleryPreviews('edit');
+        }).catch(() => { renderGalleryPreviews('edit'); });
+        
         const eModal = document.getElementById('editProductModal');
         eModal.style.display = 'flex';
         eModal.scrollTop = 0;
@@ -2933,6 +3112,27 @@ function confirmLogout() {
         .catch(() => showSellerToast('Error processing request. Please try again.', 'error'));
     }
 </script>
+
+<!-- Logout Confirm Modal -->
+<div class="modal fade" id="logoutConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-5">
+                <div style="width:70px; height:70px; background:linear-gradient(135deg,#dc3545,#c0392b); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+                    <i class="bi bi-box-arrow-right" style="font-size:30px; color:white;"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Log Out?</h5>
+                <p class="text-muted mb-1" style="font-size:14px;">Are you sure you want to logout?</p>
+                <div class="d-flex gap-2 justify-content-center mt-4">
+                    <button class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger px-4" onclick="confirmLogout()">
+                        <i class="bi bi-box-arrow-right me-1"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- LOGOUT OVERLAY -->
 <div id="logoutOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
@@ -3089,8 +3289,9 @@ function confirmLogout() {
                         <input type="number" name="price" id="addSimplePrice" class="form-control" placeholder="0.00" step="0.01" min="0" required>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-bold" style="font-size:13px;">Sale Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional</span></label>
+                     <label class="form-label fw-bold" style="font-size:13px;">Sale Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional</span></label>
                         <input type="number" name="originalPrice" id="addSimpleOrigPrice" class="form-control" placeholder="e.g. 199.00" step="0.01" min="0">
+                     <small id="addSalePriceError" style="color:red; display:none; font-size:10px;">⚠ Sale Price must be lower than Base Price.</small>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold" style="font-size:13px;">Stock</label>
@@ -3117,14 +3318,15 @@ function confirmLogout() {
                     <i class="bi bi-plus"></i> Add Variation
                 </button>
             </div>
-
-      <!-- GALLERY IMAGES (multiple) -->
+<!-- GALLERY IMAGES (+ button style) -->
             <div class="col-12">
-                <label class="form-label fw-bold" style="font-size:13px;">📸 Product Gallery Images <span class="text-muted fw-normal" style="font-size:11px;">up to 5 photos — first photo shown in product page</span></label>
-                <input type="file" id="productImageInput" class="form-control" accept="image/*" multiple onchange="handleMultiGalleryUpload(this)">
+                <label class="form-label fw-bold" style="font-size:13px;">📸 Product Gallery Images <span class="text-muted fw-normal" style="font-size:11px;">up to 3 photos — first photo is the main image</span></label>
+                <input type="file" id="productImageInput" accept="image/*" style="display:none" onchange="addSingleGalleryImage(this, 'add')">
                 <input type="hidden" name="productImage" id="productImageData">
-                <div id="galleryAddPreviews" class="d-flex gap-2 flex-wrap mt-2"></div>
                 <input type="hidden" name="galleryImages" id="galleryImagesData">
+                <div id="galleryAddPreviews" class="d-flex gap-2 flex-wrap mt-2 align-items-center">
+                    <div id="addGalleryPlusBtn" onclick="document.getElementById('productImageInput').click()" style="width:80px;height:80px;border:2px dashed #aaa;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:28px;color:#aaa;">+</div>
+                </div>
             </div>
 
             <!-- THUMBNAIL -->
@@ -3132,9 +3334,14 @@ function confirmLogout() {
                 <label class="form-label fw-bold" style="font-size:13px;">⭐ Product Thumbnail <span class="text-muted fw-normal" style="font-size:11px;">used for product cards — leave blank to auto-use gallery image</span></label>
                 <input type="file" id="productThumbnailInput" class="form-control" accept="image/*" onchange="previewThumbnail(this)">
                 <input type="hidden" name="productThumbnail" id="productThumbnailData">
-                <div id="productThumbnailPreview" class="mt-2" style="display:none;">
-                    <img id="productThumbPreviewImg" src="" style="width:70px; height:70px; object-fit:cover; border-radius:8px; border:2px solid #0d6efd;">
-                </div>
+           <div id="productThumbnailPreview" class="mt-2" style="display:none;">
+    <div class="d-flex align-items-center gap-2">
+        <img id="productThumbPreviewImg" src="" style="width:70px; height:70px; object-fit:cover; border-radius:8px; border:2px solid #0d6efd;">
+        <button type="button" onclick="removeAddThumbnail()" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-trash"></i> Remove
+        </button>
+    </div>
+</div>
             </div>
 
 
@@ -3218,9 +3425,10 @@ function confirmLogout() {
                         <label class="form-label fw-bold" style="font-size:13px;">Base Price (₱)</label>
                         <input type="number" name="price" id="editProductPrice" class="form-control" step="0.01" min="0" required>
                     </div>
-                    <div class="col-md-4">
+                  <div class="col-md-4">
                         <label class="form-label fw-bold" style="font-size:13px;">Sale Price (₱) <span class="text-muted fw-normal" style="font-size:11px;">optional</span></label>
                         <input type="number" name="originalPrice" id="editOriginalPrice" class="form-control" step="0.01" min="0">
+                      <small id="editSalePriceError" style="color:red; display:none; font-size:10px;">⚠ Sale Price must be lower than Base Price.</small>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold" style="font-size:13px;">Stock</label>
@@ -3240,21 +3448,28 @@ function confirmLogout() {
             </div>
 
 <div class="col-12">
-                <label class="form-label fw-bold" style="font-size:13px;">📸 Product Gallery Images <span class="text-muted fw-normal" style="font-size:11px;">up to 5 photos — leave blank to keep existing</span></label>
-                <input type="file" class="form-control" accept="image/*" multiple onchange="handleEditMultiGalleryUpload(this)">
+                <label class="form-label fw-bold" style="font-size:13px;">📸 Product Gallery Images <span class="text-muted fw-normal" style="font-size:11px;">up to 3 photos — leave blank to keep existing</span></label>
+                <input type="file" id="editProductImageInput" accept="image/*" style="display:none" onchange="addSingleGalleryImage(this, 'edit')">
                 <input type="hidden" name="productImage" id="editGalleryImageData">
-                <div id="editGalleryPreviews" class="d-flex gap-2 flex-wrap mt-2"></div>
                 <input type="hidden" name="galleryImages" id="editGalleryImagesData">
+          <div id="editGalleryPreviews" class="d-flex gap-2 flex-wrap mt-2 align-items-center">
+</div>
             </div>
             
 <!-- EDIT THUMBNAIL -->
             <div class="col-12" id="editThumbnailSection">
                 <label class="form-label fw-bold" style="font-size:13px;">⭐ Product Thumbnail <span class="text-muted fw-normal" style="font-size:11px;">leave blank to keep existing</span></label>
                 <input type="file" class="form-control" accept="image/*" onchange="previewEditThumbnail(this)">
-                <input type="hidden" name="thumbnail" id="editThumbnailData">
-                <div id="editThumbnailPreview" class="mt-2" style="display:none;">
-                    <img id="editThumbPreviewImg" src="" style="width:70px; height:70px; object-fit:cover; border-radius:8px; border:2px solid #0d6efd;">
-                </div>
+            <input type="hidden" name="thumbnail" id="editThumbnailData">
+<input type="hidden" name="removeThumbnail" id="removeThumbnailFlag" value="false">
+          <div id="editThumbnailPreview" class="mt-2" style="display:none;">
+    <div class="d-flex align-items-center gap-2">
+        <img id="editThumbPreviewImg" src="" style="width:70px; height:70px; object-fit:cover; border-radius:8px; border:2px solid #0d6efd;">
+        <button type="button" onclick="removeEditThumbnail()" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-trash"></i> Remove
+        </button>
+    </div>
+</div>
             </div>
 
             <!-- EDIT VARIATIONS SECTION -->
@@ -3621,80 +3836,92 @@ function filterSellerOrders(val) {
         card.style.display = (!v || id.includes(v)) ? '' : 'none';
     });
 }
-//===== MULTI GALLERY UPLOAD (ADD) =====
 let addGalleryFiles = [];
-function handleMultiGalleryUpload(input) {
-    const files = Array.from(input.files).slice(0, 5);
-    addGalleryFiles = [];
-    document.getElementById('galleryAddPreviews').innerHTML = '';
-    files.forEach((file, idx) => {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            addGalleryFiles[idx] = e.target.result;
-            // Update hidden fields
-            document.getElementById('productImageData').value = addGalleryFiles[0] || '';
-            document.getElementById('galleryImagesData').value = JSON.stringify(addGalleryFiles);
-            // Preview
-            renderAddGalleryPreviews();
-        };
-        reader.readAsDataURL(file);
-    });
-}
-function renderAddGalleryPreviews() {
-    const container = document.getElementById('galleryAddPreviews');
-    container.innerHTML = '';
-    addGalleryFiles.forEach((src, idx) => {
-        if (!src) return;
-        const wrap = document.createElement('div');
-        wrap.style = 'position:relative; display:inline-block;';
-        wrap.innerHTML = '<img src="' + src + '" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid ' + (idx===0?'#0d6efd':'#198754') + ';">' +
-            '<span onclick="removeAddGalleryImg(' + idx + ')" style="position:absolute;top:-6px;right:-6px;background:#dc3545;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:bold;">×</span>' +
-            (idx===0 ? '<div style="font-size:9px;text-align:center;color:#0d6efd;font-weight:bold;">MAIN</div>' : '');
-        container.appendChild(wrap);
-    });
-}
-function removeAddGalleryImg(idx) {
-    addGalleryFiles.splice(idx, 1);
-    document.getElementById('productImageData').value = addGalleryFiles[0] || '';
-    document.getElementById('galleryImagesData').value = JSON.stringify(addGalleryFiles);
-    renderAddGalleryPreviews();
+let editGalleryFiles = [];
+
+function addSingleGalleryImage(input, mode) {
+    if (!input.files || !input.files[0]) return;
+    const files = mode === 'add' ? addGalleryFiles : editGalleryFiles;
+    const dataId = mode === 'add' ? 'galleryImagesData' : 'editGalleryImagesData';
+    const mainId = mode === 'add' ? 'productImageData' : 'editGalleryImageData';
+    const inputId = mode === 'add' ? 'productImageInput' : 'editProductImageInput';
+
+    if (files.length >= 3) {
+        alert('Maximum 3 photos only!');
+        document.getElementById(inputId).value = '';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        files.push(e.target.result);
+        document.getElementById(mainId).value = files[0] || '';
+        document.getElementById(dataId).value = JSON.stringify(files);
+        renderGalleryPreviews(mode);
+        document.getElementById(inputId).value = '';
+    };
+    reader.readAsDataURL(input.files[0]);
 }
 
-// ===== MULTI GALLERY UPLOAD (EDIT) =====
-let editGalleryFiles = [];
-function handleEditMultiGalleryUpload(input) {
-    const files = Array.from(input.files).slice(0, 5);
-    editGalleryFiles = [];
-    document.getElementById('editGalleryPreviews').innerHTML = '';
-    files.forEach((file, idx) => {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            editGalleryFiles[idx] = e.target.result;
-            document.getElementById('editGalleryImageData').value = editGalleryFiles[0] || '';
-            document.getElementById('editGalleryImagesData').value = JSON.stringify(editGalleryFiles);
-            renderEditGalleryPreviews();
-        };
-        reader.readAsDataURL(file);
-    });
-}
-function renderEditGalleryPreviews() {
-    const container = document.getElementById('editGalleryPreviews');
+function renderGalleryPreviews(mode) {
+    const files = mode === 'add' ? addGalleryFiles : editGalleryFiles;
+    const containerId = mode === 'add' ? 'galleryAddPreviews' : 'editGalleryPreviews';
+    const container = document.getElementById(containerId);
+    const plusInputId = mode === 'add' ? 'productImageInput' : 'editProductImageInput';
     container.innerHTML = '';
-    editGalleryFiles.forEach((src, idx) => {
+    files.forEach((src, idx) => {
         if (!src) return;
         const wrap = document.createElement('div');
-        wrap.style = 'position:relative; display:inline-block;';
+        wrap.style.cssText = 'position:relative;display:inline-block;';
         wrap.innerHTML = '<img src="' + src + '" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid ' + (idx===0?'#0d6efd':'#198754') + ';">' +
-            '<span onclick="removeEditGalleryImg(' + idx + ')" style="position:absolute;top:-6px;right:-6px;background:#dc3545;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:bold;">×</span>' +
+            '<span onclick="removeGalleryImg(' + idx + ',\'' + mode + '\')" style="position:absolute;top:-6px;right:-6px;background:#dc3545;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:bold;">×</span>' +
             (idx===0 ? '<div style="font-size:9px;text-align:center;color:#0d6efd;font-weight:bold;">MAIN</div>' : '');
         container.appendChild(wrap);
     });
+    if (files.length < 3) {
+        const plus = document.createElement('div');
+        plus.onclick = function() { document.getElementById(plusInputId).click(); };
+        plus.style.cssText = 'width:80px;height:80px;border:2px dashed #aaa;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:28px;color:#aaa;';
+        plus.innerHTML = '+';
+        container.appendChild(plus);
+    }
 }
-function removeEditGalleryImg(idx) {
-    editGalleryFiles.splice(idx, 1);
-    document.getElementById('editGalleryImageData').value = editGalleryFiles[0] || '';
-    document.getElementById('editGalleryImagesData').value = JSON.stringify(editGalleryFiles);
-    renderEditGalleryPreviews();
+
+function removeGalleryImg(idx, mode) {
+    const files = mode === 'add' ? addGalleryFiles : editGalleryFiles;
+    const dataId = mode === 'add' ? 'galleryImagesData' : 'editGalleryImagesData';
+    const mainId = mode === 'add' ? 'productImageData' : 'editGalleryImageData';
+    files.splice(idx, 1);
+    document.getElementById(mainId).value = files[0] || '';
+    document.getElementById(dataId).value = JSON.stringify(files);
+    renderGalleryPreviews(mode);
+}
+
+function removeEditThumbnail() {
+    document.getElementById('editThumbnailData').value = '';
+    document.getElementById('editThumbPreviewImg').src = '';
+    document.getElementById('editThumbnailPreview').style.display = 'none';
+    document.getElementById('removeThumbnailFlag').value = 'true';
+}
+function removeAddThumbnail() {
+    document.getElementById('productThumbnailData').value = '';
+    document.getElementById('productThumbPreviewImg').src = '';
+    document.getElementById('productThumbnailPreview').style.display = 'none';
+}
+
+function showTabMobile(tab, el) {
+    if (tab === 'more') {
+        const drawer = document.getElementById('moreDrawer');
+        drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none';
+        return;
+    }
+    closeMoreDrawer();
+    showTab(tab, el);
+    document.querySelectorAll('.mobile-bottom-nav a').forEach(a => a.classList.remove('active'));
+    el.classList.add('active');
+    window.scrollTo(0, 0);
+}
+function closeMoreDrawer() {
+    document.getElementById('moreDrawer').style.display = 'none';
 }
 </script>
 <!-- SHOP LOGO CROP MODAL -->
@@ -3732,6 +3959,48 @@ function removeEditGalleryImg(idx) {
         </div>
     </div>
 </div>
+<!-- MOBILE BOTTOM NAV -->
+<div class="mobile-bottom-nav">
+    <a href="#" onclick="showTabMobile('home', this)" class="active" id="mbnav-home">
+        <i class="bi bi-shop"></i>
+        <span>Shop</span>
+    </a>
+    <a href="#" onclick="showTabMobile('products', this)" id="mbnav-products">
+        <i class="bi bi-box-seam"></i>
+        <span>Products</span>
+    </a>
+    <a href="#" onclick="showTabMobile('orders', this)" id="mbnav-orders">
+        <i class="bi bi-bag"></i>
+        <span>Orders</span>
+    </a>
+    <a href="#" onclick="showTabMobile('sales', this)" id="mbnav-sales">
+        <i class="bi bi-speedometer2"></i>
+        <span>Dashboard</span>
+    </a>
+    <a href="#" onclick="showTabMobile('notifications', this)" id="mbnav-notifs">
+        <i class="bi bi-bell"></i>
+        <span>Notifs</span>
+    </a>
+    <a href="#" onclick="showTabMobile('more', this)" id="mbnav-more">
+        <i class="bi bi-grid"></i>
+        <span>More</span>
+    </a>
+</div>
 
+<!-- MORE DRAWER -->
+<div id="moreDrawer" style="display:none; position:fixed; bottom:70px; left:0; right:0; background:white; border-top:1px solid #d1f0e0; z-index:999; padding:12px; box-shadow:0 -4px 16px rgba(0,0,0,0.1);">
+<div class="row g-2 text-center justify-content-center">
+    <div class="col-4">
+        <a href="#" onclick="showTabMobile('reviews', document.getElementById('mbnav-more')); closeMoreDrawer();" class="d-flex flex-column align-items-center gap-1 text-decoration-none text-muted p-2 rounded-3" style="font-size:12px;">
+            <i class="bi bi-star-fill text-warning" style="font-size:22px;"></i>Reviews
+        </a>
+    </div>
+    <div class="col-4">
+        <a href="#" onclick="showTabMobile('payout', document.getElementById('mbnav-more')); closeMoreDrawer();" class="d-flex flex-column align-items-center gap-1 text-decoration-none text-muted p-2 rounded-3" style="font-size:12px;">
+            <i class="bi bi-wallet2 text-success" style="font-size:22px;"></i>Payout
+        </a>
+    </div>
+</div>
+</div>
 </body>
 </html>

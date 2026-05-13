@@ -40,7 +40,10 @@ public class EditProductServlet extends HttpServlet {
         String[] varKeepImages = request.getParameterValues("editVarKeepImage[]");
         String thumbnail           = request.getParameter("thumbnail");
         String galleryImage        = request.getParameter("productImage");
-
+        String removeThumbnail     = request.getParameter("removeThumbnail");
+        System.out.println("DEBUG removeThumbnail: " + removeThumbnail);
+        System.out.println("DEBUG thumbnail: " + thumbnail);
+        System.out.println("DEBUG clearThumb will be: " + "true".equals(removeThumbnail));
         try {
             Connection conn = DBConnection.getConnection();
 
@@ -49,12 +52,15 @@ public class EditProductServlet extends HttpServlet {
             String updateSql;
             boolean hasThumb = thumbnail != null && !thumbnail.isEmpty();
             boolean hasImage = galleryImage != null && !galleryImage.isEmpty();
+            boolean clearThumb = "true".equals(removeThumbnail);
             if (hasThumb && hasImage) {
                 updateSql = "UPDATE product SET name=?, price=?, original_price=?, stock=?, description=?, category_id=?, thumbnail=?, image=? WHERE product_id=?";
             } else if (hasThumb) {
                 updateSql = "UPDATE product SET name=?, price=?, original_price=?, stock=?, description=?, category_id=?, thumbnail=? WHERE product_id=?";
             } else if (hasImage) {
                 updateSql = "UPDATE product SET name=?, price=?, original_price=?, stock=?, description=?, category_id=?, image=? WHERE product_id=?";
+            } else if (clearThumb) {
+                updateSql = "UPDATE product SET name=?, price=?, original_price=?, stock=?, description=?, category_id=?, thumbnail=NULL WHERE product_id=?";
             } else {
                 updateSql = "UPDATE product SET name=?, price=?, original_price=?, stock=?, description=?, category_id=? WHERE product_id=?";
             }
@@ -83,6 +89,8 @@ public class EditProductServlet extends HttpServlet {
             } else if (hasImage) {
                 ps.setString(7, galleryImage);
                 ps.setInt(8, Integer.parseInt(productId));
+            } else if (clearThumb) {
+                ps.setInt(7, Integer.parseInt(productId));
             } else {
                 ps.setInt(7, Integer.parseInt(productId));
             }
@@ -123,11 +131,16 @@ public class EditProductServlet extends HttpServlet {
                             if (varImages != null && i < varImages.length && varImages[i] != null && !varImages[i].isEmpty()) {
                                 vi = varImages[i]; // new image uploaded
                             } else {
-                                // Use pre-fetched existing image
-                                String origVarId = (varIds != null && i < varIds.length) ? varIds[i] : null;
-                                if (origVarId != null && !origVarId.isEmpty()) {
-                                    vi = existingVarImages.get(origVarId);
+                                // Check if user removed the image
+                                String keepFlag = (varKeepImages != null && i < varKeepImages.length) ? varKeepImages[i] : "keep";
+                                if ("keep".equals(keepFlag)) {
+                                    // Keep existing image
+                                    String origVarId = (varIds != null && i < varIds.length) ? varIds[i] : null;
+                                    if (origVarId != null && !origVarId.isEmpty()) {
+                                        vi = existingVarImages.get(origVarId);
+                                    }
                                 }
+                                // else vi stays null = remove image
                             }
                             if (vp != null) varPs.setDouble(4, Double.parseDouble(vp));
                             else varPs.setNull(4, java.sql.Types.DECIMAL);

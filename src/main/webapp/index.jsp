@@ -1,6 +1,8 @@
+
 <%@ page session="true" %>
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%
+
     String searchParam = request.getParameter("search");
     java.util.List<java.util.Map<String, Object>> products = new java.util.ArrayList<>();
     try {
@@ -149,6 +151,26 @@ prod.put("sellerUserId", prodRs.getInt("seller_user_id"));
     } catch (Exception ex) {
         ex.printStackTrace();
     }
+
+    // Check pending seller application
+  boolean hasPendingApplication = false;
+    boolean hasApprovedApplication = false;
+    Integer pendingCheckId = (Integer) session.getAttribute("userId");
+    if (pendingCheckId != null) {
+        try {
+            java.sql.Connection pendingConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement pendingPs = pendingConn.prepareStatement(
+                "SELECT status FROM seller_application WHERE user_id=? ORDER BY application_id DESC LIMIT 1");
+            pendingPs.setInt(1, pendingCheckId);
+            java.sql.ResultSet pendingRs = pendingPs.executeQuery();
+            if (pendingRs.next()) {
+                String appStatus = pendingRs.getString("status");
+                hasPendingApplication = "pending".equals(appStatus);
+                hasApprovedApplication = "approved".equals(appStatus);
+            }
+            pendingRs.close(); pendingPs.close(); pendingConn.close();
+        } catch(Exception ex) {}
+    }
 %>
 
 <%
@@ -233,10 +255,14 @@ input::-webkit-contacts-auto-fill-button {
     background: #f8f9fa;
     padding: 8px;
 }
-        @media (max-width: 576px) {
-            .product-card img { height: 120px; }
-            .card-title { font-size: 13px; }
-            .card-body { padding: 8px; }
+    @media (max-width: 576px) {
+            .product-card img { height: 100px; }
+            .card-title { font-size: 12px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+            .card-body { padding: 6px 8px; }
+            .card-body .text-muted { font-size: 10px !important; }
+            .card-body .badge { font-size: 9px !important; }
+            .card-body p { margin-bottom: 2px !important; font-size: 12px; }
+            .card-body .btn { font-size: 11px !important; padding: 5px 8px !important; }
         }
         .hero-section {
             background: linear-gradient(135deg, #0d6efd, #0056b3);
@@ -297,6 +323,71 @@ input::-webkit-contacts-auto-fill-button {
             animation: spin 0.7s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        
+@media (max-width: 576px) {
+    #categoryRow {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 6px !important;
+        padding: 0 4px !important;
+    }
+    #categoryRow .col {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        max-width: none !important;
+        padding: 0 !important;
+    }
+    #categoryRow .category-card {
+        border-radius: 20px !important;
+        padding: 6px 14px !important;
+        background: #f0f0f0 !important;
+        border: 1px solid #ddd !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    #categoryRow .category-card i {
+        display: none !important;
+    }
+    #categoryRow .category-card small {
+        font-size: 12px !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+        color: #333 !important;
+        font-weight: 500 !important;
+    }
+    #categoryRow .category-card.active {
+        background: #0d6efd !important;
+        border-color: #0d6efd !important;
+    }
+    #categoryRow .category-card.active small {
+        color: white !important;
+    }
+}
+
+
+@media (max-width: 576px) {
+    footer { padding: 32px 0 0 0 !important; margin-top: 32px !important; }
+    footer .container { padding-left: 16px !important; padding-right: 16px !important; }
+    footer .row.g-4 { gap: 0 !important; }
+    footer .col-lg-4, footer .col-lg-2, footer .col-md-6, footer .col-6 { 
+        margin-bottom: 20px !important; 
+    }
+    footer p[style*="22px"] { font-size: 16px !important; }
+    footer span[style*="22px"] { font-size: 18px !important; }
+    footer .d-flex.gap-2 div[style*="34px"] { 
+        width: 28px !important; height: 28px !important; 
+    }
+    footer .d-flex.gap-2 div i { font-size: 12px !important; }
+    footer ul li { margin-bottom: 6px !important; }
+    footer a { font-size: 12px !important; }
+    footer p[style*="font-size:12px"] { font-size: 11px !important; }
+    footer div[style*="36px"] { 
+        width: 30px !important; height: 30px !important; min-width: 30px !important; 
+    }
+}
+
     </style>
 </head>
 <body>
@@ -339,7 +430,13 @@ input::-webkit-contacts-auto-fill-button {
         <!-- Nav Buttons -->
         <div class="d-flex gap-2 align-items-center">
         <%
-            String loggedUser = (String) session.getAttribute("userName");
+        String loggedUser = (String) session.getAttribute("userName");
+        String idxFirstName = (String) session.getAttribute("userFirstName");
+        String idxLastName  = (String) session.getAttribute("userLastName");
+        String idxMI        = (String) session.getAttribute("userMiddleInitial");
+        if (idxFirstName == null) idxFirstName = "";
+        if (idxLastName  == null) idxLastName  = "";
+        if (idxMI        == null) idxMI        = "";
             String loggedRole = (String) session.getAttribute("userRole");
             String loggedEmail = (String) session.getAttribute("userEmail");
             if (loggedUser != null) {
@@ -369,13 +466,16 @@ input::-webkit-contacts-auto-fill-button {
                         </div>
                     <% } %>
                     <%
-                        String displayName = loggedUser;
+                    String displayName = !idxFirstName.isEmpty() ? idxFirstName : loggedUser;
+                    String fullDisplayName = !idxLastName.isEmpty()
+                        ? idxLastName + ", " + idxFirstName + (!idxMI.isEmpty() ? " " + idxMI + "." : "")
+                        : loggedUser != null ? loggedUser : "";
                         String bizName = (String) session.getAttribute("userBusinessName");
                         if ("seller".equals(loggedRole) && bizName != null && !bizName.isEmpty()) {
                             displayName = bizName;
                         }
                     %>
-                    <span class="d-none d-sm-inline fw-semibold"><%= displayName.split(" ")[0] %></span>
+                <span class="d-none d-sm-inline fw-semibold"><%= displayName %></span>
                     <i class="bi bi-chevron-down" style="font-size:10px;"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width:200px; border-radius:12px; margin-top:6px;">
@@ -393,7 +493,7 @@ input::-webkit-contacts-auto-fill-button {
                                 <div style="width:38px; height:38px; border-radius:50%; background:#0d6efd; color:white; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><%= idxInitial %></div>
                             <% } %>
                             <div>
-                                <p class="mb-0 fw-bold" style="font-size:13px;"><%= displayName %></p>
+                    <p class="mb-0 fw-bold" style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px;"><%= fullDisplayName %></p>
                                 <p class="mb-0 text-muted" style="font-size:11px;"><%= loggedEmail != null ? loggedEmail : "" %></p>
                             </div>
                         </div>
@@ -471,8 +571,8 @@ input::-webkit-contacts-auto-fill-button {
         <div class="carousel-item active">
             <div style="background:linear-gradient(135deg,#0d6efd 0%,#0056b3 100%); min-height:280px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:white; text-align:center; padding:40px 20px;">
                 <div style="font-size:13px; font-weight:600; letter-spacing:3px; opacity:0.85; margin-bottom:8px;">⚡ LIMITED TIME OFFER</div>
-                <div style="font-size:52px; font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">BIG SALE</div>
-                <div style="font-size:22px; font-weight:700; margin:8px 0; opacity:0.95;">Up to 50% Off Storewide!</div>
+                <div style="font-size:clamp(32px,8vw,52px); font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">BIG SALE</div>
+                <div style="font-size:clamp(15px,4vw,22px); font-weight:700; margin:8px 0; opacity:0.95;">Up to 50% Off Storewide!</div>
                 <a href="#products" class="btn btn-warning btn-lg fw-bold mt-3 px-5" style="border-radius:30px;">
                     <i class="bi bi-shop"></i> Shop Now →
                 </a>
@@ -482,8 +582,8 @@ input::-webkit-contacts-auto-fill-button {
         <div class="carousel-item">
             <div style="background:linear-gradient(135deg,#fd7e14 0%,#dc3545 100%); min-height:280px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:white; text-align:center; padding:40px 20px;">
                 <div style="font-size:13px; font-weight:600; letter-spacing:3px; opacity:0.85; margin-bottom:8px;">🚚 NATIONWIDE DELIVERY</div>
-                <div style="font-size:52px; font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">FREE SHIPPING</div>
-                <div style="font-size:22px; font-weight:700; margin:8px 0; opacity:0.95;">On All Orders Over ₱500!</div>
+               <div style="font-size:clamp(32px,8vw,52px); font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">FREE SHIPPING</div>
+                <div style="font-size:clamp(15px,4vw,22px); font-weight:700; margin:8px 0; opacity:0.95;">On All Orders Over ₱500!</div>
                 <a href="#products" class="btn btn-light btn-lg fw-bold mt-3 px-5 text-danger" style="border-radius:30px;">
                     <i class="bi bi-cart3"></i> Order Now →
                 </a>
@@ -493,19 +593,19 @@ input::-webkit-contacts-auto-fill-button {
         <div class="carousel-item">
             <div style="background:linear-gradient(135deg,#198754 0%,#0f5132 100%); min-height:280px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:white; text-align:center; padding:40px 20px;">
                 <div style="font-size:13px; font-weight:600; letter-spacing:3px; opacity:0.85; margin-bottom:8px;">🌟 JUST DROPPED</div>
-                <div style="font-size:52px; font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">NEW ARRIVALS</div>
-                <div style="font-size:22px; font-weight:700; margin:8px 0; opacity:0.95;">Fresh Finds This Week!</div>
+               <div style="font-size:clamp(32px,8vw,52px); font-weight:900; line-height:1;text-shadow:0 2px 8px rgba(0,0,0,0.2);">NEW ARRIVALS</div>
+                <div style="font-size:clamp(15px,4vw,22px); font-weight:700; margin:8px 0; opacity:0.95;">Fresh Finds This Week!</div>
                 <a href="index.jsp?sort=newest" class="btn btn-warning btn-lg fw-bold mt-3 px-5" style="border-radius:30px;">
                     <i class="bi bi-stars"></i> See New Items →
                 </a>
             </div>
         </div>
 <!-- SLIDE 4 - BECOME A SELLER -->
-        <div class="carousel-item">
+      <div class="carousel-item">
             <div style="background:linear-gradient(135deg,#6610f2 0%,#0d6efd 100%); min-height:280px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:white; text-align:center; padding:40px 20px;">
                 <div style="font-size:13px; font-weight:600; letter-spacing:3px; opacity:0.85; margin-bottom:8px;">🏪 START YOUR BUSINESS</div>
-                <div style="font-size:52px; font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">SELL HERE</div>
-                <div style="font-size:22px; font-weight:700; margin:8px 0; opacity:0.95;">Turn Your Products Into Profit!</div>
+                <div style="font-size:clamp(32px,8vw,52px); font-weight:900; line-height:1; text-shadow:0 2px 8px rgba(0,0,0,0.2);">SELL HERE</div>
+                <div style="font-size:clamp(16px,4vw,22px); font-weight:700; margin:8px 0; opacity:0.95;">Turn Your Products Into Profit!</div>
 <% if ("seller".equals(loggedRole) || "both".equals(loggedRole)) { %>
 <button onclick="showAlreadySellerModal()" class="btn btn-warning btn-lg fw-bold mt-3 px-5" style="border-radius:30px;">
     <i class="bi bi-shop-window"></i> Become a Seller →
@@ -536,14 +636,14 @@ boolean isAll = (cp == null || cp.isEmpty() || cp.equals("0"));
 %>
 <div class="container mt-4 mb-2">
 <h5 class="mb-3 fw-bold">Browse by Category</h5>
-<div class="row g-2 text-center flex-nowrap overflow-auto">
-        <div class="col" onclick="filterCategory(0)" style="cursor:pointer; min-width:100px;">
+<div class="row g-2 text-center justify-content-center" id="categoryRow">
+        <div class="col" onclick="filterCategory(0)" style="cursor:pointer;">
             <div class="card category-card py-3 border h-100 <%= isAll ? "active" : "" %>" id="cat-0">
                 <i class="bi bi-grid-fill fs-3 <%= isAll ? "" : "text-primary" %>"></i>
                 <small class="mt-1 fw-bold">All</small>
             </div>
         </div>
-        <div class="col" onclick="filterCategory(1)" style="cursor:pointer; min-width:100px;">
+        <div class="col" onclick="filterCategory(1)" style="cursor:pointer;">
             <div class="card category-card py-3 border h-100 <%= "1".equals(cp) ? "active" : "" %>" id="cat-1">
                 <i class="bi bi-phone fs-3 <%= "1".equals(cp) ? "" : "text-primary" %>"></i>
                 <small class="mt-1 fw-bold">Electronics</small>
@@ -992,6 +1092,12 @@ function confirmLogout() {
                 document.getElementById('loginPassword').value = '';
             }, 500);
         }
+
+        if (urlParams.get('error') === 'banned') {
+            document.getElementById('errorMsg').style.display = 'block';
+            document.getElementById('errorText').textContent = 'Your account has been banned. Please contact support.';
+            setTimeout(() => document.getElementById('errorMsg').style.display = 'none', 5000);
+        }
     });
     
     
@@ -1114,33 +1220,32 @@ function confirmLogout() {
 <!-- Seller Welcome Toast -->
 <div id="sellerWelcomeToast" style="display:none; position:fixed; bottom:30px; left:50%; transform:translateX(-50%); z-index:9999;
      background:#fff; border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.15); padding:20px 28px;
-     display:none; align-items:center; gap:16px; min-width:340px; border-left:5px solid #198754;">
-    <div style="width:48px; height:48px; border-radius:50%; background:#d1f2e1; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-        <i class="bi bi-shop-window" style="font-size:22px; color:#198754;"></i>
+     align-items:center; gap:16px; min-width:340px; border-left:5px solid #f59e0b;">
+    <div style="width:48px; height:48px; border-radius:50%; background:#fef3c7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <i class="bi bi-hourglass-split" style="font-size:22px; color:#f59e0b;"></i>
     </div>
     <div style="flex:1;">
-        <p style="margin:0; font-weight:700; font-size:14px; color:#198754;">🎉 You're now a seller!</p>
-        <p style="margin:4px 0 0; font-size:12px; color:#555;">Go to your profile → dropdown → <strong>Seller Center</strong> to start selling.</p>
+        <p style="margin:0; font-weight:700; font-size:14px; color:#d97706;">⏳ Application Submitted!</p>
+        <p style="margin:4px 0 0; font-size:12px; color:#555;">Your seller application is <strong>under review</strong>. We'll notify you once approved!</p>
     </div>
     <button onclick="document.getElementById('sellerWelcomeToast').style.display='none'"
             style="background:none; border:none; font-size:18px; color:#aaa; cursor:pointer; flex-shrink:0;">✕</button>
 </div>
+  
 
 <script>
 // Show seller welcome toast if redirected from seller application
-(function() {
+window.addEventListener('load', function() {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('sellerWelcome') === 'true') {
+    if (params.get('sellerPending') === 'true') {
         const toast = document.getElementById('sellerWelcomeToast');
         toast.style.display = 'flex';
-        // Auto hide after 8 seconds
         setTimeout(function() {
             toast.style.display = 'none';
         }, 8000);
-        // Clean URL
         window.history.replaceState({}, '', 'index.jsp');
     }
-})();
+});
 </script>
 
 
@@ -1166,9 +1271,17 @@ function goToSellerCenter() {
 }
 
 function goToBecomeSeller() {
-	const birthday = '<%= session.getAttribute("userBirthday") != null ? session.getAttribute("userBirthday") : "" %>';
+    <% if (hasApprovedApplication) { %>
+    new bootstrap.Modal(document.getElementById('applicationApprovedModal')).show();
+    return;
+    <% } %>
+    <% if (hasPendingApplication) { %>
+    new bootstrap.Modal(document.getElementById('applicationPendingModal')).show();
+    return;
+    <% } %>
+    const birthday = '<%= session.getAttribute("userBirthday") != null ? session.getAttribute("userBirthday") : "" %>';
     if (!birthday || birthday.trim() === '') {
-        new bootstrap.Modal(document.getElementById('sellerBlockedModal')).show();
+        new bootstrap.Modal(document.getElementById('birthdayRequiredModal')).show();
         return;
     }
     const birthDate = new Date(birthday);
@@ -1193,6 +1306,66 @@ function showAlreadySellerModal() {
     new bootstrap.Modal(document.getElementById('alreadySellerModal')).show();
 }
 </script>
+
+<!-- APPLICATION APPROVED MODAL -->
+<div class="modal fade" id="applicationApprovedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-4">
+                <div class="mb-3" style="font-size:3rem;">🎉</div>
+                <h5 class="fw-bold mb-2">You're Already a Seller!</h5>
+                <p class="text-muted mb-4" style="font-size:14px;">
+                    Your seller application has been approved! Please log out and log back in to access your Seller Center.
+                </p>
+                <div class="d-flex gap-2 justify-content-center">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+                    <a href="LogoutServlet" class="btn btn-success rounded-pill px-4 fw-bold">
+                        <i class="bi bi-box-arrow-right me-1"></i> Log out now
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- APPLICATION PENDING MODAL -->
+<div class="modal fade" id="applicationPendingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-4">
+                <div class="mb-3" style="font-size:3rem;">⏳</div>
+                <h5 class="fw-bold mb-2">Application Under Review</h5>
+                <p class="text-muted mb-4" style="font-size:14px;">
+                    Your seller application is currently being reviewed by our admin team.
+                    We'll notify you once it's approved!
+                </p>
+                <button type="button" class="btn btn-primary rounded-pill px-4" data-bs-dismiss="modal">
+                    Got it!
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- BIRTHDAY REQUIRED MODAL -->
+<div class="modal fade" id="birthdayRequiredModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-body text-center p-4">
+                <div class="mb-3">
+                  <div class="mb-3" style="font-size:3rem;">🎂</div>
+                </div>
+                <h5 class="fw-bold mb-2">Birthday Required</h5>
+                <p class="text-muted mb-4" style="font-size:14px;">Please fill in your birthday in your profile before becoming a seller.</p>
+                <a href="customer.jsp" class="btn btn-primary rounded-pill px-4">
+                    <i class="bi bi-person-fill me-1"></i> Go to My Profile
+                </a>
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4 ms-2" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- SELLER LOGIN PROMPT MODAL -->
 <div class="modal fade" id="sellerLoginPromptModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">

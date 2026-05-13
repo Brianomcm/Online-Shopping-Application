@@ -25,7 +25,13 @@ public class UpdateProfileServlet extends HttpServlet {
     	response.setCharacterEncoding("UTF-8");
     	request.setCharacterEncoding("UTF-8");
 
-        String fullname = request.getParameter("fullname");
+    	String firstName = request.getParameter("first_name");
+    	String lastName  = request.getParameter("last_name");
+    	String middleInitial = request.getParameter("middle_initial");
+    	if (firstName == null) firstName = (String) session.getAttribute("userFirstName");
+    	if (lastName == null) lastName = (String) session.getAttribute("userLastName");
+    	if (middleInitial == null) middleInitial = "";
+    	String fullname = lastName + ", " + firstName + (middleInitial.isEmpty() ? "" : " " + middleInitial + ".");
         String username = request.getParameter("username");
         String phone = request.getParameter("phone");
         String birthday = request.getParameter("birthday");
@@ -51,15 +57,18 @@ public class UpdateProfileServlet extends HttpServlet {
              profilePicture = (String) session.getAttribute("userAvatar");
          }
 
-         String sql = "UPDATE customer SET name=?, username=?, phone=?, birthday=?, gender=?, profile_picture=? WHERE user_id=?";
+         String sql = "UPDATE customer SET name=?, first_name=?, last_name=?, middle_initial=?, username=?, phone=?, birthday=?, gender=?, profile_picture=? WHERE user_id=?";
          PreparedStatement ps = conn.prepareStatement(sql);
          ps.setString(1, fullname);
-         ps.setString(2, username);
-         ps.setString(3, phone);
-         ps.setString(4, (birthday != null && !birthday.isEmpty()) ? birthday : null);
-         ps.setString(5, (gender != null && !gender.isEmpty()) ? gender : null);
-         ps.setString(6, profilePicture);
-         ps.setInt(7, userId);
+         ps.setString(2, firstName);
+         ps.setString(3, lastName);
+         ps.setString(4, middleInitial.isEmpty() ? null : middleInitial);
+         ps.setString(5, username);
+         ps.setString(6, phone);
+         ps.setString(7, (birthday != null && !birthday.isEmpty()) ? birthday : null);
+         ps.setString(8, (gender != null && !gender.isEmpty()) ? gender : null);
+         ps.setString(9, profilePicture);
+         ps.setInt(10, userId);
             ps.executeUpdate();
             ps.close();
             conn.close();
@@ -88,7 +97,9 @@ public class UpdateProfileServlet extends HttpServlet {
             if (profilePicture != null && !profilePicture.isEmpty()) {
                 session.setAttribute("userAvatar", profilePicture);
             }
-
+            session.setAttribute("userFirstName", firstName);
+            session.setAttribute("userLastName", lastName);
+            session.setAttribute("userMiddleInitial", middleInitial);
             response.sendRedirect("ProfileServlet?updated=true&msg=avatar");
         } catch (Exception e) {
             e.printStackTrace();

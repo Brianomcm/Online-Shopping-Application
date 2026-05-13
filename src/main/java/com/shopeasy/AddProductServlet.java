@@ -45,7 +45,7 @@ public class AddProductServlet extends HttpServlet {
         try {
             Connection conn = DBConnection.getConnection();
 
-            // 0. Get seller_id from seller table using user_id
+         // 0. Get seller_id from seller table using user_id
             int sellerId = -1;
             PreparedStatement sellerPs = conn.prepareStatement("SELECT seller_id FROM seller WHERE user_id = ?");
             sellerPs.setInt(1, userId);
@@ -61,9 +61,38 @@ public class AddProductServlet extends HttpServlet {
                 return;
             }
 
+            // Check if TRUSTED SELLER
+            // Trusted if: 10+ completed orders OR 7+ days since seller account created
+            boolean isTrusted = false;
+            try {
+                // Check completed orders
+                PreparedStatement ordPs = conn.prepareStatement(
+                    "SELECT COUNT(DISTINCT o.order_id) FROM orders o " +
+                    "JOIN order_items oi ON o.order_id = oi.order_id " +
+                    "JOIN product p ON oi.product_id = p.product_id " +
+                    "WHERE p.seller_id = ? AND o.status = 'Completed'");
+                ordPs.setInt(1, sellerId);
+                ResultSet ordRs = ordPs.executeQuery();
+                int completedOrders = 0;
+                if (ordRs.next()) completedOrders = ordRs.getInt(1);
+                ordRs.close(); ordPs.close();
+
+                // Check days since seller account created
+                PreparedStatement daysPs = conn.prepareStatement(
+                    "SELECT DATEDIFF(NOW(), created_at) as days_active FROM seller WHERE seller_id = ?");
+                daysPs.setInt(1, sellerId);
+                ResultSet daysRs = daysPs.executeQuery();
+                int daysActive = 0;
+                if (daysRs.next()) daysActive = daysRs.getInt("days_active");
+                daysRs.close(); daysPs.close();
+
+                isTrusted = completedOrders >= 10 && daysActive >= 7;
+            } catch (Exception te) { te.printStackTrace(); }
+
+            String productStatus = isTrusted ? "active" : "pending";
             // 1. Insert product and get generated product_id
             String sql = "INSERT INTO product (seller_id, category_id, name, description, price, original_price, stock, image, thumbnail, status) "
-                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')";
+                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             ps.setInt(1, sellerId);
             ps.setInt(2, categoryId != null && !categoryId.isEmpty() ? Integer.parseInt(categoryId) : 1);
@@ -86,10 +115,11 @@ public class AddProductServlet extends HttpServlet {
                 ? productThumbnail 
                 : (productImage != null && !productImage.isEmpty() ? productImage : null);
             if (thumbToSave != null) {
-                ps.setString(9, thumbToSave);
+            	ps.setString(9, thumbToSave);
             } else {
                 ps.setNull(9, java.sql.Types.VARCHAR);
             }
+            ps.setString(10, productStatus);
             ps.executeUpdate();
 
             // 2. Get the new product_id
@@ -171,7 +201,11 @@ public class AddProductServlet extends HttpServlet {
             }
 
             conn.close();
-            response.sendRedirect("seller.jsp?updated=true&msg=product&tab=products");
+            if ("pending".equals(productStatus)) {
+                response.sendRedirect("seller.jsp?updated=true&msg=product_pending&tab=products");
+            } else {
+                response.sendRedirect("seller.jsp?updated=true&msg=product&tab=products");
+            }
 
         } catch (Exception e) {
             e.printStackTrace();

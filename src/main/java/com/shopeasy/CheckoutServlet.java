@@ -87,7 +87,17 @@ public class CheckoutServlet extends HttpServlet {
             String initialStatus = "Pending";
             double walletDeduct = 0;
             try { walletDeduct = Double.parseDouble(request.getParameter("walletDeduct")); } catch (Exception ignored) {}
-            double finalTotal = Math.max(0, cartTotal - walletDeduct);
+
+            // Voucher discount from session
+            double voucherDiscount = 0;
+            String appliedVoucherCode = (String) session.getAttribute("appliedVoucherCode");
+            if (appliedVoucherCode != null) {
+                Object vd = session.getAttribute("appliedVoucherDiscount");
+                if (vd != null) voucherDiscount = (Double) vd;
+            }
+
+            double shippingFee = cartTotal >= 500 ? 0 : 38;
+            double finalTotal = Math.max(0, cartTotal + shippingFee - walletDeduct - voucherDiscount);
 
             // Always save original cartTotal so refund works correctly
             String orderSql = "INSERT INTO orders (customer_id, total_amount, status, payment_method, shipping_address) VALUES (?, ?, ?, ?, ?)";
@@ -220,6 +230,30 @@ public class CheckoutServlet extends HttpServlet {
             }
 
             conn.close();
+
+            // Record voucher usage and increment used_count
+            if (appliedVoucherCode != null) {
+                Connection vcConn = DBConnection.getConnection();
+                Integer voucherId = (Integer) session.getAttribute("appliedVoucherId");
+                if (voucherId != null) {
+                    PreparedStatement vuPs = vcConn.prepareStatement(
+                        "INSERT INTO voucher_usage (voucher_id, voucher_type, user_id, order_id) VALUES (?,?,?,?)");
+                    vuPs.setInt(1, voucherId);
+                    vuPs.setString(2, "platform");
+                    vuPs.setInt(3, (int) session.getAttribute("userId"));
+                    vuPs.setInt(4, orderId);
+                    vuPs.executeUpdate(); vuPs.close();
+
+                    PreparedStatement vcUpdatePs = vcConn.prepareStatement(
+                        "UPDATE vouchers SET used_count = used_count + 1 WHERE voucher_id=?");
+                    vcUpdatePs.setInt(1, voucherId);
+                    vcUpdatePs.executeUpdate(); vcUpdatePs.close();
+                }
+                vcConn.close();
+                session.removeAttribute("appliedVoucherCode");
+                session.removeAttribute("appliedVoucherDiscount");
+                session.removeAttribute("appliedVoucherId");
+            }
 
             out.print("{\"success\":true,\"orderId\":" + orderId + "}");
 

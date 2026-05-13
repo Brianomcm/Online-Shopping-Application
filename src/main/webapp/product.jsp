@@ -208,6 +208,18 @@ try {
 .toast-msg { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #198754; color: white; padding: 14px 32px; border-radius: 14px; font-size: 14px; font-weight: 600; z-index: 9999; box-shadow: 0 6px 20px rgba(0,0,0,0.2); display: none; }
 .variation-btn { transition: all 0.15s; }
 .variation-btn:hover { transform: translateY(-1px); }
+    
+@media (max-width: 576px) {
+  .product-img { max-height: none !important; height: auto !important; padding: 0 !important; border-radius: 12px !important; object-fit: cover !important; }
+    .product-card { padding: 16px !important; border-radius: 14px !important; }
+    .price-tag { font-size: 24px !important; }
+    .add-cart-btn, .btn-success, #wishlistBtn { padding: 10px !important; font-size: 13px !important; }
+    .stock-badge { font-size: 11px !important; padding: 4px 10px !important; }
+    .seller-card { padding: 12px !important; }
+    .gallery-dot { width: 6px !important; height: 6px !important; }
+#mainProductImg { max-height: none !important; width: 100% !important; height: auto !important; }
+}
+    
     </style>
 </head>
 <body>
@@ -217,6 +229,8 @@ try {
     <div style="width:48px; height:48px; border:5px solid #e0e0e0; border-top-color:#0d6efd; border-radius:50%; animation:spin 0.7s linear infinite;"></div>
     <span class="text-primary fw-bold">Searching...</span>
 </div>
+
+
 
 <style>
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -252,7 +266,7 @@ function showLoader() {
 
 <!-- BREADCRUMB -->
 <div class="bg-white border-bottom px-4 py-2">
-    <nav aria-label="breadcrumb">
+ <nav aria-label="breadcrumb" class="d-none d-md-block">
         <ol class="breadcrumb mb-0" style="font-size:13px;">
             <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none text-primary">Home</a></li>
             <li class="breadcrumb-item active text-muted"><%= name %></li>
@@ -573,16 +587,16 @@ function initGallery() {
         if (src && !seen.has(src)) { seen.add(src); galleryImages.push(src); }
     });
 
-    // Fallback: variation images if no DB gallery
-    if (galleryImages.length === 0) {
-        const btns = document.querySelectorAll('.variation-btn');
-        btns.forEach(btn => {
-            const img = btn.dataset.image;
-            if (img && img !== '' && !seen.has(img)) { seen.add(img); galleryImages.push(img); }
-        });
-        const mainSrc = '<%= image != null ? image.replace("'", "\\'") : "" %>';
-        if (mainSrc && !seen.has(mainSrc)) galleryImages.unshift(mainSrc);
-    }
+ // Always include variation images in gallery
+    const btns = document.querySelectorAll('.variation-btn');
+    btns.forEach(btn => {
+        const img = btn.dataset.image;
+        if (img && img !== '' && !seen.has(img)) { seen.add(img); galleryImages.push(img); }
+    });
+
+    // Also add main product image/thumbnail if not already included
+    const mainSrc = '<%= image != null ? image.replace("'", "\\'") : "" %>';
+    if (mainSrc && mainSrc !== '' && !seen.has(mainSrc)) galleryImages.unshift(mainSrc);
 
     const dotsEl = document.getElementById('galleryDots');
     dotsEl.innerHTML = '';
@@ -839,10 +853,24 @@ function addToCart(productId, hasVariation) {
 
 //WISHLIST
 function toggleWishlist(productId) {
+    const selectedVarId = document.getElementById('selectedVariationId') 
+                          ? document.getElementById('selectedVariationId').value : '';
+    const selectedBtn = selectedVarId 
+                        ? document.querySelector('.variation-btn.btn-dark') : null;
+    const variationValue = selectedBtn ? selectedBtn.dataset.value : '';
+    const variationType = selectedBtn ? selectedBtn.dataset.type : '';
+
+    let body = 'productId=' + productId;
+    if (selectedVarId) {
+        body += '&variationId=' + selectedVarId;
+        body += '&variationValue=' + encodeURIComponent(variationValue);
+        body += '&variationType=' + encodeURIComponent(variationType);
+    }
+
     fetch('WishlistServlet', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'productId=' + productId
+        body: body
     })
     .then(res => res.json())
     .then(data => {

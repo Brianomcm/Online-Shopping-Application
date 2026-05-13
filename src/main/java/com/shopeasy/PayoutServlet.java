@@ -60,7 +60,7 @@ public class PayoutServlet extends HttpServlet {
             ps.setString(2, method);
             ps.setString(3, account);
             ps.setDouble(4, amount);
-            ps.setString(5, "Completed");
+            ps.setString(5, "Pending");
             ps.executeUpdate();
             ps.close();
 
@@ -80,7 +80,7 @@ public class PayoutServlet extends HttpServlet {
                 notifPs.setInt(1, userId);
                 notifPs.setString(2, "seller");
                 notifPs.setString(3, String.format(
-                    "✅ Payout of ₱%.2f via %s has been processed successfully!", amount, method));
+                    "📤 Your payout request of ₱%.2f via %s has been submitted and is pending admin approval.", amount, method));
                 notifPs.executeUpdate();
                 notifPs.close();
             }

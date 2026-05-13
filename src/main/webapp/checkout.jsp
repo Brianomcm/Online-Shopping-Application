@@ -9,6 +9,15 @@ if(session.getAttribute("userId") == null || ckRole == null ||
         return;
     }
 String userName = (String) session.getAttribute("userName");
+String ckFirstName = (String) session.getAttribute("userFirstName");
+String ckLastName  = (String) session.getAttribute("userLastName");
+String ckMI        = (String) session.getAttribute("userMiddleInitial");
+if (ckFirstName == null) ckFirstName = "";
+if (ckLastName  == null) ckLastName  = "";
+if (ckMI        == null) ckMI        = "";
+String ckFullName = !ckFirstName.isEmpty()
+? ckFirstName + (!ckMI.isEmpty() ? " " + ckMI + "." : "") + " " + ckLastName
+: userName != null ? userName : "";
 String userAvatar = (String) session.getAttribute("userAvatar");
 String userAddress = (String) session.getAttribute("userAddress");
 if (userAddress == null) userAddress = "";
@@ -80,6 +89,72 @@ if (cartTotal == null) cartTotal = 0.0;
         .saved-addr-card:hover { border-color: #0d6efd !important; background: #f0f4ff !important; }
         .item-row { padding: 12px 0; border-bottom: 1px solid #f0f4ff; }
         .item-row:last-child { border-bottom: none; }
+    
+    @media (max-width: 576px) {
+    .card-section { padding: 14px 12px !important; border-radius: 12px !important; margin-bottom: 10px !important; }
+    .summary-card { padding: 14px 12px !important; border-radius: 12px !important; position: static !important; }
+    .section-title { font-size: 13px !important; margin-bottom: 10px !important; }
+    .payment-option { padding: 10px 12px !important; border-radius: 10px !important; margin-bottom: 8px !important; }
+    .payment-option .fw-bold { font-size: 13px !important; }
+    .payment-option .text-muted { font-size: 11px !important; }
+    .place-order-btn { padding: 12px !important; font-size: 14px !important; border-radius: 10px !important; }
+    .step-badge { width: 24px !important; height: 24px !important; font-size: 11px !important; }
+    .product-img { width: 52px !important; height: 52px !important; }
+    .saved-addr-card { padding: 10px !important; }
+    .saved-addr-card .fw-semibold { font-size: 13px !important; }
+    .saved-addr-card .text-muted { font-size: 11px !important; }
+    .item-row { padding: 8px 0 !important; }
+    .container { padding-left: 12px !important; padding-right: 12px !important; }
+    .summary-card .fs-5 { font-size: 15px !important; }
+}
+    
+    @media (max-width: 576px) {
+    /* General card sections */
+    .card-section { padding: 14px 12px !important; border-radius: 12px !important; }
+    .section-title { font-size: 13px !important; }
+
+    /* Notifications header — stack vertically */
+    #tab-notifications .d-flex.justify-content-between { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+    #tab-notifications .d-flex.gap-2 { width: 100%; }
+    #tab-notifications .d-flex.gap-2 button { flex: 1; font-size: 11px !important; padding: 5px 6px !important; }
+
+    /* Push enable bar */
+    #pushEnableBar { padding: 10px !important; }
+    #pushEnableBar p { font-size: 11px !important; }
+    #pushToggleBtn { font-size: 11px !important; padding: 5px 10px !important; }
+
+    /* Orders tabs — scrollable */
+    #orderTabs { font-size: 11px !important; }
+    #orderTabs .nav-link { padding: 6px 8px !important; font-size: 11px !important; white-space: nowrap; }
+    #orderTabs .badge { font-size: 9px !important; }
+
+    /* Order cards */
+    .order-card, [class*="card mb-3"] { border-radius: 12px !important; }
+    .order-card .fw-bold { font-size: 13px !important; }
+
+    /* Wishlist */
+    #tab-wishlist .d-flex { gap: 8px !important; }
+    #tab-wishlist img { width: 60px !important; height: 60px !important; }
+    #tab-wishlist .fw-bold { font-size: 13px !important; }
+
+    /* Wallet */
+    #tab-wallet h2 { font-size: 28px !important; }
+    #tab-wallet .p-4 { padding: 16px !important; }
+
+    /* Security */
+    #tab-security .form-control { font-size: 13px !important; }
+    #tab-security .btn { font-size: 13px !important; }
+
+    /* Reviews */
+    #tab-reviews img { width: 52px !important; height: 52px !important; }
+    #tab-reviews .fw-bold { font-size: 13px !important; }
+    #tab-reviews p { font-size: 12px !important; }
+
+    /* Address */
+    #tab-address .fw-semibold { font-size: 13px !important; }
+    #tab-address .text-muted { font-size: 11px !important; }
+    #tab-address .btn-sm { font-size: 11px !important; padding: 4px 8px !important; }
+}
     </style>
 </head>
 <body>
@@ -90,7 +165,7 @@ if (cartTotal == null) cartTotal = 0.0;
 
 <!-- BREADCRUMB -->
 <div class="bg-white border-bottom px-4 py-2">
-    <nav aria-label="breadcrumb">
+   <nav aria-label="breadcrumb" class="d-none d-md-block">
         <ol class="breadcrumb mb-0" style="font-size:13px;">
             <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none text-primary">Home</a></li>
             <%
@@ -123,7 +198,7 @@ if (cartTotal == null) cartTotal = 0.0;
     </h5>
 
     <div class="row g-4">
-        <div class="col-lg-8">
+  <div class="col-lg-8 order-2 order-lg-1">
 
            <!-- SHIPPING ADDRESS -->
             <div class="card-section">
@@ -156,7 +231,7 @@ if (cartTotal == null) cartTotal = 0.0;
                 <div class="row g-3" id="newAddressForm" style="<%= savedAddresses.isEmpty() ? "" : "display:none;" %>">
                     <div class="col-12">
                         <label class="form-label fw-bold" style="font-size:13px;">Full Name</label>
-                        <input type="text" class="form-control" id="shipName" value="<%= userName != null ? userName : "" %>">
+                     <input type="text" class="form-control" id="shipName" value="<%= ckFullName %>">
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-bold" style="font-size:13px;">Delivery Address</label>
@@ -276,7 +351,7 @@ for (Map<String, Object> item : cartItems) {
         </div>
 
         <!-- ORDER SUMMARY -->
-        <div class="col-lg-4">
+      <div class="col-lg-4 order-1 order-lg-2">
             <div class="summary-card">
                 <h6 class="fw-bold mb-3">Order Summary</h6>
                 <%
@@ -288,34 +363,72 @@ for (Map<String, Object> item : cartItems) {
                     if (ckOriginal > 0 && ckOriginal < ckPrice) {
                         ckSavings += (ckPrice - ckOriginal) * ckQty;
                     }
+                    // Add shipping savings if free shipping applies
+                    if (cartTotal >= 500) ckSavings += 38;
                 }
                 %>
-                <% if (ckSavings > 0) { %>
+             <% if (ckSavings > 0) { %>
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-success fw-bold"><i class="bi bi-tag-fill"></i> You save</span>
                     <span class="text-success fw-bold">-₱<%= String.format("%.2f", ckSavings) %></span>
                 </div>
                 <% } %>
+               <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Shipping</span>
+                    <span id="shippingDisplay" class="<%= cartTotal >= 500 ? "text-success fw-bold" : "text-danger fw-bold" %>">
+                        <% if (cartTotal >= 500) { %>
+                            <i class="bi bi-truck"></i> Free
+                        <% } else { %>
+                            ₱38.00
+                        <% } %>
+                    </span>
+                </div>
+                <div id="freeShipHint" class="mb-2 p-2 rounded-2" style="background:#fff3cd; border:1px solid #ffc107; font-size:11px; <%= cartTotal >= 500 ? "display:none;" : "" %>">
+                    <i class="bi bi-info-circle text-warning"></i> Add <strong>₱<%= String.format("%.2f", 500 - cartTotal) %></strong> more for Free Shipping!
+                </div>
+               
            <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Items (<%= cartItems.size() %>)</span>
                     <span class="text-muted">₱<%= String.format("%.2f", cartTotal) %></span>
                 </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Shipping</span>
-                    <span class="text-success">Free</span>
-                </div>
+                
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted"><i class="bi bi-truck"></i> Estimated Delivery</span>
                     <span class="text-muted" style="font-size:12px;">3-5 Business Days</span>
                 </div>
                 <hr>
+           <div class="mb-2">
+                    <label class="form-label fw-bold" style="font-size:13px;"><i class="bi bi-ticket-perforated text-primary me-1"></i> Platform Voucher</label>
+                    <div id="voucherSelectedBox" class="d-none d-flex justify-content-between align-items-center p-2 rounded-3 mb-2" style="background:#f0fdf4; border:1px solid #86efac; font-size:13px;">
+                        <span><i class="bi bi-ticket-perforated text-success me-1"></i><strong id="voucherSelectedCode"></strong> — <span id="voucherSelectedDesc" class="text-success"></span></span>
+                        <button class="btn btn-sm btn-link text-danger p-0" onclick="removeVoucher()"><i class="bi bi-x-circle"></i></button>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm w-100" id="openVoucherBtn" onclick="openVoucherModal('platform')">
+                        <i class="bi bi-ticket-perforated me-1"></i> Select Voucher
+                    </button>
+                    <div id="voucherMsg" class="mt-1" style="font-size:12px;"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" style="font-size:13px;"><i class="bi bi-truck text-success me-1"></i> Free Shipping Voucher</label>
+                    <div id="freeShipSelectedBox" class="d-none d-flex justify-content-between align-items-center p-2 rounded-3 mb-2" style="background:#f0fdf4; border:1px solid #86efac; font-size:13px;">
+                        <span><i class="bi bi-truck text-success me-1"></i><strong id="freeShipSelectedCode"></strong> — <span class="text-success">Free Shipping</span></span>
+                        <button class="btn btn-sm btn-link text-danger p-0" onclick="removeFreeShip()"><i class="bi bi-x-circle"></i></button>
+                    </div>
+                    <button class="btn btn-outline-success btn-sm w-100" id="openFreeShipBtn" onclick="openVoucherModal('freeshipping')">
+                        <i class="bi bi-truck me-1"></i> Select Free Shipping Voucher
+                    </button>
+                </div>
+                <div id="voucherDiscountRow" class="d-flex justify-content-between mb-2 text-success" style="display:none; font-size:13px;">
+                    <span><i class="bi bi-ticket-perforated me-1"></i>Voucher Applied</span>
+                    <span id="voucherDiscountAmt">-₱0.00</span>
+                </div>
               <div id="walletDiscountRow" class="d-flex justify-content-between mb-2 text-success" style="display:none; font-size:13px;">
                     <span><i class="bi bi-wallet2 me-1"></i>Wallet Applied</span>
                     <span id="walletDiscountAmt">-₱0.00</span>
                 </div>
                 <div class="d-flex justify-content-between fw-bold fs-5 mb-4">
                     <span>Total</span>
-                    <span class="text-primary" id="finalTotalDisplay">₱<%= String.format("%.2f", cartTotal) %></span>
+                  <span class="text-primary" id="finalTotalDisplay">₱<%= String.format("%.2f", cartTotal >= 500 ? cartTotal : cartTotal + 38) %></span>
                 </div>
                 <button class="btn btn-primary place-order-btn w-100 text-white" onclick="placeOrder()">
                     <i class="bi bi-bag-check"></i> Place Order
@@ -334,6 +447,31 @@ for (Map<String, Object> item : cartItems) {
     </div>
 </div>
 
+
+<!-- VOUCHER PICKER MODAL -->
+<div class="modal fade" id="voucherPickerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-ticket-perforated text-primary me-2"></i>Select Voucher</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+    <div class="modal-body px-4 pb-4">
+                <div class="input-group mb-3">
+                    <input type="text" id="manualVoucherCode" class="form-control text-uppercase" placeholder="Enter voucher code manually">
+                    <button class="btn btn-primary" onclick="applyManualVoucher()">Apply</button>
+                </div>
+                <div id="manualVoucherMsg" class="mb-2" style="font-size:12px;"></div>
+                <hr class="my-2">
+                <p class="fw-bold mb-2" style="font-size:13px;">Available Vouchers:</p>
+                <div id="voucherListContainer" style="max-height:350px; overflow-y:auto;">
+                    <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- PROCESSING ORDER OVERLAY -->
 <div id="processingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
     <div class="spinner-border text-primary mb-3" style="width:3.5rem; height:3.5rem;" role="status"></div>
@@ -341,11 +479,21 @@ for (Map<String, Object> item : cartItems) {
     <p class="text-muted" style="font-size:13px;">Please wait, do not close this page.</p>
 </div>
 
+
+
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    let selectedPayment = 'COD';
+let selectedPayment = 'COD';
+let usingNewAddress = <%= savedAddresses.isEmpty() ? "true" : "false" %>;
+let shippingFee = <%= cartTotal >= 500 ? 0 : 38 %>;
+let voucherDiscount = 0;
+let voucherCode = '';
+let freeShipApplied = false;
+let freeShipCode = '';
 
-    const cartTotal = <%= cartTotal %>;
+const cartTotal = <%= cartTotal %>;
+const orderTotal = cartTotal + shippingFee;
 
     function showToast(msg, color = '#198754') {
         const existing = document.getElementById('checkoutToast');
@@ -378,14 +526,152 @@ for (Map<String, Object> item : cartItems) {
             finalDisplay.innerText = '₱' + finalAmt.toFixed(2);
         } else {
             discountRow.style.display = 'none';
-            finalDisplay.innerText = '₱' + cartTotal.toFixed(2);
+            finalDisplay.innerText = '₱' + orderTotal.toFixed(2);
         }
     }
+    function openVoucherModal(filterType) {
+        fetch('VoucherServlet?action=list&cartTotal=<%= cartTotal %>&filterType=' + (filterType || 'platform'))
+            .then(r => r.json())
+            .then(d => {
+                const list = document.getElementById('voucherListContainer');
+                list.innerHTML = '';
+                if (!d.vouchers || d.vouchers.length === 0) {
+                    list.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-ticket-perforated" style="font-size:32px;display:block;margin-bottom:8px;"></i>No available vouchers.</div>';
+                
+                } else {
+                    var filtered = filterType === 'freeshipping' 
+                        ? d.vouchers.filter(function(v) { return v.type === 'freeshipping'; })
+                        : d.vouchers.filter(function(v) { return v.type !== 'freeshipping'; });
+                    if (filtered.length === 0) {
+                        list.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-ticket-perforated" style="font-size:32px;display:block;margin-bottom:8px;"></i>No available vouchers.</div>';
+                    } else {
+                	filtered.forEach(function(v) {
+                        var eligible = v.eligible;
+                        var onclickAttr = eligible ? "selectVoucher('" + v.code + "', '" + v.description + "', " + v.discount + ")" : "";
+                        var borderClass = eligible ? 'border-primary' : 'border-secondary opacity-50';
+                        var cursorStyle = eligible ? 'pointer' : 'default';
+                        var minOrderHtml = v.min_order > 0 ? '<div style="font-size:11px; color:#94a3b8;">Min. order: ₱' + v.min_order + '</div>' : '';
+                        var expiryHtml = v.expiry ? '<div style="font-size:11px; color:#94a3b8;">Expires: ' + v.expiry + '</div>' : '';
+                        var reasonHtml = !eligible ? '<div style="font-size:11px; color:#ef4444;" class="mt-1">' + (v.reason || 'Not eligible') + '</div>' : '';
+                        var badgeClass = eligible ? 'bg-primary' : 'bg-secondary';
+                        var badgeText = v.type === 'fixed' ? '₱' + v.value + ' OFF' : v.value + '% OFF';
 
+                        list.innerHTML += '<div class="p-3 mb-2 rounded-3 border ' + borderClass + '" style="cursor:' + cursorStyle + ';" onclick="' + onclickAttr + '">'
+                            + '<div class="d-flex justify-content-between align-items-center">'
+                            + '<div>'
+                            + '<strong class="text-primary">' + v.code + '</strong>'
+                            + '<div style="font-size:12px; color:#64748b;">' + v.description + '</div>'
+                            + minOrderHtml + expiryHtml
+                            + '</div>'
+                            + '<div class="text-end">'
+                            + '<span class="badge ' + badgeClass + '">' + badgeText + '</span>'
+                            + reasonHtml
+                            + '</div>'
+                            + '</div>'
+                            + '</div>';
+                	});
+                    } // close filtered else
+                }
+                // store filterType for selectVoucher
+                document.getElementById('voucherPickerModal').dataset.filterType = filterType;
+                new bootstrap.Modal(document.getElementById('voucherPickerModal')).show();
+            })
+            .catch(() => {
+                document.getElementById('voucherMsg').innerHTML = '<span class="text-danger">Error loading vouchers.</span>';
+            });
+    }
+
+    function selectVoucher(code, desc, discount, isFreeShip) {
+        var filterType = document.getElementById('voucherPickerModal').dataset.filterType;
+        if (filterType === 'freeshipping' || isFreeShip) {
+            freeShipApplied = true;
+            freeShipCode = code;
+            shippingFee = 0;
+            document.getElementById('freeShipSelectedCode').textContent = code;
+            document.getElementById('freeShipSelectedBox').classList.remove('d-none');
+            document.getElementById('openFreeShipBtn').innerHTML = '<i class="bi bi-truck me-1"></i> Change Free Shipping Voucher';
+        } else {
+            voucherDiscount = discount;
+            voucherCode = code;
+            document.getElementById('voucherSelectedCode').textContent = code;
+            document.getElementById('voucherSelectedDesc').textContent = desc;
+            document.getElementById('voucherSelectedBox').classList.remove('d-none');
+            document.getElementById('openVoucherBtn').innerHTML = '<i class="bi bi-ticket-perforated me-1"></i> Change Voucher';
+            document.getElementById('voucherDiscountRow').style.display = 'flex';
+            document.getElementById('voucherDiscountAmt').textContent = '-₱' + voucherDiscount.toFixed(2);
+            document.getElementById('voucherMsg').innerHTML = '';
+        }
+        bootstrap.Modal.getInstance(document.getElementById('voucherPickerModal')).hide();
+        updateTotal();
+        fetch('VoucherServlet?action=apply&code=' + encodeURIComponent(code) + '&cartTotal=<%= cartTotal %>').then(r => r.json());
+    }
+
+    
+    function applyManualVoucher() {
+        const code = document.getElementById('manualVoucherCode').value.trim().toUpperCase();
+        const msg = document.getElementById('manualVoucherMsg');
+        if (!code) { msg.innerHTML = '<span class="text-danger">Please enter a voucher code.</span>'; return; }
+
+        fetch('VoucherServlet?action=apply&code=' + encodeURIComponent(code) + '&cartTotal=<%= cartTotal %>')
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    selectVoucher(code, d.message, d.discount);
+                    msg.innerHTML = '';
+                } else {
+                    msg.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> ' + d.message + '</span>';
+                }
+            });
+    }
+    function removeFreeShip() {
+        freeShipApplied = false;
+        freeShipCode = '';
+        shippingFee = <%= cartTotal >= 500 ? 0 : 38 %>;
+        document.getElementById('freeShipSelectedBox').classList.add('d-none');
+        document.getElementById('openFreeShipBtn').innerHTML = '<i class="bi bi-truck me-1"></i> Select Free Shipping Voucher';
+        updateTotal();
+    }
+    function removeVoucher() {
+        voucherDiscount = 0;
+        voucherCode = '';
+        document.getElementById('voucherSelectedBox').classList.add('d-none');
+        document.getElementById('openVoucherBtn').innerHTML = '<i class="bi bi-ticket-perforated me-1"></i> Select Voucher';
+        document.getElementById('voucherDiscountRow').style.display = 'none';
+        document.getElementById('voucherDiscountAmt').textContent = '-₱0.00';
+        updateTotal();
+    }
+
+    function updateTotal() {
+        const walletAmt = parseFloat(document.getElementById('walletDiscountAmt').textContent.replace('-₱','')) || 0;
+        const currentShipping = freeShipApplied ? 0 : shippingFee;
+        const newTotal = Math.max(0, cartTotal + currentShipping - voucherDiscount - walletAmt);
+        document.getElementById('finalTotalDisplay').textContent = '₱' + newTotal.toFixed(2);
+
+        // Update shipping display
+        const shipDisplay = document.getElementById('shippingDisplay');
+        const shipHint = document.getElementById('freeShipHint');
+        if (freeShipApplied) {
+            shipDisplay.innerHTML = '<i class="bi bi-truck text-success"></i> <span class="text-success fw-bold">Free 🎉</span>';
+            if (shipHint) shipHint.style.display = 'none';
+        } else {
+            shipDisplay.innerHTML = shippingFee === 0 ? '<i class="bi bi-truck text-success"></i> <span class="text-success fw-bold">Free</span>' : '<span class="text-danger fw-bold">₱38.00</span>';
+            if (shipHint && shippingFee > 0) shipHint.style.display = 'block';
+        }
+    }
     function placeOrder() {
         const name = document.getElementById('shipName').value.trim();
         const address = document.getElementById('shipAddress').value.trim();
         const phone = document.getElementById('shipPhone').value.trim();
+
+        // Debug: if fields empty but saved address selected, re-populate
+        if (!name || !address || !phone) {
+            const selected = document.querySelector('.saved-addr-card[style*="border-color: rgb(13, 110, 253)"], .saved-addr-card[style*="border-color:#0d6efd"]');
+            if (selected) {
+                selected.click();
+                setTimeout(placeOrder, 100);
+                return;
+            }
+        }
 
         if (!name) {
             showToast('Please enter your full name!', '#dc3545');
@@ -419,6 +705,8 @@ for (Map<String, Object> item : cartItems) {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: 'shipName=' + encodeURIComponent(name) +
+            '&voucherCode=' + encodeURIComponent(voucherCode) +
+            '&freeShipCode=' + encodeURIComponent(freeShipCode) +
                   '&shipAddress=' + encodeURIComponent(address) +
                   '&shipPhone=' + encodeURIComponent(cleanPhone) +
                   '&paymentMethod=' + encodeURIComponent(selectedPayment) +
@@ -466,8 +754,6 @@ for (Map<String, Object> item : cartItems) {
         const defaultCard = document.querySelector('.saved-addr-card');
         if (defaultCard) defaultCard.click();
     });
-    
-    let usingNewAddress = <%= savedAddresses.isEmpty() ? "true" : "false" %>;
 
     function toggleNewAddress() {
         const form = document.getElementById('newAddressForm');
@@ -495,6 +781,7 @@ for (Map<String, Object> item : cartItems) {
             if (defaultCard) defaultCard.click();
         }
     }
+
 </script>
 </body>
 </html>

@@ -72,6 +72,10 @@ public class WishlistServlet extends HttpServlet {
                 return;
             }
 
+            String variationIdParam = request.getParameter("variationId");
+            String variationValue = request.getParameter("variationValue");
+            String variationType = request.getParameter("variationType");
+
             // Toggle from product page
             PreparedStatement checkPs = conn.prepareStatement(
                 "SELECT wishlist_id FROM wishlist WHERE customer_id=? AND product_id=?");
@@ -93,9 +97,16 @@ public class WishlistServlet extends HttpServlet {
                 // Add
                 rs.close(); checkPs.close();
                 PreparedStatement insPs = conn.prepareStatement(
-                    "INSERT INTO wishlist (customer_id, product_id) VALUES (?,?)");
-                insPs.setInt(1, customerId);
-                insPs.setInt(2, productId);
+                        "INSERT INTO wishlist (customer_id, product_id, variation_id, variation_value, variation_type) VALUES (?,?,?,?,?)");
+                    insPs.setInt(1, customerId);
+                    insPs.setInt(2, productId);
+                    if (variationIdParam != null && !variationIdParam.isEmpty()) {
+                        insPs.setInt(3, Integer.parseInt(variationIdParam));
+                    } else {
+                        insPs.setNull(3, java.sql.Types.INTEGER);
+                    }
+                    insPs.setString(4, variationValue);
+                    insPs.setString(5, variationType);
                 insPs.executeUpdate();
                 insPs.close();
                 conn.close();

@@ -56,6 +56,40 @@ if (orderId == null || orderId.trim().isEmpty()) orderId = "N/A";
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Fire browser notification after order placed
+window.addEventListener('load', function() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    // Wait 2 seconds para matanggap ng server yung order
+ setTimeout(() => {
+    fetch('NotificationServlet?action=getLatest')
+        .then(r => r.json())
+     .then(data => {
+            const latest = data.latestId || 0;
+            const since = parseInt(localStorage.getItem('lastNotifId') || '0');
+                if (latest > since) {
+                    fetch('NotificationServlet?action=getNew&since=' + since)
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.notifications && d.notifications.length > 0) {
+                                d.notifications.forEach(n => {
+                                    new Notification('ShopEasy', {
+                                        body: n.message,
+                                        icon: '/Online_Shopping/favicon.ico'
+                                    });
+                                });
+                                localStorage.setItem('lastNotifId', latest);
+                            }
+                        });
+                }
+            })
+            .catch(() => {});
+    }, 2000);
+});
+</script>
+
 <%@ include file="modals.jsp" %>
 </body>
 </html>

@@ -64,6 +64,7 @@ public class BuyNowServlet extends HttpServlet {
             int stock = rs.getInt("stock");
             String name = rs.getString("name");
             String image = rs.getString("image");
+            String thumbnail = rs.getString("thumbnail");
             int sellerId = rs.getInt("seller_id");
             rs.close(); ps.close();
 
@@ -83,6 +84,11 @@ public class BuyNowServlet extends HttpServlet {
                     usePrice = (originalPrice > 0 && originalPrice < price) ? originalPrice : price;
                 }
                 varImgRs.close(); varImgPs.close();
+            }
+
+         // Fallback to thumbnail if still no image
+            if (image == null || image.isEmpty()) {
+                image = thumbnail;
             }
 
             if (quantity > stock) {

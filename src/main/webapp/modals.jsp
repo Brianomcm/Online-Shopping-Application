@@ -114,9 +114,17 @@
 
                 <!-- SHARED FIELDS -->
                 <div class="row g-2">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Full Name</label>
-                        <input type="text" name="fullname" class="form-control" placeholder="Enter your full name" required>
+            <div class="col-md-5">
+                        <label class="form-label fw-bold">Last Name</label>
+                        <input type="text" name="last_name" class="form-control" placeholder="Dela Cruz" required>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">First Name</label>
+                        <input type="text" name="first_name" class="form-control" placeholder="Juan" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">M.I. <small class="text-muted fw-normal">(optional)</small></label>
+                        <input type="text" name="middle_initial" class="form-control" placeholder="A." maxlength="2">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Username</label>
@@ -126,7 +134,7 @@
                         <label class="form-label fw-bold">Email</label>
                         <input type="email" name="email" class="form-control" placeholder="Enter your email" required>
                     </div>
-                    <div class="col-md-6">
+  <div class="col-md-4">
                         <label class="form-label fw-bold">Phone Number</label>
                         <div class="input-group">
                             <span class="input-group-text">+63</span>
@@ -136,30 +144,30 @@
                             First digit must be 9 (e.g. 9171234567)
                         </div>
                     </div>
-                    <div class="col-md-6">
+<div class="col-md-4">
                         <label class="form-label fw-bold">Password</label>
                         <div class="input-group">
-    <input type="password" name="password" id="regPassword" class="form-control" placeholder="Create a password" required oninput="checkPasswordStrength(this.value)">
-    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('regPassword', this)">
-        <i class="bi bi-eye"></i>
-    </button>
-</div>
-                   <div id="passStrengthWrap" class="mt-1 px-1">
-                        <div class="progress" style="height:5px; border-radius:4px;">
-                            <div id="passStrengthBar" class="progress-bar" style="width:0%; transition:0.3s;"></div>
+                            <input type="password" name="password" id="regPassword" class="form-control" placeholder="Create a password" required oninput="checkPasswordStrength(this.value)">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('regPassword', this)">
+                                <i class="bi bi-eye"></i>
+                            </button>
                         </div>
-                        <small id="passStrengthText" style="font-size:11px;"></small>
+                        <div id="passStrengthWrap" class="mt-1 px-1">
+                            <div class="progress" style="height:5px; border-radius:4px;">
+                                <div id="passStrengthBar" class="progress-bar" style="width:0%; transition:0.3s;"></div>
+                            </div>
+                            <small id="passStrengthText" style="font-size:11px;"></small>
+                        </div>
                     </div>
-                    </div>
-                    <div class="col-md-6">
-                     <label class="form-label fw-bold">Confirm Password</label>
+    <div class="col-md-4">
+                        <label class="form-label fw-bold">Confirm Password</label>
                         <div class="input-group">
-    <input type="password" id="confirmPassword" class="form-control" placeholder="Repeat your password">
-    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('confirmPassword', this)">
-        <i class="bi bi-eye"></i>
-    </button>
-</div>
-<div id="regValidationError" class="alert alert-danger py-2 mt-2" style="display:none; font-size:13px;"></div>
+                            <input type="password" id="confirmPassword" class="form-control" placeholder="Repeat your password">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('confirmPassword', this)">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div id="regValidationError" class="alert alert-danger py-2 mt-2" style="display:none; font-size:13px;"></div>
                     </div>
                 </div>
 
@@ -528,8 +536,8 @@ function checkPasswordStrength(val) {
     const text = document.getElementById('passStrengthText');
     if (!bar) return;
     let score = 0;
-    if (val.length >= 6) score++;
-    if (val.length >= 10) score++;
+    if (val.length >= 4) score++;
+    if (val.length >= 8) score++;
     if (/[A-Z]/.test(val)) score++;
     if (/[0-9]/.test(val)) score++;
     if (/[^A-Za-z0-9]/.test(val)) score++;

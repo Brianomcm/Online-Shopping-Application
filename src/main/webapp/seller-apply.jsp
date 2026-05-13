@@ -205,7 +205,7 @@ String customerAvatar = (String) session.getAttribute("userAvatar");
         }
 
         /* ── Loading Overlay ── */
-        #loadingOverlay {
+ #loadingOverlay {
             display: none;
             position: fixed;
             inset: 0;
@@ -214,7 +214,9 @@ String customerAvatar = (String) session.getAttribute("userAvatar");
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 20px;
+            gap: 4px;
+            text-align: center;
+            padding-bottom: 80px;
         }
         #loadingOverlay.show { display: flex; }
         .spinner {
@@ -232,11 +234,38 @@ String customerAvatar = (String) session.getAttribute("userAvatar");
         }
         #loadingOverlay small { color: #888; font-size: 13px; }
 
-        @media (max-width: 600px) {
+    @media (max-width: 600px) {
             .form-row   { grid-template-columns: 1fr; }
-            .benefits   { flex-direction: column; }
-            .form-card  { padding: 20px; }
+            .form-card  { padding: 16px 14px; }
             .navbar     { padding: 12px 16px; }
+
+            /* Benefits — horizontal row na lang, mas compact */
+            .benefits { flex-direction: row !important; gap: 8px; }
+            .benefit-item { padding: 10px 6px !important; border-radius: 8px !important; }
+            .benefit-item i { font-size: 18px !important; margin-bottom: 4px !important; }
+            .benefit-item span { font-size: 10px !important; }
+
+            /* Terms box — fix overflow */
+            .terms-box { padding: 12px !important; }
+            .terms-box label { 
+                flex-wrap: wrap; 
+                font-size: 12px !important; 
+                gap: 6px !important;
+                line-height: 1.4 !important;
+            }
+
+            /* Form inputs */
+            .form-control, .form-select { font-size: 13px !important; }
+            label { font-size: 13px !important; }
+            .form-hint { font-size: 11px !important; }
+
+            /* Submit button */
+            .btn-submit { padding: 12px !important; font-size: 14px !important; }
+
+            /* Header */
+            .hero-icon { width: 60px !important; height: 60px !important; font-size: 24px !important; }
+            h1 { font-size: 22px !important; }
+            .subtitle { font-size: 13px !important; }
         }
     </style>
 </head>
@@ -244,9 +273,11 @@ String customerAvatar = (String) session.getAttribute("userAvatar");
 
 <!-- ── Loading Overlay ── -->
 <div id="loadingOverlay">
-    <div class="spinner"></div>
-    <p id="loadingText"><i class="fas fa-paper-plane"></i> Submitting application…</p>
-    <small id="loadingSmall">Please wait a moment.</small>
+    <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+        <div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem;"></div>
+        <p style="margin:0; font-weight:600; font-size:16px; color:#2563eb;">✈️ Submitting your application...</p>
+        <small style="color:#64748b;">This may take a few seconds, please wait.</small>
+    </div>
 </div>
 <!-- ── Navbar ── -->
 <%
@@ -285,8 +316,10 @@ request.setAttribute("navBackUrl", "index.jsp");
     <% if (error != null) { %>
     <div class="alert">
         <i class="fas fa-exclamation-circle"></i>
-        <% if ("already".equals(error)) { %>
+      <% if ("already".equals(error)) { %>
             You already have a seller account.
+        <% } else if ("relogin".equals(error)) { %>
+            🎉 Your application has been approved! Please <a href="LogoutServlet">log out</a> and log back in to access your Seller Center.
         <% } else { %>
             Something went wrong. Please try again.
         <% } %>
@@ -340,18 +373,15 @@ request.setAttribute("navBackUrl", "index.jsp");
 
             <div class="form-group">
                 <label>Primary Product Category <span class="req">*</span></label>
-                <select name="primaryCategory" required>
-                    <option value="" disabled selected>Select a category</option>
-                    <option value="Electronics">📱 Electronics</option>
-                    <option value="Fashion">👗 Fashion</option>
-                    <option value="Home & Living">🏠 Home & Living</option>
-                    <option value="Gaming">🎮 Gaming</option>
-                    <option value="Health & Beauty">💄 Health & Beauty</option>
-                    <option value="Sports & Outdoors">⚽ Sports & Outdoors</option>
-                    <option value="Food & Beverage">🍔 Food & Beverage</option>
-                    <option value="Arts & Crafts">🎨 Arts & Crafts</option>
-                    <option value="Other">📦 Other</option>
-                </select>
+              <select name="primaryCategory" required>
+    <option value="" disabled selected>Select a category</option>
+    <option value="Electronics">📱 Electronics</option>
+    <option value="Fashion">👗 Fashion</option>
+    <option value="Home">🏠 Home & Living</option>
+    <option value="Gaming">🎮 Gaming</option>
+    <option value="Health">💊 Health & Beauty</option>
+    <option value="Others">📦 Others</option>
+</select>
                 <div class="hint">Choose the main category of what you will sell.</div>
             </div>
 
@@ -505,26 +535,10 @@ document.addEventListener('click', function(e) {
             showSellerToast('Server error. Please try again.');
         });
 
-        // Animation steps (independent of servlet)
+     // Redirect after 4s
         setTimeout(function() {
-            document.getElementById('loadingText').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reviewing your application…';
-            document.getElementById('loadingSmall').textContent = 'Almost there, please wait…';
-        }, 2000);
-
-        setTimeout(function() {
-            document.getElementById('loadingText').innerHTML = '<i class="fas fa-check-circle" style="color:#198754;"></i> Application approved!';
-            document.getElementById('loadingSmall').textContent = 'Setting up your seller account…';
-        }, 5000);
-
-        setTimeout(function() {
-            document.getElementById('loadingText').innerHTML = '<i class="fas fa-store" style="color:#198754;"></i> Opening your shop…';
-            document.getElementById('loadingSmall').textContent = 'Redirecting you to the homepage…';
-        }, 7000);
-
-        // Redirect after 9s
-        setTimeout(function() {
-            window.location.href = 'index.jsp?sellerWelcome=true';
-        }, 9000);
+            window.location.href = 'index.jsp?sellerPending=true';
+        }, 4000);
     });
     </script>
 <%@ include file="modals.jsp" %>

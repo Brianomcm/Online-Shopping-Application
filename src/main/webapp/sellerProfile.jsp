@@ -71,7 +71,23 @@
         .product-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.15); transform: translateY(-4px); }
         .product-card img { height: 200px; object-fit: contain; width: 100%; background: #f8f9fa; padding: 8px; }
         .toast-msg { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #198754; color: white; padding: 12px 28px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 9999; display: none; }
-        .avatar-circle { width: 36px; height: 36px; border-radius: 50%; background: #0d6efd; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; overflow: hidden; }
+      .avatar-circle { width: 36px; height: 36px; border-radius: 50%; background: #0d6efd; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; overflow: hidden; }
+
+   @media (max-width: 576px) {
+            .shop-banner { height: 140px !important; }
+            .shop-logo { width: 70px !important; height: 70px !important; margin-top: -35px !important; }
+            .shop-logo-placeholder { width: 70px !important; height: 70px !important; margin-top: -35px !important; font-size: 24px !important; }
+            .product-card img { height: 100px !important; }
+            .card-title { font-size: 12px !important; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+            .card-body { padding: 6px 8px !important; }
+            .card-body .text-muted { font-size: 10px !important; }
+            .card-body .badge { font-size: 9px !important; }
+            .card-body p { margin-bottom: 2px !important; font-size: 12px; }
+            .card-body .btn { font-size: 11px !important; padding: 5px 8px !important; }
+        }
+        .shop-banner-wrap { height: 140px !important; }
+            .shop-banner-wrap img,
+            .shop-banner-wrap div { height: 140px !important; }
     </style>
 </head>
 <body>
@@ -104,7 +120,7 @@
 
 <!-- BREADCRUMB -->
 <div class="bg-white border-bottom px-4 py-2">
-    <nav aria-label="breadcrumb">
+  <nav aria-label="breadcrumb" class="d-none d-md-block">
         <ol class="breadcrumb mb-0" style="font-size:13px;">
             <li class="breadcrumb-item"><a href="index.jsp" class="text-decoration-none text-primary">Home</a></li>
             <%
@@ -126,7 +142,7 @@
 </div>
 
 <!-- SHOP BANNER -->
-<div style="max-width:1100px; margin:0 auto; height:220px; overflow:hidden; border-radius:12px; margin-bottom:0;">
+<div style="max-width:1100px; margin:0 auto; height:220px; overflow:hidden; border-radius:12px; margin-bottom:0;" class="shop-banner-wrap">
 <% if (bannerPic != null && !bannerPic.isEmpty()) { %>
     <img src="<%= bannerPic %>" style="width:100%; height:220px; object-fit:cover; object-position:center; display:block; border-radius:12px;">
 <% } else { %>

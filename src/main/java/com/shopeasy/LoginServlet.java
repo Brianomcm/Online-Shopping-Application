@@ -35,23 +35,6 @@ public class LoginServlet extends HttpServlet {
             ResultSet userRs = userPs.executeQuery();
 
             if (!userRs.next()) {
-                // Check admin table (admin uses username not email)
-                String adminSql = "SELECT * FROM admin WHERE username=? AND password=?";
-                PreparedStatement adminPs = conn.prepareStatement(adminSql);
-                adminPs.setString(1, email);
-                adminPs.setString(2, password);
-                ResultSet adminRs = adminPs.executeQuery();
-
-                if (adminRs.next()) {
-                    HttpSession session = request.getSession();
-                    session.setAttribute("userId",   adminRs.getInt("admin_id"));
-                    session.setAttribute("userName", adminRs.getString("username"));
-                    session.setAttribute("userRole", "admin");
-                    conn.close();
-                    response.sendRedirect("admin.jsp");
-                    return;
-                }
-
                 conn.close();
                 response.sendRedirect("index.jsp?error=login");
                 return;
@@ -71,6 +54,14 @@ public class LoginServlet extends HttpServlet {
                 activeMode = "customer";
             }
 
+         // Check if banned
+            String userStatus = userRs.getString("status");
+            if ("Banned".equals(userStatus)) {
+                conn.close();
+                response.sendRedirect("index.jsp?error=banned");
+                return;
+            }
+
             HttpSession session = request.getSession();
             session.setAttribute("userId",     userId);
             session.setAttribute("userRole",   role);
@@ -85,12 +76,16 @@ public class LoginServlet extends HttpServlet {
             ResultSet custRs = custPs.executeQuery();
 
             if (custRs.next()) {
-                session.setAttribute("customerId",      custRs.getInt("customer_id"));
-                session.setAttribute("userName",        custRs.getString("name"));
-                session.setAttribute("userEmail",       custRs.getString("email"));
-                session.setAttribute("userPhone",       custRs.getString("phone"));
-                session.setAttribute("userUsername",    custRs.getString("username"));
-                String _custPic = custRs.getString("profile_picture");
+        	    session.setAttribute("customerId",      custRs.getInt("customer_id"));
+        	    session.setAttribute("userName",        custRs.getString("name"));
+        	    session.setAttribute("userFirstName",   custRs.getString("first_name"));
+        	    session.setAttribute("userLastName",    custRs.getString("last_name"));
+        	    String _mi = custRs.getString("middle_initial");
+        	    session.setAttribute("userMiddleInitial", _mi != null ? _mi : "");
+        	    session.setAttribute("userEmail",       custRs.getString("email"));
+        	    session.setAttribute("userPhone",       custRs.getString("phone"));
+        	    session.setAttribute("userUsername",    custRs.getString("username"));
+            String _custPic = custRs.getString("profile_picture");
                 session.setAttribute("userAvatar", (_custPic != null && !_custPic.isEmpty()) ? _custPic : null);
                 String _bday = custRs.getString("birthday");
                 session.setAttribute("userBirthday", _bday);
@@ -204,7 +199,9 @@ public class LoginServlet extends HttpServlet {
             // -------------------------------------------------------
             // 5. Redirect based on active_mode
             // -------------------------------------------------------
-            if ("seller".equals(activeMode)) {
+            if ("admin".equals(role)) {
+                response.sendRedirect("admin.jsp");
+            } else if ("seller".equals(activeMode)) {
                 response.sendRedirect("seller.jsp");
             } else {
                 response.sendRedirect("index.jsp?loggedin=true");

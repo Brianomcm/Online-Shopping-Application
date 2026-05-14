@@ -654,9 +654,9 @@
         String searchUser = request.getParameter("search");
         if (searchUser == null) searchUser = "";
     %>
-        <div class="admin-card">
-            <div class="admin-card-header">
-                <h6><i class="bi bi-people me-2 text-primary"></i>All Users</h6>
+<div class="admin-card" style="overflow:visible;">
+    <div class="admin-card-header">
+        <h6><i class="bi bi-people me-2 text-primary"></i>All Users</h6>
                 <form method="get" action="admin.jsp" class="d-flex gap-2">
                     <input type="hidden" name="tab" value="users">
                     <input type="text" class="form-control form-control-sm" name="search"
@@ -664,12 +664,12 @@
                     <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-search"></i></button>
                 </form>
             </div>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Name</th>
+     <div class="table-responsive" style="overflow:visible;">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Name</th>
                             <th>Email</th>
                             <th>Username</th>
                             <th>Role</th>
@@ -797,8 +797,14 @@
 </li>
             <% } %>
             <li>
-                <a class="dropdown-item" href="admin.jsp?tab=orders&search=<%= uEmail %>">
-                    <i class="bi bi-bag me-2"></i>View Orders
+             <a class="dropdown-item" href="admin.jsp?tab=orders&search=<%= uName.replace("'","") %>">
+    <i class="bi bi-bag me-2"></i>View Orders
+</a>
+            </li>
+            <li>
+                <a class="dropdown-item text-primary" href="#"
+                   onclick="viewUserProfile(<%= uid %>, '<%= uName.replace("'","") %>', '<%= uEmail %>', '<%= uRole %>')">
+                    <i class="bi bi-person-lines-fill me-2"></i>View Profile
                 </a>
             </li>
         </ul>
@@ -1473,9 +1479,19 @@
     <%-- ==================== ORDERS TAB ==================== --%>
     <% } else if ("orders".equals(tab)) { %>
         <div class="admin-card">
-            <div class="admin-card-header">
-                <h6><i class="bi bi-bag-check me-2 text-warning"></i>All Orders</h6>
-            </div>
+          <div class="admin-card-header">
+    <h6><i class="bi bi-bag-check me-2 text-warning"></i>All Orders</h6>
+    <%
+        String searchOrder = request.getParameter("search");
+        if (searchOrder == null) searchOrder = "";
+    %>
+    <% if (!searchOrder.isEmpty()) { %>
+    <span class="badge bg-primary" style="font-size:12px;">
+        <i class="bi bi-search me-1"></i>Showing orders for: <%= searchOrder %>
+        <a href="admin.jsp?tab=orders" class="text-white ms-2" style="text-decoration:none;">✕</a>
+    </span>
+    <% } %>
+</div>
             <div class="table-responsive">
                 <table class="table">
                     <thead>
@@ -1493,12 +1509,18 @@
                     <%
                         try {
                             Connection conn = DBConnection.getConnection();
-                            PreparedStatement ps = conn.prepareStatement(
-                                "SELECT o.order_id, o.total_amount, o.status, o.order_date, " +
-                                "c.name as customer_name " +
-                                "FROM orders o " +
-                                "LEFT JOIN customer c ON o.customer_id = c.customer_id " +
-                                "ORDER BY o.order_id DESC LIMIT 100");
+                            String orderSql = "SELECT o.order_id, o.total_amount, o.status, o.order_date, " +
+                            	    "c.name as customer_name " +
+                            	    "FROM orders o " +
+                            	    "LEFT JOIN customer c ON o.customer_id = c.customer_id ";
+                            	if (!searchOrder.isEmpty()) {
+                            	    orderSql += "WHERE c.name LIKE ? ";
+                            	}
+                            	orderSql += "ORDER BY o.order_id DESC LIMIT 100";
+                            	PreparedStatement ps = conn.prepareStatement(orderSql);
+                            	if (!searchOrder.isEmpty()) {
+                            	    ps.setString(1, "%" + searchOrder + "%");
+                            	}
                             ResultSet rs = ps.executeQuery();
                             int totalRowsO = 0;
                             while (rs.next()) totalRowsO++;
@@ -2959,5 +2981,93 @@ const reasons = ['Spam review','Fake review','Offensive language','Harassment','
         </div>
     </div>
 </div>
+
+<!-- VIEW USER PROFILE MODAL -->
+<div class="modal fade" id="viewUserProfileModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold"><i class="bi bi-person-lines-fill me-2 text-primary"></i>User Profile</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+          <div class="modal-body px-4 pb-4" id="viewUserProfileBody" style="text-align:center;">
+                <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function viewUserProfile(userId, name, email, role) {
+    document.getElementById('viewUserProfileBody').innerHTML =
+        '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+    new bootstrap.Modal(document.getElementById('viewUserProfileModal')).show();
+
+    fetch('AdminServlet?action=getUserProfile&userId=' + userId, {method:'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('viewUserProfileBody').innerHTML =
+                    '<p class="text-danger text-center">Failed to load profile.</p>';
+                return;
+            }
+            const d = data.user;
+            const initial = (d.name || '?').charAt(0).toUpperCase();
+
+            // Mask sensitive info
+            function maskEmail(email) {
+                if (!email) return '-';
+                const [user, domain] = email.split('@');
+                if (user.length <= 3) return user[0] + '***@' + domain;
+                return user.substring(0, 4) + '***@' + domain;
+            }
+            function maskPhone(phone) {
+                if (!phone) return '-';
+                const p = phone.toString();
+                if (p.length <= 6) return p;
+                return p.substring(0, 4) + '****' + p.substring(p.length - 3);
+            }
+            const maskedEmail = maskEmail(d.email);
+            const maskedPhone = maskPhone(d.phone);
+            const avatar = d.avatar
+                ? '<img src="' + d.avatar + '" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #0d6efd;">'
+                : '<div style="width:72px;height:72px;border-radius:50%;background:#0d6efd;color:white;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto;">' + initial + '</div>';
+
+            const roleBadge = d.role === 'both'
+                ? '<span class="badge text-white" style="background:#6610f2;">Customer + Seller</span>'
+                : d.role === 'seller'
+                ? '<span class="badge bg-warning text-dark">Seller</span>'
+                : '<span class="badge bg-primary">Customer</span>';
+
+            let sellerSection = '';
+            if (d.sellerName) {
+                const statusColor = d.sellerStatus === 'active' ? 'success' : d.sellerStatus === 'suspended' ? 'warning' : 'danger';
+                sellerSection = '<hr>'
+                    + '<p class="fw-bold mb-2" style="font-size:13px;"><i class="bi bi-shop me-1 text-success"></i> Seller Info</p>'
+                    + '<div class="d-flex justify-content-between mb-1" style="font-size:13px;"><span class="text-muted">Business Name</span><strong>' + d.sellerName + '</strong></div>'
+                    + '<div class="d-flex justify-content-between mb-1" style="font-size:13px;"><span class="text-muted">Business Type</span><span>' + (d.bizType || '-') + '</span></div>'
+                    + '<div class="d-flex justify-content-between mb-2" style="font-size:13px;"><span class="text-muted">Seller Status</span><span class="badge bg-' + statusColor + '">' + d.sellerStatus + '</span></div>'
+                    + '<a href="SellerPageServlet?id=' + d.sellerId + '" target="_blank" class="btn btn-outline-success btn-sm w-100"><i class="bi bi-shop me-1"></i> View Public Shop</a>';
+            }
+
+            const offenseClass = d.offenses > 0 ? 'text-danger fw-bold' : '';
+            document.getElementById('viewUserProfileBody').innerHTML =
+                '<div class="text-center mb-3">' + avatar + '<div class="mt-2">' + roleBadge + '</div></div>'
+                + '<p class="fw-bold text-center mb-3" style="font-size:16px;">' + (d.name || '-') + '</p>'
+                + '<div class="d-flex justify-content-between mb-1" style="font-size:13px;"><span class="text-muted">Email</span><span>' + maskedEmail + '</span></div>'
+                + '<div class="d-flex justify-content-between mb-1" style="font-size:13px;"><span class="text-muted">Username</span><span>' + (d.username || '-') + '</span></div>'
+                + '<div class="d-flex justify-content-between mb-1" style="font-size:13px;"><span class="text-muted">Phone</span><span>' + maskedPhone + '</span></div>'
+                + '<div class="d-flex justify-content-between mb-1" style="font-size:13px;"><span class="text-muted">Birthday</span><span>' + (d.birthday || '-') + '</span></div>'
+                + '<div class="d-flex justify-content-between mb-1" style="font-size:13px;"><span class="text-muted">Gender</span><span>' + (d.gender || '-') + '</span></div>'
+                + '<div class="d-flex justify-content-between mb-1" style="font-size:13px;"><span class="text-muted">Total Orders</span><span>' + d.totalOrders + '</span></div>'
+                + '<div class="d-flex justify-content-between mb-1" style="font-size:13px;"><span class="text-muted">Offenses</span><span class="' + offenseClass + '">' + d.offenses + '</span></div>'
+                + sellerSection;
+        })
+        .catch(() => {
+            document.getElementById('viewUserProfileBody').innerHTML =
+                '<p class="text-danger text-center">Error loading profile.</p>';
+        });
+}
+</script>
 </body>
 </html>

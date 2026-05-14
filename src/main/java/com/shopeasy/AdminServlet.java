@@ -366,14 +366,6 @@ public class AdminServlet extends HttpServlet {
                                 notifPs.setString(2, "⚠️ Your seller account \"" + sellerBizName + "\" has been temporarily suspended for " + days + " day(s). Reason: " + reason + ". Your account will be automatically reactivated after " + days + " day(s).");
                                 notifPs.executeUpdate(); notifPs.close();
                             } catch(Exception ex) {}
-                            // Also notify via customer notifications tab
-                            try {
-                                PreparedStatement custNotifPs = conn.prepareStatement(
-                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'customer', ?, 0)");
-                                custNotifPs.setInt(1, sellerUserId);
-                                custNotifPs.setString(2, "⚠️ Your seller account \"" + sellerBizName + "\" has been temporarily suspended for " + days + " day(s). Reason: " + reason + ". Your account will be automatically reactivated after " + days + " day(s).");
-                                custNotifPs.executeUpdate(); custNotifPs.close();
-                            } catch(Exception ex) {}
                         }
                         out.print("{\"success\":true,\"message\":\"Seller suspended for " + days + " day(s).\"}");
                     } else {
@@ -430,14 +422,6 @@ public class AdminServlet extends HttpServlet {
                                 notifPs.setString(2, "🚫 Your seller account \"" + sellerBizName + "\" has been permanently deactivated. Reason: " + reason + ". Please contact support for more information.");
                                 notifPs.executeUpdate(); notifPs.close();
                             } catch(Exception ex) {}
-                            // Also notify via customer notifications tab
-                            try {
-                                PreparedStatement custNotifPs = conn.prepareStatement(
-                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'customer', ?, 0)");
-                                custNotifPs.setInt(1, sellerUserId);
-                                custNotifPs.setString(2, "🚫 Your seller account \"" + sellerBizName + "\" has been permanently deactivated. Reason: " + reason + ". Please contact support for more information.");
-                                custNotifPs.executeUpdate(); custNotifPs.close();
-                            } catch(Exception ex) {}
                         }
                         out.print("{\"success\":true,\"message\":\"Seller deactivated successfully.\"}");
                     } else {
@@ -477,14 +461,6 @@ public class AdminServlet extends HttpServlet {
                                 notifPs.setInt(1, sellerUserId);
                                 notifPs.setString(2, "✅ Good news! Your seller account \"" + sellerBizName + "\" has been reactivated. You can now access your Seller Center.");
                                 notifPs.executeUpdate(); notifPs.close();
-                            } catch(Exception ex) {}
-                            // Also notify via customer notifications tab
-                            try {
-                                PreparedStatement custNotifPs = conn.prepareStatement(
-                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?, 'customer', ?, 0)");
-                                custNotifPs.setInt(1, sellerUserId);
-                                custNotifPs.setString(2, "✅ Good news! Your seller account \"" + sellerBizName + "\" has been reactivated. You can now access your Seller Center.");
-                                custNotifPs.executeUpdate(); custNotifPs.close();
                             } catch(Exception ex) {}
                         }
                         out.print("{\"success\":true,\"message\":\"Seller reactivated successfully.\"}");
@@ -951,6 +927,82 @@ public class AdminServlet extends HttpServlet {
                     out.print("{\"success\":true,\"message\":\"Review deleted and offense recorded.\"}");
                     break;
                 }
+                case "getUserProfile": {
+                    String userIdStr = request.getParameter("userId");
+                    if (userIdStr == null) { out.print("{\"success\":false}"); break; }
+                    int userId = Integer.parseInt(userIdStr);
+
+                    String pName = "", pEmail = "", pUsername = "", pPhone = "", pBirthday = "", pGender = "", pAvatar = "";
+                    int pOrders = 0, pOffenses = 0;
+                    try {
+                        PreparedStatement pPs = conn.prepareStatement(
+                        		"SELECT c.name, u.email, c.username, c.phone, c.birthday, c.gender, c.profile_picture as avatar, " +
+                            "COALESCE((SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.customer_id), 0) as total_orders, " +
+                            "COALESCE((SELECT COUNT(*) FROM user_violations WHERE user_id=u.user_id), 0) as offenses " +
+                            "FROM users u LEFT JOIN customer c ON u.user_id = c.user_id WHERE u.user_id=?");
+                        pPs.setInt(1, userId);
+                        ResultSet pRs = pPs.executeQuery();
+                        if (pRs.next()) {
+                            pName     = pRs.getString("name")     != null ? pRs.getString("name")     : "";
+                            pEmail    = pRs.getString("email")    != null ? pRs.getString("email")    : "";
+                            pUsername = pRs.getString("username") != null ? pRs.getString("username") : "";
+                            pPhone    = pRs.getString("phone")    != null ? pRs.getString("phone")    : "";
+                            pBirthday = pRs.getString("birthday") != null ? pRs.getString("birthday") : "";
+                            pGender   = pRs.getString("gender")   != null ? pRs.getString("gender")   : "";
+                            pAvatar   = pRs.getString("avatar")   != null ? pRs.getString("avatar")   : "";
+                            pOrders   = pRs.getInt("total_orders");
+                            pOffenses = pRs.getInt("offenses");
+                        }
+                        pRs.close(); pPs.close();
+                    } catch(Exception ex) { ex.printStackTrace(); }
+
+                    // Get role
+                    String pRole = "customer";
+                    try {
+                        PreparedStatement rPs = conn.prepareStatement("SELECT role FROM users WHERE user_id=?");
+                        rPs.setInt(1, userId);
+                        ResultSet rRs = rPs.executeQuery();
+                        if (rRs.next()) pRole = rRs.getString("role");
+                        rRs.close(); rPs.close();
+                    } catch(Exception ex) {}
+
+                    // Get seller info if applicable
+                    int pSellerId = 0; String pSellerName = "", pBizType = "", pSellerStatus = "";
+                    if ("seller".equals(pRole) || "both".equals(pRole)) {
+                        try {
+                            PreparedStatement sPs = conn.prepareStatement(
+                                "SELECT seller_id, business_name, business_type, status FROM seller WHERE user_id=? LIMIT 1");
+                            sPs.setInt(1, userId);
+                            ResultSet sRs = sPs.executeQuery();
+                            if (sRs.next()) {
+                                pSellerId = sRs.getInt("seller_id");
+                                pSellerName = sRs.getString("business_name") != null ? sRs.getString("business_name") : "";
+                                pBizType = sRs.getString("business_type") != null ? sRs.getString("business_type") : "";
+                                pSellerStatus = sRs.getString("status") != null ? sRs.getString("status") : "active";
+                            }
+                            sRs.close(); sPs.close();
+                        } catch(Exception ex) {}
+                    }
+
+                    out.print("{\"success\":true,\"user\":{" +
+                        "\"name\":\"" + pName.replace("\"","") + "\"," +
+                        "\"email\":\"" + pEmail.replace("\"","") + "\"," +
+                        "\"username\":\"" + pUsername.replace("\"","") + "\"," +
+                        "\"phone\":\"" + pPhone.replace("\"","") + "\"," +
+                        "\"birthday\":\"" + pBirthday + "\"," +
+                        "\"gender\":\"" + pGender + "\"," +
+                        "\"avatar\":\"" + pAvatar.replace("\"","").replace("\\","\\\\") + "\"," +
+                        "\"role\":\"" + pRole + "\"," +
+                        "\"totalOrders\":" + pOrders + "," +
+                        "\"offenses\":" + pOffenses + "," +
+                        "\"sellerId\":" + pSellerId + "," +
+                        "\"sellerName\":\"" + pSellerName.replace("\"","") + "\"," +
+                        "\"bizType\":\"" + pBizType.replace("\"","") + "\"," +
+                        "\"sellerStatus\":\"" + pSellerStatus + "\"" +
+                    "}}");
+                    break;
+                }
+
                 default:
                     out.print("{\"success\":false,\"message\":\"Unknown action\"}");
                     break;

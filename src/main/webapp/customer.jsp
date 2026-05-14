@@ -19,6 +19,20 @@ if (userMiddleInitial == null) userMiddleInitial = "";
     String userGender = (String) session.getAttribute("userGender");
     String userRole = (String) session.getAttribute("userRole");
     if (userRole == null) userRole = "customer";
+    // Fetch seller_id if seller or both
+    int _custSellerPageId = 0;
+    if ("seller".equals(userRole) || "both".equals(userRole)) {
+        try {
+            int _csUserId = (int) session.getAttribute("userId");
+            java.sql.Connection _csConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement _csPs = _csConn.prepareStatement(
+                "SELECT seller_id FROM seller WHERE user_id=? LIMIT 1");
+            _csPs.setInt(1, _csUserId);
+            java.sql.ResultSet _csRs = _csPs.executeQuery();
+            if (_csRs.next()) _custSellerPageId = _csRs.getInt("seller_id");
+            _csRs.close(); _csPs.close(); _csConn.close();
+        } catch(Exception ex) {}
+    }
     String userBanReason = "";
     try {
         int banCheckId = (int) session.getAttribute("userId");
@@ -480,6 +494,11 @@ request.setAttribute("navCartCount", navCartCount);
             <button class="btn btn-outline-primary btn-sm" id="editBtn" onclick="enableEdit()">
                 <i class="bi bi-pencil"></i> Edit Profile
             </button>
+            <% if (("seller".equals(userRole) || "both".equals(userRole)) && _custSellerPageId > 0) { %>
+            <a href="SellerPageServlet?id=<%= _custSellerPageId %>" class="btn btn-outline-success btn-sm ms-2">
+                <i class="bi bi-shop"></i> View My Shop
+            </a>
+            <% } %>
         </div>
 
         <div class="text-center mb-4">

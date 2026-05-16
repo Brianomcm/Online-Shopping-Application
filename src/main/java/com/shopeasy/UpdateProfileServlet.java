@@ -50,6 +50,35 @@ public class UpdateProfileServlet extends HttpServlet {
 
         try {
             Connection conn = DBConnection.getConnection();
+
+            // Check duplicate username (excluding current user)
+            PreparedStatement checkUser = conn.prepareStatement(
+                "SELECT user_id FROM customer WHERE username=? AND user_id != ?");
+            checkUser.setString(1, username);
+            checkUser.setInt(2, userId);
+            java.sql.ResultSet checkUserRs = checkUser.executeQuery();
+            if (checkUserRs.next()) {
+                checkUserRs.close(); checkUser.close(); conn.close();
+                response.sendRedirect("customer.jsp?error=duplicate_username");
+                return;
+            }
+            checkUserRs.close(); checkUser.close();
+
+            // Check duplicate phone (excluding current user)
+            if (phone != null && !phone.trim().isEmpty()) {
+                PreparedStatement checkPhone = conn.prepareStatement(
+                    "SELECT user_id FROM customer WHERE phone=? AND user_id != ?");
+                checkPhone.setString(1, phone);
+                checkPhone.setInt(2, userId);
+                java.sql.ResultSet checkPhoneRs = checkPhone.executeQuery();
+                if (checkPhoneRs.next()) {
+                    checkPhoneRs.close(); checkPhone.close(); conn.close();
+                    response.sendRedirect("customer.jsp?error=duplicate_phone");
+                    return;
+                }
+                checkPhoneRs.close(); checkPhone.close();
+            }
+
             String profilePicture = request.getParameter("profilePicture");
 
          // Keep existing avatar if no new one uploaded

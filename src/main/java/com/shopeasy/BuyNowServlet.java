@@ -76,7 +76,17 @@ public class BuyNowServlet extends HttpServlet {
                 ResultSet varImgRs = varImgPs.executeQuery();
                 if (varImgRs.next()) {
                     String varImg = varImgRs.getString("image");
-                    if (varImg != null && !varImg.isEmpty()) image = varImg;
+                    if (varImg != null && !varImg.isEmpty()) {
+                        image = varImg;
+                    } else {
+                        // Fallback: get first variation image of the product
+                        PreparedStatement firstVarPs = conn.prepareStatement(
+                            "SELECT image FROM product_variation WHERE product_id=? AND image IS NOT NULL AND image != '' ORDER BY variation_id ASC LIMIT 1");
+                        firstVarPs.setInt(1, productId);
+                        ResultSet firstVarRs = firstVarPs.executeQuery();
+                        if (firstVarRs.next()) image = firstVarRs.getString("image");
+                        firstVarRs.close(); firstVarPs.close();
+                    }
                     double varPrice = varImgRs.getDouble("price");
                     double varOriginal = varImgRs.getDouble("original_price");
                     if (varPrice > 0) price = varPrice;
@@ -86,9 +96,19 @@ public class BuyNowServlet extends HttpServlet {
                 varImgRs.close(); varImgPs.close();
             }
 
-         // Fallback to thumbnail if still no image
+            // Fallback to thumbnail, then first variation image
             if (image == null || image.isEmpty()) {
-                image = thumbnail;
+                if (thumbnail != null && !thumbnail.isEmpty()) {
+                    image = thumbnail;
+                } else {
+                    // Last resort: first variation image of the product
+                    PreparedStatement firstVarPs = conn.prepareStatement(
+                        "SELECT image FROM product_variation WHERE product_id=? AND image IS NOT NULL AND image != '' ORDER BY variation_id ASC LIMIT 1");
+                    firstVarPs.setInt(1, productId);
+                    ResultSet firstVarRs = firstVarPs.executeQuery();
+                    if (firstVarRs.next()) image = firstVarRs.getString("image");
+                    firstVarRs.close(); firstVarPs.close();
+                }
             }
 
             if (quantity > stock) {

@@ -206,13 +206,14 @@ for (java.util.Map.Entry<Integer, java.util.List<java.util.Map<String, Object>>>
          id="cartItem_<%= item.get("cartitemId") %>"
          data-seller="<%= groupSellerId %>"
          style="border-bottom:1px solid #f5f5f5; <%= (int)item.get("quantity") == 0 ? "opacity:0.4; filter:grayscale(1);" : "" %>">
-        <input type="checkbox" class="item-checkbox form-check-input mt-0"
-               id="itemCheck_<%= item.get("cartitemId") %>"
-               data-itemid="<%= item.get("cartitemId") %>"
-               data-seller="<%= groupSellerId %>"
-  data-qty="<%= item.get("quantity") %>"
-              onchange="toggleItem(this)"
-               <%= (int)item.get("quantity") > 0 ? "checked" : "" %> style="width:16px; height:16px; cursor:pointer; flex-shrink:0;">
+      <input type="checkbox" class="item-checkbox form-check-input mt-0"
+       id="itemCheck_<%= item.get("cartitemId") %>"
+       data-itemid="<%= item.get("cartitemId") %>"
+       data-seller="<%= groupSellerId %>"
+       data-qty="<%= item.get("quantity") %>"
+       data-stock="<%= item.get("stock") != null ? item.get("stock") : 0 %>"
+       onchange="toggleItem(this)"
+       <%= (int)item.get("quantity") > 0 ? "checked" : "" %> style="width:16px; height:16px; cursor:pointer; flex-shrink:0;">
         <!-- Product Image -->
      <% if (item.get("image") != null) { %>
 <a href="product.jsp?id=<%= item.get("productId") %>">
@@ -445,11 +446,12 @@ function updateSelectAll() {
             const shopCb = document.getElementById('shopCheck_' + sellerId);
             if (shopCb && allUnchecked) shopCb.checked = false;
         } else {
-            card.style.opacity = '1';
-            card.style.filter = 'none';
-            // Auto-check item kapag nag-+ mula 0
             const cb = document.getElementById('itemCheck_' + itemId);
-            if (cb) cb.checked = true;
+            const isOutOfStock = cb ? parseInt(cb.dataset.stock) === 0 : false;
+            card.style.opacity = isOutOfStock ? '0.4' : '1';
+            card.style.filter = isOutOfStock ? 'grayscale(1)' : 'none';
+            // Auto-check item kapag nag-+ mula 0, pero hindi kung out of stock
+            if (cb && !isOutOfStock) cb.checked = true;
             // Check kung lahat ng items ng shop ay naka-check na → auto-check shop
             const sellerId = card.dataset.seller;
             const allItemCbs = document.querySelectorAll('.item-checkbox[data-seller="' + sellerId + '"]');
@@ -504,8 +506,13 @@ function updateSelectAll() {
     }
     function toggleShop(sellerId, checked) {
         document.querySelectorAll('.item-checkbox[data-seller="' + sellerId + '"]').forEach(cb => {
+            // Skip out of stock items when checking
+            if (checked && parseInt(cb.dataset.stock) === 0) {
+                cb.checked = false;
+                return;
+            }
             cb.checked = checked;
-            toggleItem(cb, true); // true = skip updateTotal muna
+            toggleItem(cb, true);
         });
         const shopCard = document.getElementById('shopCheck_' + sellerId)
             ?.closest('.cart-card');
@@ -532,9 +539,10 @@ function updateSelectAll() {
         const itemId = cb.dataset.itemid;
         const checked = cb.checked;
         const row = document.getElementById('cartItem_' + itemId);
+        const isOutOfStock = parseInt(cb.dataset.stock) === 0;
         if (row) {
-            row.style.opacity = checked ? '1' : '0.4';
-            row.style.filter = checked ? 'none' : 'grayscale(1)';
+            row.style.opacity = (checked && !isOutOfStock) ? '1' : '0.4';
+            row.style.filter = (checked && !isOutOfStock) ? 'none' : 'grayscale(1)';
         }
         // Set qty in DB
         let newQty;
@@ -549,6 +557,17 @@ function updateSelectAll() {
             const sub = document.getElementById('sub_' + itemId);
             if (sub) sub.innerText = '₱0.00';
         } else {
+            // Check if out of stock first
+            const stock = parseInt(cb.dataset.stock) || 0;
+            if (stock === 0) {
+                cb.checked = false; // force uncheck
+                // Also uncheck shop checkbox
+                const sellerId = cb.dataset.seller;
+                const shopCb = document.getElementById('shopCheck_' + sellerId);
+                if (shopCb) shopCb.checked = false;
+                if (!skipTotal) showToast('This item is out of stock!', '#dc3545');
+                return;
+            }
             // Restore last qty (min 1)
             const lastQty = parseInt(cb.dataset.qty) || 1;
             newQty = lastQty;
@@ -557,7 +576,7 @@ function updateSelectAll() {
             const sub = document.getElementById('sub_' + itemId);
             if (sub) sub.innerText = '₱' + (prices[itemId] * lastQty).toFixed(2);
         }
-     // Only save to DB if actually removing (qty change), not just visual uncheck
+        // Save to DB if actually removing (qty change), not just visual uncheck
         if (checked || newQty === 0) {
             fetch('UpdateCartServlet', {
                 method: 'POST',

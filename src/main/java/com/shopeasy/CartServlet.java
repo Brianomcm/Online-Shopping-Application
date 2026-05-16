@@ -83,7 +83,15 @@ public class CartServlet extends HttpServlet {
                             String thumbImg = imgRs.getString("thumbnail");
                             if (varImg != null && !varImg.isEmpty()) cartImg = varImg;
                             else if (thumbImg != null && !thumbImg.isEmpty()) cartImg = thumbImg;
-                            // else keep main product image
+                            else {
+                                // Fallback: get first variation image of the product
+                                PreparedStatement firstVarPs = imgConn.prepareStatement(
+                                    "SELECT image FROM product_variation WHERE product_id=? AND image IS NOT NULL AND image != '' ORDER BY variation_id ASC LIMIT 1");
+                                firstVarPs.setInt(1, rs.getInt("product_id"));
+                                ResultSet firstVarRs = firstVarPs.executeQuery();
+                                if (firstVarRs.next()) cartImg = firstVarRs.getString("image");
+                                firstVarRs.close(); firstVarPs.close();
+                            }
                         }
                         imgRs.close(); imgPs.close(); imgConn.close();
                     } catch (Exception ignored) {}

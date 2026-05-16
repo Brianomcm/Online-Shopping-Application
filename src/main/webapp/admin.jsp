@@ -1378,7 +1378,7 @@
                     <%
                         try {
                             Connection conn = DBConnection.getConnection();
-                            String sql = "SELECT p.product_id, p.name as product_name, p.price, p.stock, " +
+                            String sql = "SELECT p.product_id, p.name as product_name, p.price, p.original_price, p.stock, " +
                                     "p.image, p.thumbnail, p.status, p.created_at, " +
                                     "(SELECT pv.image FROM product_variation pv WHERE pv.product_id = p.product_id AND pv.image IS NOT NULL LIMIT 1) as var_img, " +
                                     "s.business_name, c.name as category_name " +
@@ -1401,7 +1401,10 @@
                                 rowNum--;
                                 int pid = rs.getInt("product_id");
                                 String pName = rs.getString("product_name"); if (pName == null) pName = "-";
-                                double pPrice = rs.getDouble("price");
+                                double pBasePrice = rs.getDouble("price");
+                                double pSalePrice = rs.getDouble("original_price");
+                                boolean pHasSale = !rs.wasNull() && pSalePrice > 0;
+                                double pPrice = pHasSale ? pSalePrice : pBasePrice;
                                 int pStock = rs.getInt("stock");
                                 String sellerName = rs.getString("business_name"); if (sellerName == null) sellerName = "-";
                                 String pCat = rs.getString("category_name"); if (pCat == null) pCat = "-";

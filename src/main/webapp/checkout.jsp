@@ -601,6 +601,7 @@ const orderTotal = cartTotal + shippingFee;
         }
         bootstrap.Modal.getInstance(document.getElementById('voucherPickerModal')).hide();
         updateTotal();
+        // Always call apply so session flags are set (including appliedVoucherFreeShipping)
         fetch('VoucherServlet?action=apply&code=' + encodeURIComponent(code) + '&cartTotal=<%= cartTotal %>').then(r => r.json());
     }
 
@@ -627,6 +628,7 @@ const orderTotal = cartTotal + shippingFee;
         shippingFee = <%= cartTotal >= 500 ? 0 : 38 %>;
         document.getElementById('freeShipSelectedBox').classList.add('d-none');
         document.getElementById('openFreeShipBtn').innerHTML = '<i class="bi bi-truck me-1"></i> Select Free Shipping Voucher';
+        fetch('VoucherServlet?action=removeFreeShip').catch(() => {});
         updateTotal();
     }
     function removeVoucher() {
@@ -636,6 +638,7 @@ const orderTotal = cartTotal + shippingFee;
         document.getElementById('openVoucherBtn').innerHTML = '<i class="bi bi-ticket-perforated me-1"></i> Select Voucher';
         document.getElementById('voucherDiscountRow').style.display = 'none';
         document.getElementById('voucherDiscountAmt').textContent = '-₱0.00';
+        fetch('VoucherServlet?action=removeVoucher').catch(() => {});
         updateTotal();
     }
 
@@ -669,7 +672,7 @@ const orderTotal = cartTotal + shippingFee;
             if (shipHint && shippingFee > 0) shipHint.style.display = 'block';
         }
     }
-    function placeOrder() {
+    async function placeOrder() {
         const name = document.getElementById('shipName').value.trim();
         const address = document.getElementById('shipAddress').value.trim();
         const phone = document.getElementById('shipPhone').value.trim();
@@ -705,12 +708,22 @@ const orderTotal = cartTotal + shippingFee;
             document.getElementById('shipPhone').focus();
             return;
         }
+
         const btn = document.querySelector('.place-order-btn');
         btn.disabled = true;
         btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Placing Order...';
-
         const overlay = document.getElementById('processingOverlay');
         overlay.style.display = 'flex';
+
+        // Re-apply vouchers to session BEFORE placing order (fixes async timing issue)
+        try {
+            if (voucherCode) {
+                await fetch('VoucherServlet?action=apply&code=' + encodeURIComponent(voucherCode) + '&cartTotal=<%= cartTotal %>');
+            }
+            if (freeShipCode) {
+                await fetch('VoucherServlet?action=apply&code=' + encodeURIComponent(freeShipCode) + '&cartTotal=<%= cartTotal %>');
+            }
+        } catch(e) { /* continue even if fails */ }
 
         fetch('CheckoutServlet', {
             method: 'POST',

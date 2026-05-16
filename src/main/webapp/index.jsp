@@ -371,45 +371,55 @@ input::-webkit-contacts-auto-fill-button {
 @media (max-width: 576px) {
     #categoryRow {
         display: flex !important;
-        flex-wrap: wrap !important;
-        justify-content: center !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        justify-content: flex-start !important;
         gap: 6px !important;
-        padding: 0 4px !important;
+        padding: 0 4px 8px 4px !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
     }
-    #categoryRow .col {
-        flex: 0 0 auto !important;
-        width: auto !important;
-        max-width: none !important;
-        padding: 0 !important;
-    }
-    #categoryRow .category-card {
-        border-radius: 20px !important;
-        padding: 6px 14px !important;
-        background: #f0f0f0 !important;
-        border: 1px solid #ddd !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-    #categoryRow .category-card i {
+    #categoryRow::-webkit-scrollbar {
         display: none !important;
     }
+#categoryRow .col {
+    flex: 0 0 auto !important;
+    width: 70px !important;
+    min-width: 70px !important;  /* ← dagdag ito */
+    padding: 0 !important;
+}
+    #categoryRow .category-card {
+        border-radius: 12px !important;
+        padding: 8px 4px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: #fff !important;
+        border: 1px solid #ddd !important;
+        min-height: 65px !important;
+    }
+    #categoryRow .category-card i {
+        display: block !important;
+        font-size: 18px !important;
+        color: #0d6efd !important;
+    }
     #categoryRow .category-card small {
-        font-size: 12px !important;
-        margin: 0 !important;
+        font-size: 10px !important;
+        margin-top: 3px !important;
         white-space: nowrap !important;
         color: #333 !important;
-        font-weight: 500 !important;
+        font-weight: 600 !important;
     }
     #categoryRow .category-card.active {
         background: #0d6efd !important;
         border-color: #0d6efd !important;
     }
+    #categoryRow .category-card.active i,
     #categoryRow .category-card.active small {
         color: white !important;
     }
 }
-
 
 @media (max-width: 576px) {
     footer { padding: 32px 0 0 0 !important; margin-top: 32px !important; }
@@ -506,14 +516,14 @@ input::-webkit-contacts-auto-fill-button {
                         <img src="<%= navAvatar2 %>" style="width:28px; height:28px; border-radius:50%; object-fit:cover;">
                     <% } else { %>
                         <div style="width:28px; height:28px; border-radius:50%; background:#0d6efd; color:white; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">
-                            <%= loggedUser.substring(0, 1).toUpperCase() %>
+                         <%= idxFirstName.isEmpty() ? loggedUser.substring(0,1).toUpperCase() : idxFirstName.substring(0,1).toUpperCase() %>
                         </div>
                     <% } %>
                     <%
                     String displayName = !idxFirstName.isEmpty() ? idxFirstName : loggedUser;
-                    String fullDisplayName = !idxLastName.isEmpty()
-                        ? idxLastName + ", " + idxFirstName + (!idxMI.isEmpty() ? " " + idxMI + "." : "")
-                        : loggedUser != null ? loggedUser : "";
+                    String fullDisplayName = !idxFirstName.isEmpty()
+                    	    ? idxFirstName + (!idxMI.isEmpty() ? " " + idxMI + "." : "") + (!idxLastName.isEmpty() ? " " + idxLastName : "")
+                    	    : loggedUser != null ? loggedUser : "";
                         String bizName = (String) session.getAttribute("userBusinessName");
                         if ("seller".equals(loggedRole) && bizName != null && !bizName.isEmpty()) {
                             displayName = bizName;
@@ -709,13 +719,13 @@ boolean isAll = (cp == null || cp.isEmpty() || cp.equals("0"));
 <div class="container mt-4 mb-2">
 <h5 class="mb-3 fw-bold">Browse by Category</h5>
 <div class="row g-2 text-center justify-content-center" id="categoryRow">
-        <div class="col" onclick="filterCategory(0)" style="cursor:pointer;">
+ <div class="col" onclick="filterCategory(0)" style="cursor:pointer; min-width:100px;">
             <div class="card category-card py-3 border h-100 <%= isAll ? "active" : "" %>" id="cat-0">
                 <i class="bi bi-grid-fill fs-3 <%= isAll ? "" : "text-primary" %>"></i>
                 <small class="mt-1 fw-bold">All</small>
             </div>
         </div>
-        <div class="col" onclick="filterCategory(1)" style="cursor:pointer;">
+      <div class="col" onclick="filterCategory(1)" style="cursor:pointer; min-width:100px;">
             <div class="card category-card py-3 border h-100 <%= "1".equals(cp) ? "active" : "" %>" id="cat-1">
                 <i class="bi bi-phone fs-3 <%= "1".equals(cp) ? "" : "text-primary" %>"></i>
                 <small class="mt-1 fw-bold">Electronics</small>
@@ -1409,6 +1419,10 @@ function showSellerLoginPrompt() {
 function showAlreadySellerModal() {
     new bootstrap.Modal(document.getElementById('alreadySellerModal')).show();
 }
+function bannedLogout() {
+    document.getElementById('logoutOverlay').style.display = 'flex';
+    setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
+}
 </script>
 
 <!-- APPLICATION APPROVED MODAL -->
@@ -1547,7 +1561,7 @@ function showAlreadySellerModal() {
         <p class="text-muted" style="font-size:13px;">If you believe this is a mistake, please contact support.</p>
       </div>
       <div class="modal-footer justify-content-center">
-        <a href="LogoutServlet" class="btn btn-danger"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+  <button class="btn btn-danger" onclick="bannedLogout()"><i class="bi bi-box-arrow-right me-1"></i>Logout</button>
       </div>
     </div>
   </div>

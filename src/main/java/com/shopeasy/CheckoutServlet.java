@@ -103,8 +103,11 @@ public class CheckoutServlet extends HttpServlet {
                 itemsBySeller.computeIfAbsent(sid, k -> new java.util.ArrayList<>()).add(item);
             }
 
+            // Check if free shipping voucher is applied
+            boolean hasFreeShipping = Boolean.TRUE.equals(session.getAttribute("appliedVoucherFreeShipping"));
+
             // Distribute voucher discount proportionally across sellers
-            double shippingFee = cartTotal >= 500 ? 0 : 38;
+            double shippingFee = (hasFreeShipping || cartTotal >= 500) ? 0 : 38;
             double totalDiscount = walletDeduct + voucherDiscount;
 
             int lastOrderId = 0;
@@ -124,7 +127,7 @@ public class CheckoutServlet extends HttpServlet {
 
                 // Proportional discount for this seller
                 double sellerDiscount = (cartTotal > 0) ? (sellerSubtotal / cartTotal) * totalDiscount : 0;
-                double sellerShipping = sellerSubtotal >= 500 ? 0 : 38;
+                double sellerShipping = (hasFreeShipping || sellerSubtotal >= 500) ? 0 : 38;
                 double sellerFinal = Math.max(0, sellerSubtotal + sellerShipping - sellerDiscount);
 
                 PreparedStatement orderPs = conn.prepareStatement(orderSql, PreparedStatement.RETURN_GENERATED_KEYS);
@@ -277,6 +280,9 @@ public class CheckoutServlet extends HttpServlet {
                 session.removeAttribute("appliedVoucherCode");
                 session.removeAttribute("appliedVoucherDiscount");
                 session.removeAttribute("appliedVoucherId");
+                session.removeAttribute("appliedVoucherFreeShipping");
+                session.removeAttribute("appliedFreeShipCode");
+                session.removeAttribute("appliedFreeShipId");
             }
             
          // Record personal (welcome) voucher usage

@@ -196,72 +196,116 @@ public class VoucherServlet extends HttpServlet {
         }
         
         
+        if ("removeFreeShip".equals(action)) {
+            session.removeAttribute("appliedVoucherFreeShipping");
+            session.removeAttribute("appliedFreeShipCode");
+            session.removeAttribute("appliedFreeShipId");
+            out.print("{\"success\":true}");
+            return;
+        }
+
+        if ("removeVoucher".equals(action)) {
+            session.removeAttribute("appliedVoucherCode");
+            session.removeAttribute("appliedVoucherDiscount");
+            session.removeAttribute("appliedVoucherId");
+            session.removeAttribute("appliedVoucherFreeShipping");
+            out.print("{\"success\":true}");
+            return;
+        }
+        
         if ("apply".equals(action)) {
             try {
                 Connection conn = DBConnection.getConnection();
+                String cleanCode = code.toUpperCase().trim();
+                int userId = (int) session.getAttribute("userId");
+                Integer customerId = (Integer) session.getAttribute("customerId");
+                if (customerId == null) customerId = userId;
+
+                // --- Check platform vouchers first ---
                 PreparedStatement ps = conn.prepareStatement(
                     "SELECT * FROM vouchers WHERE code=? AND is_active=1");
-                ps.setString(1, code.toUpperCase().trim());
+                ps.setString(1, cleanCode);
                 ResultSet rs = ps.executeQuery();
 
-                if (!rs.next()) {
+                if (rs.next()) {
+                    java.sql.Date expiry = rs.getDate("expiry_date");
+                    if (expiry != null && expiry.before(new java.util.Date())) {
+                        out.print("{\"success\":false,\"message\":\"This voucher has already expired.\"}");
+                        rs.close(); ps.close(); conn.close(); return;
+                    }
+                    int maxUses = rs.getInt("max_uses");
+                    int usedCount = rs.getInt("used_count");
+                    if (maxUses > 0 && usedCount >= maxUses) {
+                        out.print("{\"success\":false,\"message\":\"This voucher has reached its usage limit.\"}");
+                        rs.close(); ps.close(); conn.close(); return;
+                    }
+                    double minOrder = rs.getDouble("min_order");
+                    if (cartTotal < minOrder) {
+                        out.print("{\"success\":false,\"message\":\"Minimum order of \u20b1" + String.format("%.2f", minOrder) + " required.\"}");
+                        rs.close(); ps.close(); conn.close(); return;
+                    }
+                    int voucherId = rs.getInt("voucher_id");
+                    PreparedStatement usedPs = conn.prepareStatement(
+                        "SELECT id FROM voucher_usage WHERE voucher_id=? AND voucher_type='platform' AND user_id=?");
+                    usedPs.setInt(1, voucherId); usedPs.setInt(2, userId);
+                    ResultSet usedRs = usedPs.executeQuery();
+                    if (usedRs.next()) {
+                        out.print("{\"success\":false,\"message\":\"You have already used this voucher.\"}");
+                        usedRs.close(); usedPs.close(); rs.close(); ps.close(); conn.close(); return;
+                    }
+                    usedRs.close(); usedPs.close();
+                    String type = rs.getString("type");
+                    double value = rs.getDouble("value");
+                    boolean isFreeShipping = "freeshipping".equals(type);
+                    double discount = isFreeShipping ? 38 : ("fixed".equals(type) ? value : Math.min(cartTotal, cartTotal * value / 100));
+                    discount = Math.min(discount, cartTotal);
+                    rs.close(); ps.close(); conn.close();
+                    if (isFreeShipping) {
+                        // Free shipping voucher uses separate session key — does NOT overwrite platform/welcome voucher
+                        session.setAttribute("appliedFreeShipCode", cleanCode);
+                        session.setAttribute("appliedFreeShipId", voucherId);
+                        session.setAttribute("appliedVoucherFreeShipping", true);
+                    } else {
+                        session.setAttribute("appliedVoucherCode", cleanCode);
+                        session.setAttribute("appliedVoucherDiscount", discount);
+                        session.setAttribute("appliedVoucherId", voucherId);
+                        session.setAttribute("appliedVoucherFreeShipping", false);
+                    }
+                    String msg = isFreeShipping ? "Free Shipping applied!" : "Voucher applied! You save \u20b1" + String.format("%.2f", discount);
+                    out.print("{\"success\":true,\"message\":\"" + msg + "\",\"discount\":" + discount + ",\"freeshipping\":" + isFreeShipping + "}");
+                    return;
+                }
+                rs.close(); ps.close();
+
+                // --- Check personal (WELCOME) vouchers ---
+                PreparedStatement ps2 = conn.prepareStatement(
+                    "SELECT * FROM customer_vouchers WHERE code=? AND customer_id=? AND is_active=1 AND used_count < max_uses AND (expiry_date IS NULL OR expiry_date > NOW())");
+                ps2.setString(1, cleanCode);
+                ps2.setInt(2, customerId);
+                ResultSet rs2 = ps2.executeQuery();
+
+                if (!rs2.next()) {
                     out.print("{\"success\":false,\"message\":\"Invalid or expired voucher code.\"}");
-                    rs.close(); ps.close(); conn.close(); return;
+                    rs2.close(); ps2.close(); conn.close(); return;
                 }
 
-                // Check expiry
-                java.sql.Date expiry = rs.getDate("expiry_date");
-                if (expiry != null && expiry.before(new java.util.Date())) {
-                    out.print("{\"success\":false,\"message\":\"This voucher has already expired.\"}");
-                    rs.close(); ps.close(); conn.close(); return;
+                double minOrder2 = rs2.getDouble("min_order");
+                if (cartTotal < minOrder2) {
+                    out.print("{\"success\":false,\"message\":\"Minimum order of \u20b1" + String.format("%.2f", minOrder2) + " required.\"}");
+                    rs2.close(); ps2.close(); conn.close(); return;
                 }
+                String type2 = rs2.getString("type");
+                double value2 = rs2.getDouble("value");
+                double discount2 = "fixed".equals(type2) ? value2 : Math.min(cartTotal, cartTotal * value2 / 100);
+                discount2 = Math.min(discount2, cartTotal);
+                rs2.close(); ps2.close(); conn.close();
 
-                // Check max uses
-                int maxUses = rs.getInt("max_uses");
-                int usedCount = rs.getInt("used_count");
-                if (maxUses > 0 && usedCount >= maxUses) {
-                    out.print("{\"success\":false,\"message\":\"This voucher has reached its usage limit.\"}");
-                    rs.close(); ps.close(); conn.close(); return;
-                }
+                session.setAttribute("appliedVoucherCode", cleanCode);
+                session.setAttribute("appliedVoucherDiscount", discount2);
+                session.setAttribute("appliedVoucherId", null);
+                session.setAttribute("appliedVoucherFreeShipping", false);
 
-                // Check min order
-                double minOrder = rs.getDouble("min_order");
-                if (cartTotal < minOrder) {
-                    out.print("{\"success\":false,\"message\":\"Minimum order of ₱" + String.format("%.2f", minOrder) + " required.\"}");
-                    rs.close(); ps.close(); conn.close(); return;
-                }
-
-                // Check if user already used this voucher
-                int userId = (int) session.getAttribute("userId");
-                int voucherId = rs.getInt("voucher_id");
-                PreparedStatement usedPs = conn.prepareStatement(
-                    "SELECT id FROM voucher_usage WHERE voucher_id=? AND voucher_type='platform' AND user_id=?");
-                usedPs.setInt(1, voucherId);
-                usedPs.setInt(2, userId);
-                ResultSet usedRs = usedPs.executeQuery();
-                if (usedRs.next()) {
-                    out.print("{\"success\":false,\"message\":\"You have already used this voucher.\"}");
-                    usedRs.close(); usedPs.close(); rs.close(); ps.close(); conn.close(); return;
-                }
-                usedRs.close(); usedPs.close();
-
-             // Compute discount
-                String type = rs.getString("type");
-                double value = rs.getDouble("value");
-                boolean isFreeShipping = "freeshipping".equals(type);
-                double discount = isFreeShipping ? 38 : ("fixed".equals(type) ? value : Math.min(cartTotal, cartTotal * value / 100));
-                discount = Math.min(discount, cartTotal);
-
-                rs.close(); ps.close(); conn.close();
-
-                // Save to session
-                session.setAttribute("appliedVoucherCode", code.toUpperCase().trim());
-                session.setAttribute("appliedVoucherDiscount", isFreeShipping ? 0 : discount);
-                session.setAttribute("appliedVoucherId", voucherId);
-                session.setAttribute("appliedVoucherFreeShipping", isFreeShipping);
-
-                String msg = isFreeShipping ? "Free Shipping applied!" : "Voucher applied! You save ₱" + String.format("%.2f", discount);
-                out.print("{\"success\":true,\"message\":\"" + msg + "\",\"discount\":" + discount + ",\"freeshipping\":" + isFreeShipping + "}");
+                out.print("{\"success\":true,\"message\":\"Voucher applied! You save \u20b1" + String.format("%.2f", discount2) + "\",\"discount\":" + discount2 + ",\"freeshipping\":false}");
 
             } catch (Exception e) {
                 e.printStackTrace();

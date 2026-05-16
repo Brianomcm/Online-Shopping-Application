@@ -491,14 +491,16 @@ request.setAttribute("navCartCount", navCartCount);
     <div class="card-section">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <p class="section-title mb-0"><i class="bi bi-person-fill text-primary"></i> Personal Information</p>
-            <button class="btn btn-outline-primary btn-sm" id="editBtn" onclick="enableEdit()">
-                <i class="bi bi-pencil"></i> Edit Profile
-            </button>
-            <% if (("seller".equals(userRole) || "both".equals(userRole)) && _custSellerPageId > 0) { %>
-            <a href="SellerPageServlet?id=<%= _custSellerPageId %>" class="btn btn-outline-success btn-sm ms-2">
-                <i class="bi bi-shop"></i> View My Shop
-            </a>
-            <% } %>
+            <div class="d-flex gap-2">
+                <% if (("seller".equals(userRole) || "both".equals(userRole)) && _custSellerPageId > 0) { %>
+                <a href="SellerPageServlet?id=<%= _custSellerPageId %>" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-shop"></i> View My Shop
+                </a>
+                <% } %>
+                <button class="btn btn-outline-primary btn-sm" id="editBtn" onclick="enableEdit()">
+                    <i class="bi bi-pencil"></i> Edit Profile
+                </button>
+            </div>
         </div>
 
         <div class="text-center mb-4">
@@ -680,7 +682,8 @@ request.setAttribute("navCartCount", navCartCount);
                             java.sql.Statement itemStmt = batchConn.createStatement();
                             java.sql.ResultSet itemBatchRs = itemStmt.executeQuery(
                             		"SELECT oi.order_id, p.product_id, p.name, p.image, p.thumbnail, oi.quantity, oi.price, oi.subtotal, " +
-                            				"pv.variation_type, pv.variation_value, pv.image as var_image " +
+                            				"pv.variation_type, pv.variation_value, pv.image as var_image, " +
+                            				"(SELECT image FROM product_variation WHERE product_id=p.product_id AND image IS NOT NULL AND image != '' ORDER BY variation_id ASC LIMIT 1) as first_var_image " +
                                 "FROM order_items oi " +
                                 "JOIN product p ON oi.product_id = p.product_id " +
                                 "LEFT JOIN product_variation pv ON oi.variation_id = pv.variation_id " +
@@ -694,6 +697,7 @@ request.setAttribute("navCartCount", navCartCount);
                                 String itmImg = itemBatchRs.getString("var_image");
                                 if (itmImg == null || itmImg.isEmpty()) itmImg = itemBatchRs.getString("image");
                                 if (itmImg == null || itmImg.isEmpty()) itmImg = itemBatchRs.getString("thumbnail");
+                                if (itmImg == null || itmImg.isEmpty()) itmImg = itemBatchRs.getString("first_var_image");
                                 itm.put("image", itmImg);
                                 itm.put("quantity", itemBatchRs.getInt("quantity"));
                                 itm.put("price", itemBatchRs.getDouble("price"));
@@ -1546,7 +1550,22 @@ window.addEventListener('load', function() {
     }
     const tabParam = profileParams.get('tab');
     const msg = profileParams.get('msg');
-
+    if (profileParams.get('error') === 'duplicate_username') {
+        const bar = document.getElementById('successBar');
+        bar.style.background = '#dc3545';
+        bar.innerHTML = '<i class="bi bi-x-circle-fill me-2"></i>Username is already taken. Please choose another.';
+        bar.style.display = 'block';
+        setTimeout(() => { bar.style.display = 'none'; bar.style.background = ''; }, 4000);
+        window.history.replaceState({}, '', 'customer.jsp');
+    }
+    if (profileParams.get('error') === 'duplicate_phone') {
+        const bar = document.getElementById('successBar');
+        bar.style.background = '#dc3545';
+        bar.innerHTML = '<i class="bi bi-x-circle-fill me-2"></i>Phone number is already in use by another account.';
+        bar.style.display = 'block';
+        setTimeout(() => { bar.style.display = 'none'; bar.style.background = ''; }, 4000);
+        window.history.replaceState({}, '', 'customer.jsp');
+    }
     if (profileParams.get('updated') === 'true') {
         const bar = document.getElementById('successBar');
         const msg = profileParams.get('msg');
@@ -1671,12 +1690,6 @@ function enableEdit() {
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Updating password...';
 
-     // Show overlay
-        const overlay = document.createElement('div');
-        overlay.id = 'pwOverlay';
-        overlay.style.cssText = 'display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center; gap:12px;';
-        overlay.innerHTML = '<div class="spinner-border text-primary" style="width:3rem; height:3rem;"></div><p class="fw-bold text-primary fs-5">Updating password...</p><p class="text-muted" style="font-size:13px;">Please wait a moment</p>';
-        document.body.appendChild(overlay);
 
         fetch('UpdatePasswordServlet', {
             method: 'POST',
@@ -1685,25 +1698,25 @@ function enableEdit() {
         })
         .then(r => r.json())
         .then(data => {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-shield-check"></i> Update Password';
-            overlay.remove();
-            if (data.success) {
-                document.getElementById('currentPw').value = '';
-                document.getElementById('newPw').value = '';
-                document.getElementById('confirmPw').value = '';
-                document.getElementById('strengthBar').style.width = '0%';
-                document.getElementById('strengthBar').className = 'password-strength bg-secondary';
-                document.getElementById('strengthText').textContent = '';
-                document.getElementById('securitySuccessText').textContent = 'Password updated successfully!';
-                document.getElementById('securitySuccess').style.display = 'block';
-            } else {
-                document.getElementById('securityErrorText').textContent = data.message || 'Current password is incorrect.';
-                document.getElementById('securityError').style.display = 'block';
-            }
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-shield-check"></i> Update Password';
+                if (data.success) {
+                    document.getElementById('currentPw').value = '';
+                    document.getElementById('newPw').value = '';
+                    document.getElementById('confirmPw').value = '';
+                    document.getElementById('strengthBar').style.width = '0%';
+                    document.getElementById('strengthBar').className = 'password-strength bg-secondary';
+                    document.getElementById('strengthText').textContent = '';
+                    document.getElementById('securitySuccessText').textContent = 'Password updated successfully!';
+                    document.getElementById('securitySuccess').style.display = 'block';
+                } else {
+                    document.getElementById('securityErrorText').textContent = data.message || 'Current password is incorrect.';
+                    document.getElementById('securityError').style.display = 'block';
+                }
+            }, 1200);
         })
         .catch(() => {
-            overlay.remove();
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-shield-check"></i> Update Password';
             document.getElementById('securityErrorText').textContent = 'Server error. Please try again.';

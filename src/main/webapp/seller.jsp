@@ -1034,7 +1034,8 @@ try {
                 java.util.List<java.util.Map<String, Object>> itemList = new java.util.ArrayList<>();
                 java.sql.PreparedStatement itemPs = sOrdConn.prepareStatement(
                 		"SELECT oi.quantity, oi.subtotal, p.name AS pname, p.image AS image_url, p.thumbnail, " +
-                        "pv.variation_type, pv.variation_value, pv.image AS var_image " +
+                        "pv.variation_type, pv.variation_value, pv.image AS var_image, " +
+                        "(SELECT image FROM product_variation WHERE product_id=p.product_id AND image IS NOT NULL AND image != '' ORDER BY variation_id ASC LIMIT 1) AS first_var_image " +
                 	    "FROM order_items oi " +
                 	    "JOIN product p ON oi.product_id = p.product_id " +
                 	    "LEFT JOIN product_variation pv ON oi.variation_id = pv.variation_id " +
@@ -1050,6 +1051,7 @@ try {
                     String sItmImg = itemRs.getString("var_image");
                     if (sItmImg == null || sItmImg.isEmpty()) sItmImg = itemRs.getString("image_url");
                     if (sItmImg == null || sItmImg.isEmpty()) sItmImg = itemRs.getString("thumbnail");
+                    if (sItmImg == null || sItmImg.isEmpty()) sItmImg = itemRs.getString("first_var_image");
                     item.put("image", sItmImg);
                     item.put("variationType", itemRs.getString("variation_type"));
                     item.put("variationValue", itemRs.getString("variation_value"));

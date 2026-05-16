@@ -136,6 +136,18 @@ public class PrepareCheckoutServlet extends HttpServlet {
                 String coImg = rs.getString("var_image");
                 if (coImg == null || coImg.isEmpty()) coImg = rs.getString("image");
                 if (coImg == null || coImg.isEmpty()) coImg = rs.getString("thumbnail");
+                // Fallback: get first variation image of the product
+                if (coImg == null || coImg.isEmpty()) {
+                    try {
+                        Connection imgConn = DBConnection.getConnection();
+                        PreparedStatement firstVarPs = imgConn.prepareStatement(
+                            "SELECT image FROM product_variation WHERE product_id=? AND image IS NOT NULL AND image != '' ORDER BY variation_id ASC LIMIT 1");
+                        firstVarPs.setInt(1, rs.getInt("product_id"));
+                        ResultSet firstVarRs = firstVarPs.executeQuery();
+                        if (firstVarRs.next()) coImg = firstVarRs.getString("image");
+                        firstVarRs.close(); firstVarPs.close(); imgConn.close();
+                    } catch (Exception ignored) {}
+                }
                 item.put("image", coImg);
                 int varId = rs.getInt("variation_id");
                 if (!rs.wasNull()) {

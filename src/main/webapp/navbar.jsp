@@ -102,9 +102,9 @@ if (navUserIdObj != null) {
         _navDisplayName = _navBizName;
 
     // Dropdown header — Last, First MI format
-    String _navFullDisplay = !_navLastName.isEmpty()
-        ? _navLastName + ", " + _navFirstName + (!_navMI.isEmpty() ? " " + _navMI + "." : "")
-        : _navUserName != null ? _navUserName : "";
+String _navFullDisplay = !_navFirstName.isEmpty()
+    ? _navFirstName + (!_navMI.isEmpty() ? " " + _navMI + "." : "") + (!_navLastName.isEmpty() ? " " + _navLastName : "")
+    : _navUserName != null ? _navUserName : "";
 
     String _navInitial = (_navDisplayName != null && !_navDisplayName.isEmpty())
         ? String.valueOf(_navDisplayName.charAt(0)).toUpperCase() : "?";
@@ -124,12 +124,19 @@ if (navUserIdObj != null) {
     String _navSearchVal = request.getAttribute("navSearchValue") != null
         ? (String) request.getAttribute("navSearchValue") : "";
 %>
-
+<style>
+.navbar-brand {
+    font-size: 1.5rem;
+}
+@media (max-width: 576px) {
+    .navbar-brand { font-size: 1.2rem; }
+}
+</style>
 <nav class="navbar navbar-light bg-white shadow-sm py-2 sticky-top">
     <div class="container-fluid px-4">
 
         <!-- LOGO -->
-        <a class="navbar-brand fw-bold text-primary" href="index.jsp" style="font-size:1.5rem;">
+ <a class="navbar-brand fw-bold text-primary" href="index.jsp">
             <i class="bi bi-bag-heart-fill"></i> ShopEasy
         </a>
 

@@ -722,10 +722,12 @@ const orderTotal = cartTotal + shippingFee;
             }
             if (freeShipCode) {
                 await fetch('VoucherServlet?action=apply&code=' + encodeURIComponent(freeShipCode) + '&cartTotal=<%= cartTotal %>');
+                await new Promise(resolve => setTimeout(resolve, 300));
             }
-        } catch(e) { /* continue even if fails */ }
+            } catch(e) { /* continue even if fails */ }
 
-        fetch('CheckoutServlet', {
+            await new Promise(resolve => setTimeout(resolve, 200));
+            fetch('CheckoutServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: 'shipName=' + encodeURIComponent(name) +

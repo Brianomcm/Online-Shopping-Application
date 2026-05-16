@@ -1806,20 +1806,31 @@
     <span class="badge bg-info" style="font-size:11px;">Refunded</span>
 <% } else if ("Rejected".equalsIgnoreCase(status)) { %>
     <span class="badge bg-danger" style="font-size:11px;">Rejected</span>
+<% } else if ("Appealed".equalsIgnoreCase(status)) { %>
+    <span class="badge bg-purple text-white" style="font-size:11px; background:#6f42c1 !important;">⚠️ Appealed</span>
 <% } else { %>
     <span class="badge bg-secondary" style="font-size:11px;"><%= status %></span>
 <% } %>
                            </td>
                             <td style="font-size:11px;color:#64748b;"><%= rs.getString("requested_at") != null ? rs.getString("requested_at").toString().substring(0,10) : "—" %></td>
                             <td class="d-flex gap-1">
-                                <% if ("Pending".equalsIgnoreCase(status)) { %>
-                                <button class="btn btn-success btn-sm" onclick="approveRefund(<%= rid %>)">
-                                    <i class="bi bi-check-lg"></i>
-                                </button>
-                                <button class="btn btn-danger btn-sm" onclick="rejectRefund(<%= rid %>)">
-                                    <i class="bi bi-x-lg"></i>
-                                </button>
-                                <% } %>
+                          <% if ("Pending".equalsIgnoreCase(status)) { %>
+<button class="btn btn-success btn-sm" onclick="approveRefund(<%= rid %>)">
+    <i class="bi bi-check-lg"></i>
+</button>
+<button class="btn btn-danger btn-sm" onclick="rejectRefund(<%= rid %>)">
+    <i class="bi bi-x-lg"></i>
+</button>
+<% } else if ("Appealed".equalsIgnoreCase(status)) { %>
+<button class="btn btn-success btn-sm" onclick="adminApproveRefund(<%= rid %>)"
+    title="Approve Appeal">
+    <i class="bi bi-check-lg"></i> Approve
+</button>
+<button class="btn btn-danger btn-sm" onclick="adminRejectRefund(<%= rid %>)"
+    title="Reject Appeal">
+    <i class="bi bi-x-lg"></i> Reject
+</button>
+<% } %>
                             </td>
                         </tr>
                     <%      }
@@ -2763,7 +2774,55 @@ const reasons = ['Spam review','Fake review','Offensive language','Harassment','
                     .catch(() => { showToast('Refund approved.', 'success'); setTimeout(()=>location.reload(),1500); });
             });
     }
+    function adminApproveRefund(refundId) {
+        document.getElementById('adminApproveRefundId').value = refundId;
+        document.getElementById('adminApproveModal').style.display = 'flex';
+    }
 
+    function confirmAdminApprove() {
+        const refundId = document.getElementById('adminApproveRefundId').value;
+        document.getElementById('adminApproveModal').style.display = 'none';
+        fetch('RefundServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=adminAction&refundId=' + refundId + '&decision=approve'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Refund approved by Admin!', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast('Error: ' + data.message, 'danger');
+            }
+        });
+    }
+
+    function adminRejectRefund(refundId) {
+        document.getElementById('adminRejectRefundId').value = refundId;
+        document.getElementById('adminRejectModal').style.display = 'flex';
+    }
+
+    function confirmAdminReject() {
+        const refundId = document.getElementById('adminRejectRefundId').value;
+        document.getElementById('adminRejectModal').style.display = 'none';
+        fetch('RefundServlet', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=adminAction&refundId=' + refundId + '&decision=reject'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Refund appeal rejected.', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast('Error: ' + data.message, 'danger');
+            }
+        });
+    }
+
+    
     function rejectRefund(refundId) {
         showConfirm('<i class="bi bi-x-circle" style="color:white;font-size:24px;"></i>',
             '#ef4444', 'Reject Refund?', 'Reject refund request #' + refundId + '?',
@@ -3072,5 +3131,51 @@ function viewUserProfile(userId, name, email, role) {
         });
 }
 </script>
+
+<!-- ADMIN APPROVE REFUND MODAL -->
+<div id="adminApproveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
+     background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:16px; padding:28px; width:90%; max-width:400px; box-shadow:0 20px 60px rgba(0,0,0,0.3); text-align:center;">
+        <div style="font-size:48px; margin-bottom:12px;">💸</div>
+        <h5 class="fw-bold mb-2">Approve Refund Appeal</h5>
+        <p class="text-muted mb-4" style="font-size:13px;">
+            The refund amount will be credited to the customer's wallet.<br>
+            This action cannot be undone.
+        </p>
+        <input type="hidden" id="adminApproveRefundId"/>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-outline-secondary px-4"
+                onclick="document.getElementById('adminApproveModal').style.display='none'">
+                Cancel
+            </button>
+            <button class="btn btn-success px-4" onclick="confirmAdminApprove()">
+                <i class="bi bi-check-circle me-1"></i> Yes, Approve!
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ADMIN REJECT REFUND MODAL -->
+<div id="adminRejectModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
+     background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:16px; padding:28px; width:90%; max-width:400px; box-shadow:0 20px 60px rgba(0,0,0,0.3); text-align:center;">
+        <div style="font-size:48px; margin-bottom:12px;">❌</div>
+        <h5 class="fw-bold mb-2">Reject Refund Appeal</h5>
+        <p class="text-muted mb-4" style="font-size:13px;">
+            The customer's refund appeal will be rejected.<br>
+            This is the final decision.
+        </p>
+        <input type="hidden" id="adminRejectRefundId"/>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-outline-secondary px-4"
+                onclick="document.getElementById('adminRejectModal').style.display='none'">
+                Cancel
+            </button>
+            <button class="btn btn-danger px-4" onclick="confirmAdminReject()">
+                <i class="bi bi-x-circle me-1"></i> Yes, Reject!
+            </button>
+        </div>
+    </div>
+</div>
 </body>
 </html>

@@ -159,6 +159,91 @@ public class RefundServlet extends HttpServlet {
                 infoRs.close(); infoPs.close();
                 conn.close();
                 out.print("{\"success\":true}");
+
+            // CUSTOMER: Appeal to Admin after seller rejected
+            } else if ("appeal".equals(action)) {
+                int refundId = Integer.parseInt(request.getParameter("refundId"));
+                String orderId = request.getParameter("orderId");
+                PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE refund_requests SET status='Appealed' WHERE refund_id=? AND status='Rejected'");
+                ps.setInt(1, refundId);
+                ps.executeUpdate(); ps.close();
+
+             // Notify admin
+                PreparedStatement adminPs = conn.prepareStatement(
+                    "SELECT admin_id FROM admin LIMIT 1");
+                ResultSet adminRs = adminPs.executeQuery();
+                if (adminRs.next()) {
+                    PreparedStatement notifPs = conn.prepareStatement(
+                        "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?,?,?,0)");
+                    notifPs.setInt(1, adminRs.getInt("admin_id"));
+                    notifPs.setString(2, "admin");
+                    notifPs.setString(3, "⚠️ A customer appealed a rejected refund for Order #SE-" + orderId);
+                    notifPs.executeUpdate(); notifPs.close();
+                }
+                adminRs.close(); adminPs.close();
+                conn.close();
+                out.print("{\"success\":true}");
+
+            // ADMIN: Final decision on appealed refund
+            } else if ("adminAction".equals(action)) {
+                int refundId = Integer.parseInt(request.getParameter("refundId"));
+                String adminDecision = request.getParameter("decision");
+                String newStatus = "approve".equals(adminDecision) ? "Refunded" : "Rejected";
+
+                PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE refund_requests SET status=?, admin_action=?, admin_reviewed_at=NOW() WHERE refund_id=?");
+                ps.setString(1, newStatus);
+                ps.setString(2, adminDecision);
+                ps.setInt(3, refundId);
+                ps.executeUpdate(); ps.close();
+
+                if ("Refunded".equals(newStatus)) {
+                    PreparedStatement amtPs = conn.prepareStatement(
+                        "SELECT rr.order_id, o.total_amount, rr.customer_id " +
+                        "FROM refund_requests rr JOIN orders o ON rr.order_id=o.order_id " +
+                        "WHERE rr.refund_id=?");
+                    amtPs.setInt(1, refundId);
+                    ResultSet amtRs = amtPs.executeQuery();
+                    if (amtRs.next()) {
+                        int custId = amtRs.getInt("customer_id");
+                        double refundAmt = amtRs.getDouble("total_amount");
+                        int ordId = amtRs.getInt("order_id");
+                        PreparedStatement walletPs = conn.prepareStatement(
+                            "UPDATE customer SET wallet_balance = wallet_balance + ? WHERE customer_id=?");
+                        walletPs.setDouble(1, refundAmt); walletPs.setInt(2, custId);
+                        walletPs.executeUpdate(); walletPs.close();
+                        PreparedStatement logPs = conn.prepareStatement(
+                            "INSERT INTO wallet_transactions (customer_id, amount, type, description, reference_id) VALUES (?,?,'refund',?,?)");
+                        logPs.setInt(1, custId); logPs.setDouble(2, refundAmt);
+                        logPs.setString(3, "Refund approved by Admin for Order #SE-" + ordId);
+                        logPs.setInt(4, ordId);
+                        logPs.executeUpdate(); logPs.close();
+                    }
+                    amtRs.close(); amtPs.close();
+                }
+
+                PreparedStatement infoPs2 = conn.prepareStatement(
+                    "SELECT rr.order_id, c.user_id FROM refund_requests rr " +
+                    "JOIN customer c ON rr.customer_id=c.customer_id WHERE rr.refund_id=?");
+                infoPs2.setInt(1, refundId);
+                ResultSet infoRs2 = infoPs2.executeQuery();
+                if (infoRs2.next()) {
+                    int ordId = infoRs2.getInt("order_id");
+                    int custUserId = infoRs2.getInt("user_id");
+                    String msg = "approve".equals(adminDecision)
+                        ? "💸 Your refund appeal for Order #SE-" + ordId + " was approved by Admin!"
+                        : "❌ Your refund appeal for Order #SE-" + ordId + " was rejected by Admin.";
+                    PreparedStatement notifPs = conn.prepareStatement(
+                        "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?,?,?,0)");
+                    notifPs.setInt(1, custUserId);
+                    notifPs.setString(2, "customer");
+                    notifPs.setString(3, msg);
+                    notifPs.executeUpdate(); notifPs.close();
+                }
+                infoRs2.close(); infoPs2.close();
+                conn.close();
+                out.print("{\"success\":true}");
             }
         } catch (Exception e) {
             e.printStackTrace();

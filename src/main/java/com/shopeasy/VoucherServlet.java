@@ -250,8 +250,9 @@ public class VoucherServlet extends HttpServlet {
                     usedPs.setInt(1, voucherId); usedPs.setInt(2, userId);
                     ResultSet usedRs = usedPs.executeQuery();
                     if (usedRs.next()) {
+                        usedRs.close(); usedPs.close(); rs.close(); ps.close(); conn.close();
                         out.print("{\"success\":false,\"message\":\"You have already used this voucher.\"}");
-                        usedRs.close(); usedPs.close(); rs.close(); ps.close(); conn.close(); return;
+                        return;
                     }
                     usedRs.close(); usedPs.close();
                     String type = rs.getString("type");

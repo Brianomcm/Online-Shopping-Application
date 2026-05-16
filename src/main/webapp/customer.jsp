@@ -877,11 +877,56 @@ for (java.util.Map<String,Object> o : myOrders) {
     <i class="bi bi-x-circle"></i> Cancel Order
 </button>
 <% } %>
+
 <% if ("Processing".equals(ord.get("status"))) { %>
 <button class="btn btn-outline-danger btn-sm"
     onclick="openCancelModal(<%= ord.get("id") %>)">
     <i class="bi bi-x-circle"></i> Request Cancel
 </button>
+<% } %>
+<% if ("Shipped".equals(ord.get("status"))) { %>
+    <%
+    String courierName = "";
+    String trackingNum = "";
+    String custEDA = "";
+    try {
+            java.sql.Connection shipConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement shipPs = shipConn.prepareStatement(
+            		"SELECT courier_name, tracking_number, DATE_FORMAT(estimated_delivery, '%M %d, %Y') as estimated_delivery FROM shipping WHERE order_id=?");
+            shipPs.setInt(1, (Integer) ord.get("id"));
+            java.sql.ResultSet shipRs = shipPs.executeQuery();
+            if (shipRs.next()) {
+            	courierName = shipRs.getString("courier_name") != null ? shipRs.getString("courier_name") : "";
+            	trackingNum = shipRs.getString("tracking_number") != null ? shipRs.getString("tracking_number") : "";
+            	custEDA = shipRs.getString("estimated_delivery") != null ? shipRs.getString("estimated_delivery") : "";
+            }
+            shipRs.close(); shipPs.close(); shipConn.close();
+        } catch (Exception ex) { ex.printStackTrace(); }
+    %>
+    <% if (!courierName.isEmpty() || !trackingNum.isEmpty()) { %>
+    <div class="p-2 rounded-3 mb-2" style="background:#e0f2fe; border:1px solid #7dd3fc; font-size:12px;">
+        <p class="fw-bold mb-1" style="color:#0284c7;">
+            <i class="bi bi-truck me-1"></i> Shipping Details
+        </p>
+        <% if (!courierName.isEmpty()) { %>
+        <p class="mb-0"><i class="bi bi-box me-1"></i><strong>Courier:</strong> <%= courierName %></p>
+        <% } %>
+     <% if (!trackingNum.isEmpty()) { %>
+        <p class="mb-0"><i class="bi bi-hash me-1"></i><strong>Tracking #:</strong> <%= trackingNum %></p>
+        <% } %>
+        <% if (!custEDA.isEmpty()) { %>
+        <p class="mb-0 mt-1" style="color:#0369a1;">
+            <i class="bi bi-calendar-check me-1"></i>
+            <strong>Est. Delivery:</strong> <%= custEDA %>
+        </p>
+        <% } %>
+    </div>
+    <% } %>
+<!-- MARK AS RECEIVED BUTTON -->
+    <button class="btn btn-success btn-sm mt-1"
+        onclick="markAsReceived(<%= ord.get("id") %>)">
+        <i class="bi bi-check-circle me-1"></i> Mark as Received
+    </button>
 <% } %>
 <% if ("Cancellation Requested".equals(ord.get("status"))) { %>
     <span class="badge bg-warning text-dark px-3 py-2" style="font-size:12px;">
@@ -923,9 +968,32 @@ for (java.util.Map<String,Object> o : myOrders) {
             <i class="bi bi-cash-coin"></i> Refunded
         </span>
     <% } else if ("Rejected".equals(refundStatus)) { %>
-        <span class="badge bg-danger px-3 py-2" style="font-size:12px;">
-            <i class="bi bi-x-circle"></i> Refund Rejected
-        </span>
+    <span class="badge bg-danger px-3 py-2" style="font-size:12px;">
+    <i class="bi bi-x-circle"></i> Refund Rejected
+</span>
+<%
+    // Get refund_id para sa appeal
+    int rejectedRefundId = 0;
+    try {
+        java.sql.Connection rConn = com.shopeasy.DBConnection.getConnection();
+        java.sql.PreparedStatement rPs = rConn.prepareStatement(
+            "SELECT refund_id FROM refund_requests WHERE order_id=? AND status='Rejected'");
+        rPs.setInt(1, (Integer) ord.get("id"));
+        java.sql.ResultSet rRs = rPs.executeQuery();
+        if (rRs.next()) rejectedRefundId = rRs.getInt("refund_id");
+        rRs.close(); rPs.close(); rConn.close();
+    } catch (Exception ex) { ex.printStackTrace(); }
+%>
+<% if (rejectedRefundId > 0) { %>
+<button class="btn btn-warning btn-sm fw-semibold ms-1"
+    onclick="appealToAdmin(<%= rejectedRefundId %>, <%= ord.get("id") %>)">
+    <i class="bi bi-megaphone"></i> Appeal to Admin
+</button>
+<% } %>
+<% } else if ("Appealed".equals(refundStatus)) { %>
+<span class="badge px-3 py-2" style="font-size:12px; background:#6f42c1; color:white;">
+    <i class="bi bi-hourglass-split"></i> Appeal Pending
+</span>
 <% } %>
     <script>document.currentScript.closest('.order-card').dataset.refundStatus = '<%= refundStatus %>';</script>
 <% } else if (refundEligible) { %>
@@ -942,6 +1010,49 @@ for (java.util.Map<String,Object> o : myOrders) {
     </small>
 <% } %>
     <% } %>
+
+    <!-- ORDER HISTORY TOGGLE -->
+    <div class="mt-2">
+        <button class="btn btn-outline-secondary btn-sm w-100" style="font-size:12px;"
+            onclick="toggleHistory(<%= ord.get("id") %>, this)">
+            <i class="bi bi-clock-history me-1"></i> View Order History
+        </button>
+        <div id="history-<%= ord.get("id") %>" style="display:none; margin-top:8px;">
+            <%
+                try {
+                    java.sql.Connection hConn = com.shopeasy.DBConnection.getConnection();
+                    java.sql.PreparedStatement hPs = hConn.prepareStatement(
+                    	    "SELECT status, DATE_FORMAT(changed_at, '%M %d, %Y %h:%i %p') as changed_at FROM order_status_history WHERE order_id=? ORDER BY changed_at ASC");
+                    hPs.setInt(1, (Integer) ord.get("id"));
+                    java.sql.ResultSet hRs = hPs.executeQuery();
+                    boolean hasHistory = false;
+                    while (hRs.next()) {
+                        hasHistory = true;
+                        String hStatus = hRs.getString("status");
+                        String hTime = hRs.getString("changed_at");
+                        String hIcon = "pending".equals(hStatus) ? "🛒" :
+                                       "accepted".equals(hStatus) ? "✅" :
+                                       "processing".equals(hStatus) ? "⚙️" :
+                                       "shipped".equals(hStatus) ? "🚚" :
+                                       "completed".equals(hStatus) ? "📦" :
+                                       "cancelled".equals(hStatus) ? "❌" : "📋";
+            %>
+            <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:6px; font-size:12px;">
+                <span style="font-size:16px; line-height:1.2;"><%= hIcon %></span>
+                <div>
+                    <div class="fw-semibold text-capitalize"><%= hStatus %></div>
+                    <div class="text-muted" style="font-size:11px;"><%= hTime %></div>
+                </div>
+            </div>
+            <% } 
+               if (!hasHistory) { %>
+                <p class="text-muted" style="font-size:12px;">No history available.</p>
+            <% }
+               hRs.close(); hPs.close(); hConn.close();
+            } catch (Exception hEx) { hEx.printStackTrace(); } %>
+        </div>
+    </div>
+
     </div>
 </div>
                         </div>
@@ -1533,6 +1644,28 @@ if (!bdayVal) {
 }
 </script>
 <script>
+
+function appealToAdmin(refundId, orderId) {
+    document.getElementById('appealRefundId').value = refundId;
+    document.getElementById('appealOrderId').value = orderId;
+    document.getElementById('appealModal').style.display = 'flex';
+}
+
+function confirmAppeal() {
+    const refundId = document.getElementById('appealRefundId').value;
+    const orderId = document.getElementById('appealOrderId').value;
+    document.getElementById('appealModal').style.display = 'none';
+    fetch('RefundServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'action=appeal&refundId=' + refundId + '&orderId=' + orderId
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) location.reload();
+        else alert('Error: ' + data.message);
+    });
+}
 
 //Hide Write a Review button kapag refunded or pending
 document.querySelectorAll('.order-card').forEach(card => {
@@ -2310,7 +2443,44 @@ function enableEdit() {
             errEl.style.display = 'block';
         });
     }
+    
+    function toggleHistory(orderId, btn) {
+        const div = document.getElementById('history-' + orderId);
+        if (div.style.display === 'none') {
+            div.style.display = 'block';
+            btn.innerHTML = '<i class="bi bi-clock-history me-1"></i> Hide Order History';
+        } else {
+            div.style.display = 'none';
+            btn.innerHTML = '<i class="bi bi-clock-history me-1"></i> View Order History';
+        }
+    }
 </script>
+
+
+<!-- APPEAL TO ADMIN MODAL -->
+<div id="appealModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
+     background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:16px; padding:28px; width:90%; max-width:400px; box-shadow:0 20px 60px rgba(0,0,0,0.3); text-align:center;">
+        <div style="font-size:48px; margin-bottom:12px;">⚠️</div>
+        <h5 class="fw-bold mb-2">Appeal to Admin</h5>
+        <p class="text-muted mb-4" style="font-size:13px;">
+            Your refund was rejected by the seller.<br>
+            Do you want to escalate this to Admin for final review?
+        </p>
+        <input type="hidden" id="appealRefundId"/>
+        <input type="hidden" id="appealOrderId"/>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-outline-secondary px-4"
+                onclick="document.getElementById('appealModal').style.display='none'">
+                Cancel
+            </button>
+            <button class="btn btn-warning px-4" onclick="confirmAppeal()">
+                <i class="bi bi-megaphone me-1"></i> Yes, Appeal!
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- RE	VIEW MODAL -->
 <div id="reviewModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000;">
     <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:480px; max-height:90vh; overflow-y:auto;">
@@ -2517,6 +2687,29 @@ function enableEdit() {
         </div>
     </div>
 </div>
+
+<!-- MARK AS RECEIVED MODAL -->
+<div id="confirmReceiveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
+     background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:16px; padding:28px; width:90%; max-width:400px; box-shadow:0 20px 60px rgba(0,0,0,0.3); text-align:center;">
+        <div style="font-size:48px; margin-bottom:12px;">📦</div>
+        <h5 class="fw-bold mb-2">Confirm Order Received</h5>
+        <p class="text-muted mb-4" style="font-size:13px;">
+       Have you already received your order? <br>
+This action cannot be undone.
+        </p>
+        <input type="hidden" id="confirmReceiveOrderId"/>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-outline-secondary px-4" 
+                onclick="document.getElementById('confirmReceiveModal').style.display='none'">
+                Cancel
+            </button>
+            <button class="btn btn-success px-4" onclick="confirmReceive()">
+                <i class="bi bi-check-circle me-1"></i> Yes, Received!
+            </button>
+        </div>
+    </div>
+</div>
 <!-- Seller Center Loading Overlay -->
 <div id="sellerCenterOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95);
      z-index:99999; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
@@ -2532,6 +2725,25 @@ function enableEdit() {
 </style>
 
 <script>
+
+function markAsReceived(orderId) {
+    document.getElementById('confirmReceiveOrderId').value = orderId;
+    document.getElementById('confirmReceiveModal').style.display = 'flex';
+}
+
+function confirmReceive() {
+    const orderId = document.getElementById('confirmReceiveOrderId').value;
+    document.getElementById('confirmReceiveModal').style.display = 'none';
+    fetch('UpdateOrderServlet', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'orderId=' + orderId + '&status=Completed'
+    })
+    .then(res => res.text())
+    .then(() => location.reload())
+    .catch(() => alert('Error. Please try again.'));
+}
+
 function goToSellerCenter() {
     var overlay = document.getElementById('sellerCenterOverlay');
     overlay.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:99999; flex-direction:column; align-items:center; justify-content:center; gap:16px;";

@@ -104,16 +104,25 @@ public class CheckoutServlet extends HttpServlet {
             }
 
             // Check if free shipping voucher is applied
-            boolean hasFreeShipping = Boolean.TRUE.equals(session.getAttribute("appliedVoucherFreeShipping"));
+            String freeShipCodeParam = request.getParameter("freeShipCode");
+            boolean hasFreeShipping = (freeShipCodeParam != null && !freeShipCodeParam.isEmpty()) ||
+                                       Boolean.TRUE.equals(session.getAttribute("appliedVoucherFreeShipping"));
+            System.out.println("DEBUG freeShipCodeParam: " + freeShipCodeParam);
+            System.out.println("DEBUG hasFreeShipping: " + hasFreeShipping);
+            System.out.println("DEBUG hasFreeShipping: " + hasFreeShipping);
+            System.out.println("DEBUG appliedVoucherFreeShipping: " + session.getAttribute("appliedVoucherFreeShipping"));
+            System.out.println("DEBUG appliedFreeShipId: " + session.getAttribute("appliedFreeShipId"));
+            System.out.println("DEBUG appliedFreeShipCode: " + session.getAttribute("appliedFreeShipCode"));
 
             // Distribute voucher discount proportionally across sellers
             double shippingFee = (hasFreeShipping || cartTotal >= 500) ? 0 : 38;
+         // Also fix per-seller shipping
             double totalDiscount = walletDeduct + voucherDiscount;
 
             int lastOrderId = 0;
             java.util.List<Integer> allOrderIds = new java.util.ArrayList<>();
 
-            String orderSql = "INSERT INTO orders (customer_id, total_amount, status, payment_method, shipping_address) VALUES (?, ?, ?, ?, ?)";
+            String orderSql = "INSERT INTO orders (customer_id, total_amount, shipping_fee, voucher_discount, status, payment_method, shipping_address) VALUES (?, ?, ?, ?, ?, ?, ?)";  
             String itemSql = "INSERT INTO order_items (order_id, product_id, seller_id, quantity, price, discounted_price, subtotal, variation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
             for (Map.Entry<Integer, List<Map<String, Object>>> entry : itemsBySeller.entrySet()) {
@@ -127,15 +136,18 @@ public class CheckoutServlet extends HttpServlet {
 
                 // Proportional discount for this seller
                 double sellerDiscount = (cartTotal > 0) ? (sellerSubtotal / cartTotal) * totalDiscount : 0;
-                double sellerShipping = (hasFreeShipping || sellerSubtotal >= 500) ? 0 : 38;
+                double sellerShipping = hasFreeShipping ? 0 : (cartTotal >= 500 ? 0 : 38);
                 double sellerFinal = Math.max(0, sellerSubtotal + sellerShipping - sellerDiscount);
 
                 PreparedStatement orderPs = conn.prepareStatement(orderSql, PreparedStatement.RETURN_GENERATED_KEYS);
                 orderPs.setInt(1, customerId);
-                orderPs.setDouble(2, "Wallet".equals(paymentMethod) ? sellerSubtotal : sellerFinal);
-                orderPs.setString(3, initialStatus);
-                orderPs.setString(4, paymentMethod);
-                orderPs.setString(5, fullAddress);
+                double correctTotal = sellerSubtotal + sellerShipping - sellerDiscount;
+                orderPs.setDouble(2, Math.max(0, correctTotal));
+                orderPs.setDouble(3, sellerShipping);
+                orderPs.setDouble(4, sellerDiscount);
+                orderPs.setString(5, initialStatus);
+                orderPs.setString(6, paymentMethod);
+                orderPs.setString(7, fullAddress);
                 orderPs.executeUpdate();
 
                 ResultSet generatedKeys = orderPs.getGeneratedKeys();
@@ -281,6 +293,38 @@ public class CheckoutServlet extends HttpServlet {
                 session.removeAttribute("appliedVoucherDiscount");
                 session.removeAttribute("appliedVoucherId");
                 session.removeAttribute("appliedVoucherFreeShipping");
+            }
+
+            // Record FREE SHIPPING voucher usage — OUTSIDE ng platform voucher block
+            String freeShipCodeParam2 = request.getParameter("freeShipCode");
+            Integer freeShipId = (Integer) session.getAttribute("appliedFreeShipId");
+
+            // If session is null, look up voucher_id from DB using the code param
+            if (freeShipId == null && freeShipCodeParam2 != null && !freeShipCodeParam2.isEmpty()) {
+                Connection fsLookup = DBConnection.getConnection();
+                PreparedStatement fsLookupPs = fsLookup.prepareStatement(
+                    "SELECT voucher_id FROM vouchers WHERE code=? AND is_active=1");
+                fsLookupPs.setString(1, freeShipCodeParam2.toUpperCase().trim());
+                ResultSet fsLookupRs = fsLookupPs.executeQuery();
+                if (fsLookupRs.next()) freeShipId = fsLookupRs.getInt("voucher_id");
+                fsLookupRs.close(); fsLookupPs.close(); fsLookup.close();
+            }
+
+            if (freeShipId != null) {
+                Connection fsConn = DBConnection.getConnection();
+                PreparedStatement fsPs = fsConn.prepareStatement(
+                    "INSERT INTO voucher_usage (voucher_id, voucher_type, user_id, order_id) VALUES (?,?,?,?)");
+                fsPs.setInt(1, freeShipId);
+                fsPs.setString(2, "platform");
+                fsPs.setInt(3, (int) session.getAttribute("userId"));
+                fsPs.setInt(4, orderId);
+                fsPs.executeUpdate(); fsPs.close();
+
+                PreparedStatement fsUpdatePs = fsConn.prepareStatement(
+                    "UPDATE vouchers SET used_count = used_count + 1 WHERE voucher_id=?");
+                fsUpdatePs.setInt(1, freeShipId);
+                fsUpdatePs.executeUpdate(); fsUpdatePs.close();
+                fsConn.close();
                 session.removeAttribute("appliedFreeShipCode");
                 session.removeAttribute("appliedFreeShipId");
             }

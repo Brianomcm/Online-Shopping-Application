@@ -612,6 +612,7 @@ try {
     int sellerStatProducts = 0, sellerStatOrders = 0;
     int sellerStatPending = 0, sellerStatLowStock = 0, sellerStatCompleted = 0;
     double sellerStatRevenue = 0;
+    java.util.Map<String, Integer> tabCounts = new java.util.HashMap<>();
     try {
     	int sUserId = (int) session.getAttribute("userId");
     	// Get actual seller_id from DB
@@ -672,6 +673,29 @@ try {
         java.sql.ResultSet sStatRs6 = sStatPs6.executeQuery();
         if (sStatRs6.next()) sellerStatCompleted = sStatRs6.getInt(1);
         sStatRs6.close(); sStatPs6.close();
+
+     // Tab counts
+        String[] countStatuses = {"Pending","Processing","Shipped","Completed","Cancelled","Cancellation Requested"};
+        for (String cs : countStatuses) {
+            java.sql.PreparedStatement tcPs = sStatConn.prepareStatement(
+                "SELECT COUNT(DISTINCT o.order_id) FROM orders o JOIN order_items oi ON o.order_id=oi.order_id WHERE oi.seller_id=? AND o.status=?");
+            tcPs.setInt(1, sId);
+            tcPs.setString(2, cs);
+            java.sql.ResultSet tcRs = tcPs.executeQuery();
+            if (tcRs.next()) tabCounts.put(cs, tcRs.getInt(1));
+            tcRs.close(); tcPs.close();
+        }
+        // Refund Requests count
+        java.sql.PreparedStatement rrPs = sStatConn.prepareStatement(
+            "SELECT COUNT(*) FROM refund_requests rr JOIN order_items oi ON rr.order_id=oi.order_id JOIN product p ON oi.product_id=p.product_id WHERE p.seller_id=? AND rr.status='Pending'");
+        rrPs.setInt(1, sId);
+        java.sql.ResultSet rrRs = rrPs.executeQuery();
+        int refundCount = 0;
+        if (rrRs.next()) refundCount = rrRs.getInt(1);
+        rrRs.close(); rrPs.close();
+        tabCounts.put("Refund Requests", refundCount);
+        // All count
+        tabCounts.put("All", sellerStatOrders);
 
         sStatConn.close();
     } catch (Exception ex) { ex.printStackTrace(); }
@@ -1079,12 +1103,26 @@ try {
     <%-- Status Filter Tabs --%>
     <% int sOrdNum = 0; %>
     <ul class="nav nav-tabs mb-4" id="orderStatusTabs">
-        <%String[] sOrderStatuses = {"All","Pending","Processing","Shipped","Completed","Cancelled","Cancellation Requested","Refund Requests"};
-           for (String st : sOrderStatuses) { %>
+   <%String[] sOrderStatuses = {"All","Pending","Processing","Shipped","Completed","Cancelled","Cancellation Requested","Refund Requests"};
+           for (String st : sOrderStatuses) {
+               int stCount = tabCounts != null && tabCounts.containsKey(st) ? tabCounts.get(st) : 0;
+           %>
             <li class="nav-item">
                 <a class="nav-link <%= st.equals(orderTabFilter) ? "active fw-semibold" : "" %>"
                    href="seller.jsp?tab=orders&orderTab=<%= st %>">
                     <%= st %>
+                    <% if (stCount > 0) { %>
+                        <span class="badge rounded-pill ms-1
+                            <%= "Pending".equals(st) ? "bg-warning text-dark" :
+                                "Processing".equals(st) ? "bg-primary" :
+                                "Shipped".equals(st) ? "bg-info text-dark" :
+                                "Completed".equals(st) ? "bg-success" :
+                                "Refund Requests".equals(st) ? "bg-danger" :
+                                "bg-secondary" %>"
+                            style="font-size:10px;">
+                            <%= stCount %>
+                        </span>
+                    <% } %>
                 </a>
             </li>
         <% } %>
@@ -1198,15 +1236,59 @@ try {
     <i class="bi bi-x-circle"></i> Cancel Order
 </button>
         <% } else if ("Processing".equals(sStatus)) { %>
-            <button class="btn btn-info btn-sm text-white"
-                onclick="updateOrderStatus(<%= ord.get("id") %>, 'Shipped')">
-                <i class="bi bi-truck"></i> Ship Order
-            </button>
+    <button class="btn btn-info btn-sm text-white"
+        onclick="openShipModal(<%= ord.get("id") %>)">
+        <i class="bi bi-truck"></i> Ship Order
+    </button>
         <% } else if ("Shipped".equals(sStatus)) { %>
-            <button class="btn btn-success btn-sm"
-                onclick="updateOrderStatus(<%= ord.get("id") %>, 'Completed')">
-                <i class="bi bi-bag-check"></i> Mark Completed
-            </button>
+    <%
+        String sellerCourier = "";
+        String sellerTracking = "";
+        try {
+            java.sql.Connection stConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement stPs = stConn.prepareStatement(
+                "SELECT courier_name, tracking_number FROM shipping WHERE order_id=?");
+            stPs.setInt(1, (int) ord.get("id"));
+            java.sql.ResultSet stRs = stPs.executeQuery();
+            if (stRs.next()) {
+                sellerCourier = stRs.getString("courier_name") != null ? stRs.getString("courier_name") : "";
+                sellerTracking = stRs.getString("tracking_number") != null ? stRs.getString("tracking_number") : "";
+            }
+            stRs.close(); stPs.close(); stConn.close();
+        } catch (Exception stEx) { stEx.printStackTrace(); }
+    %>
+    <% if (!sellerCourier.isEmpty() || !sellerTracking.isEmpty()) { %>
+    <div class="p-2 rounded-3 mb-2" style="background:#e0f2fe; border:1px solid #7dd3fc; font-size:12px;">
+        <p class="fw-bold mb-1" style="color:#0284c7;">
+            <i class="bi bi-truck me-1"></i> Shipping Details
+        </p>
+        <% if (!sellerCourier.isEmpty()) { %>
+        <p class="mb-0"><i class="bi bi-box me-1"></i><strong>Courier:</strong> <%= sellerCourier %></p>
+        <% } %>
+      <% if (!sellerTracking.isEmpty()) { %>
+<p class="mb-0"><i class="bi bi-hash me-1"></i><strong>Tracking #:</strong> <%= sellerTracking %>
+<%
+    String sellerTrackUrl = "";
+    if (sellerCourier.contains("LBC")) sellerTrackUrl = "https://www.lbcexpress.com/track/?tracking_no=" + sellerTracking;
+    else if (sellerCourier.contains("J&T")) sellerTrackUrl = "https://www.jtexpress.ph/trajectoryQuery?billcode=" + sellerTracking;
+    else if (sellerCourier.contains("Ninja")) sellerTrackUrl = "https://www.ninjavan.co/en-ph/tracking?id=" + sellerTracking;
+    else if (sellerCourier.contains("Flash")) sellerTrackUrl = "https://www.flashexpress.com.ph/tracking/" + sellerTracking;
+    else if (sellerCourier.contains("2GO")) sellerTrackUrl = "https://www.2go.com.ph/tracking/?tracking_number=" + sellerTracking;
+    else if (sellerCourier.contains("DHL")) sellerTrackUrl = "https://www.dhl.com/ph-en/home/tracking.html?tracking-id=" + sellerTracking;
+    else if (sellerCourier.contains("FedEx")) sellerTrackUrl = "https://www.fedex.com/fedextrack/?trknbr=" + sellerTracking;
+%>
+<% if (!sellerTrackUrl.isEmpty()) { %>
+    <a href="<%= sellerTrackUrl %>" target="_blank" class="btn btn-outline-primary btn-sm ms-2" style="font-size:10px; padding:1px 8px;">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Track
+    </a>
+<% } %>
+</p>
+<% } %>
+    </div>
+    <% } %>
+<p class="text-muted mb-0 mt-1" style="font-size:11px;">
+        <i class="bi bi-hourglass-split me-1"></i> Waiting for customer to confirm receipt...
+    </p>
         <% } else if ("Cancellation Requested".equals(sStatus)) { %>
             <%
                 String cancelReason = "";
@@ -1320,6 +1402,49 @@ try {
         <i class="bi bi-check2-all"></i> <%= sStatus %>
     </span>
 <% } %>
+
+    <!-- ORDER HISTORY TOGGLE -->
+    <div class="mt-2">
+        <button class="btn btn-outline-secondary btn-sm w-100" style="font-size:12px;"
+      onclick="toggleSellerHistory(<%= ord.get("id") %>, this)">
+            <i class="bi bi-clock-history me-1"></i> View Order History
+        </button>
+        <div id="seller-history-<%= ord.get("id") %>" style="display:none; margin-top:8px;">
+            <%
+                try {
+                    java.sql.Connection hConn = com.shopeasy.DBConnection.getConnection();
+                    java.sql.PreparedStatement hPs = hConn.prepareStatement(
+                        "SELECT status, DATE_FORMAT(changed_at, '%M %d, %Y %h:%i %p') as changed_at " +
+                        "FROM order_status_history WHERE order_id=? ORDER BY changed_at ASC");
+                    hPs.setInt(1, (int) ord.get("id"));
+                    java.sql.ResultSet hRs = hPs.executeQuery();
+                    boolean hasHistory = false;
+                    while (hRs.next()) {
+                        hasHistory = true;
+                        String hStatus = hRs.getString("status");
+                        String hTime = hRs.getString("changed_at");
+                        String hIcon = "pending".equals(hStatus) ? "🛒" :
+                                       "accepted".equals(hStatus) ? "✅" :
+                                       "processing".equals(hStatus) ? "⚙️" :
+                                       "shipped".equals(hStatus) ? "🚚" :
+                                       "completed".equals(hStatus) ? "📦" :
+                                       "cancelled".equals(hStatus) ? "❌" : "📋";
+            %>
+            <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:6px; font-size:12px;">
+                <span style="font-size:16px; line-height:1.2;"><%= hIcon %></span>
+                <div>
+                    <div class="fw-semibold text-capitalize"><%= hStatus %></div>
+                    <div class="text-muted" style="font-size:11px;"><%= hTime %></div>
+                </div>
+            </div>
+            <%  }
+                if (!hasHistory) { %>
+                <p class="text-muted" style="font-size:12px;">No history available.</p>
+            <% }
+               hRs.close(); hPs.close(); hConn.close();
+            } catch (Exception hEx) { hEx.printStackTrace(); } %>
+        </div>
+    </div>
 
     </div>
 </div>
@@ -3102,11 +3227,16 @@ editGalleryFiles = [];
         }, 3000);
     }
     
-    function updateOrderStatus(orderId, newStatus) {
+    function updateOrderStatus(orderId, newStatus, courierName, trackingNumber, eda) {
+        let body = 'orderId=' + orderId + '&status=' + encodeURIComponent(newStatus);
+        if (courierName) body += '&courierName=' + encodeURIComponent(courierName);
+        if (trackingNumber) body += '&trackingNumber=' + encodeURIComponent(trackingNumber);
+        if (eda) body += '&estimatedDelivery=' + encodeURIComponent(eda);
+
         fetch('UpdateOrderServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'orderId=' + orderId + '&status=' + encodeURIComponent(newStatus)
+            body: body
         })
         .then(res => res.text())
         .then(() => {
@@ -3118,6 +3248,26 @@ editGalleryFiles = [];
             }, 1500);
         })
         .catch(() => showSellerToast('Error updating order. Please try again.', 'error'));
+    }
+
+    function openShipModal(orderId) {
+        document.getElementById('shipOrderId').value = orderId;
+        document.getElementById('shipCourierName').value = '';
+        document.getElementById('shipTrackingNumber').value = '';
+        document.getElementById('shipModal').style.display = 'flex';
+    }
+
+    function closeShipModal() {
+        document.getElementById('shipModal').style.display = 'none';
+    }
+
+    function confirmShip() {
+        const orderId = document.getElementById('shipOrderId').value;
+        const courier = document.getElementById('shipCourierName').value;
+        const tracking = document.getElementById('shipTrackingNumber').value;
+        const eda = document.getElementById('shipEDA').value;
+        closeShipModal();
+        updateOrderStatus(orderId, 'Shipped', courier, tracking, eda);
     }
     
     function approveCancel(orderId, action) {
@@ -3552,6 +3702,50 @@ editGalleryFiles = [];
     </div>
 </div>
 
+<!-- SHIP ORDER MODAL -->
+<div id="shipModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
+     background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:16px; padding:28px; width:90%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <h5 class="fw-bold mb-1"><i class="bi bi-truck text-info me-2"></i>Ship Order</h5>
+        <p class="text-muted mb-3" style="font-size:13px;">Enter shipping details before marking as shipped.</p>
+        <input type="hidden" id="shipOrderId"/>
+        <div class="mb-3">
+            <label class="form-label fw-semibold" style="font-size:13px;">Courier Name</label>
+        <select id="shipCourierName" class="form-select">
+    <option value="">-- Select Courier --</option>
+    <option value="LBC">🟡 LBC Express</option>
+    <option value="J&T Express">🔴 J&T Express</option>
+    <option value="Ninja Van">🔵 Ninja Van</option>
+    <option value="Flash Express">🟠 Flash Express</option>
+    <option value="GoGo Express">🟢 GoGo Express</option>
+    <option value="2GO">⚓ 2GO</option>
+    <option value="DHL">🟡 DHL</option>
+    <option value="FedEx">🟣 FedEx</option>
+    <option value="Others">📦 Others</option>
+</select>
+        </div>
+        <div class="mb-4">
+            <label class="form-label fw-semibold" style="font-size:13px;">Tracking Number</label>
+            <input type="text" id="shipTrackingNumber" class="form-control" 
+                   placeholder="e.g. LBC123456789"/>
+        </div>
+       <div class="mb-4">
+    <label class="form-label fw-semibold" style="font-size:13px;">
+        <i class="bi bi-calendar-check me-1"></i>Estimated Delivery Date <span class="text-muted fw-normal">(optional)</span>
+    </label>
+    <input type="date" id="shipEDA" class="form-control"
+           min="<%= new java.text.SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date()) %>"/>
+    <small class="text-muted" style="font-size:11px;">Leave blank if unsure</small>
+</div>
+<div class="d-flex gap-2 justify-content-end">
+    <button class="btn btn-outline-secondary" onclick="closeShipModal()">Cancel</button>
+            <button class="btn btn-info text-white" onclick="confirmShip()">
+                <i class="bi bi-truck me-1"></i> Confirm Ship
+            </button>
+        </div>
+    </div>
+</div>
+
 <%@ include file="modals.jsp" %>
 <script>
 
@@ -3704,7 +3898,16 @@ function openSellerCancelModal(orderId) {
 function closeSellerCancelModal() {
     document.getElementById('sellerCancelModal').style.display = 'none';
 }
-
+function toggleSellerHistory(orderId, btn) {
+    const div = document.getElementById('seller-history-' + orderId);
+    if (div.style.display === 'none') {
+        div.style.display = 'block';
+        btn.innerHTML = '<i class="bi bi-clock-history me-1"></i> Hide Order History';
+    } else {
+        div.style.display = 'none';
+        btn.innerHTML = '<i class="bi bi-clock-history me-1"></i> View Order History';
+    }
+}
 function submitSellerCancel() {
     const orderId = document.getElementById('sellerCancelOrderId').value;
     const reason = document.getElementById('sellerCancelReason').value;

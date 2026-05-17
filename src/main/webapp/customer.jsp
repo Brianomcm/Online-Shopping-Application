@@ -450,11 +450,14 @@ request.setAttribute("navCartCount", navCartCount);
                     "SELECT customer_id FROM customer WHERE user_id=?");
                 cidPs.setInt(1, (int) session.getAttribute("userId"));
                 java.sql.ResultSet cidRs = cidPs.executeQuery();
-                if (cidRs.next()) statId = cidRs.getInt("customer_id");
+                if (cidRs.next()) {
+                    statId = cidRs.getInt("customer_id");
+                    session.setAttribute("customerId", statId);
+                }
                 cidRs.close(); cidPs.close(); cidConn.close();
             } catch (Exception ignored) {}
         }
-        if (statId == null) statId = (int) session.getAttribute("userId");
+        if (statId == null) { statId = 0; } // safe fallback — never use userId as customerId
         java.sql.Connection statConn = com.shopeasy.DBConnection.getConnection();
         java.sql.PreparedStatement statPs = statConn.prepareStatement(
             "SELECT status, COUNT(*) as cnt FROM orders WHERE customer_id=? GROUP BY status");
@@ -625,13 +628,24 @@ request.setAttribute("navCartCount", navCartCount);
                         java.util.List<java.util.Map<String, Object>> myOrders = new java.util.ArrayList<>();
                         try {
                         	Integer custId2 = (Integer) session.getAttribute("customerId");
-                            if (custId2 == null) custId2 = (int) session.getAttribute("userId");
+                            if (custId2 == null) {
+                                try {
+                                    java.sql.Connection c2Conn = com.shopeasy.DBConnection.getConnection();
+                                    java.sql.PreparedStatement c2Ps = c2Conn.prepareStatement("SELECT customer_id FROM customer WHERE user_id=?");
+                                    c2Ps.setInt(1, (int) session.getAttribute("userId"));
+                                    java.sql.ResultSet c2Rs = c2Ps.executeQuery();
+                                    if (c2Rs.next()) { custId2 = c2Rs.getInt("customer_id"); session.setAttribute("customerId", custId2); }
+                                    c2Rs.close(); c2Ps.close(); c2Conn.close();
+                                } catch (Exception ignored) {}
+                            }
+                            if (custId2 == null) custId2 = 0; // safe fallback
                             java.sql.Connection ordConn = com.shopeasy.DBConnection.getConnection();
                             java.text.SimpleDateFormat ordSdf = new java.text.SimpleDateFormat("MMM d, yyyy h:mm a");
                             ordSdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Manila"));
                             java.sql.PreparedStatement ordPs = ordConn.prepareStatement(
                             		"SELECT o.order_id, o.total_amount, o.status, o.payment_method, o.shipping_address, o.order_date, o.cancel_reason, " +
-                            				"GROUP_CONCAT(DISTINCT s.business_name ORDER BY s.business_name SEPARATOR ', ') AS shop_names " +
+                            				"GROUP_CONCAT(DISTINCT s.business_name ORDER BY s.business_name SEPARATOR ', ') AS shop_names, " +
+                            				"GROUP_CONCAT(DISTINCT s.seller_id ORDER BY s.business_name SEPARATOR ',') AS seller_ids " +
                             				"FROM orders o " +
                             				"JOIN order_items oi ON o.order_id = oi.order_id " +
                             				"LEFT JOIN seller s ON oi.seller_id = s.seller_id " +
@@ -649,6 +663,7 @@ request.setAttribute("navCartCount", navCartCount);
                                 ord.put("date", ordTs != null ? ordSdf.format(ordTs) : "Date not available");
                                 ord.put("cancelReason", ordRs.getString("cancel_reason"));
                                 ord.put("shopNames", ordRs.getString("shop_names"));
+                                ord.put("sellerIds", ordRs.getString("seller_ids"));
                                 myOrders.add(ord);
                             }
                             ordRs.close(); ordPs.close(); ordConn.close();
@@ -661,8 +676,14 @@ request.setAttribute("navCartCount", navCartCount);
                     java.util.Set<Integer> reviewedOrderIds = new java.util.HashSet<>();
                     // BATCH QUERY 3 — All refund statuses
                     java.util.Map<Integer, String> refundStatuses = new java.util.HashMap<>();
+                    // BATCH QUERY 3b — Days since refund submitted
+                    java.util.Map<Integer, Integer> refundDaysPending = new java.util.HashMap<>();
                     // BATCH QUERY 4 — All refund eligibility (days since order)
                     java.util.Map<Integer, Integer> orderDaysSince = new java.util.HashMap<>();
+                    // BATCH QUERY 5 — All shipping info
+                    java.util.Map<Integer, java.util.Map<String,Object>> allShippingInfo = new java.util.HashMap<>();
+                    // BATCH QUERY 6 — All rejected refund IDs
+                    java.util.Map<Integer, Integer> rejectedRefundIds = new java.util.HashMap<>();
 
                     if (!myOrders.isEmpty()) {
                         // Build comma-separated order IDs
@@ -675,7 +696,7 @@ request.setAttribute("navCartCount", navCartCount);
 
                         try {
                             Integer batchCustId = (Integer) session.getAttribute("customerId");
-                            if (batchCustId == null) batchCustId = (int) session.getAttribute("userId");
+                            if (batchCustId == null) batchCustId = 0; // safe fallback — customerId already resolved above
                             java.sql.Connection batchConn = com.shopeasy.DBConnection.getConnection();
 
                             // BATCH 1 — Order items
@@ -719,10 +740,13 @@ request.setAttribute("navCartCount", navCartCount);
 
                             // BATCH 3 — Refund statuses
                             java.sql.PreparedStatement rfBatchPs = batchConn.prepareStatement(
-                                "SELECT order_id, status FROM refund_requests WHERE customer_id=? AND order_id IN (" + orderIdList + ")");
+                                "SELECT order_id, status, DATEDIFF(NOW(), created_at) as days_pending FROM refund_requests WHERE customer_id=? AND order_id IN (" + orderIdList + ")");
                             rfBatchPs.setInt(1, batchCustId);
                             java.sql.ResultSet rfBatchRs = rfBatchPs.executeQuery();
-                            while (rfBatchRs.next()) refundStatuses.put(rfBatchRs.getInt("order_id"), rfBatchRs.getString("status"));
+                            while (rfBatchRs.next()) {
+                                refundStatuses.put(rfBatchRs.getInt("order_id"), rfBatchRs.getString("status"));
+                                refundDaysPending.put(rfBatchRs.getInt("order_id"), rfBatchRs.getInt("days_pending"));
+                            }
                             rfBatchRs.close(); rfBatchPs.close();
 
                             // BATCH 4 — Days since order
@@ -731,6 +755,26 @@ request.setAttribute("navCartCount", navCartCount);
                             		"SELECT order_id, DATEDIFF(NOW(), completed_at) as days FROM orders WHERE order_id IN (" + orderIdList + ")");
                             while (dayBatchRs.next()) orderDaysSince.put(dayBatchRs.getInt("order_id"), dayBatchRs.getInt("days"));
                             dayBatchRs.close(); dayStmt.close();
+
+                            // BATCH 5 — Shipping info for all orders
+                            java.sql.Statement shipBatchStmt = batchConn.createStatement();
+                            java.sql.ResultSet shipBatchRs = shipBatchStmt.executeQuery(
+                                "SELECT order_id, courier_name, tracking_number, DATE_FORMAT(estimated_delivery, '%M %d, %Y') as estimated_delivery FROM shipping WHERE order_id IN (" + orderIdList + ")");
+                            while (shipBatchRs.next()) {
+                                java.util.Map<String,Object> shipInfo = new java.util.HashMap<>();
+                                shipInfo.put("courier", shipBatchRs.getString("courier_name") != null ? shipBatchRs.getString("courier_name") : "");
+                                shipInfo.put("tracking", shipBatchRs.getString("tracking_number") != null ? shipBatchRs.getString("tracking_number") : "");
+                                shipInfo.put("eda", shipBatchRs.getString("estimated_delivery") != null ? shipBatchRs.getString("estimated_delivery") : "");
+                                allShippingInfo.put(shipBatchRs.getInt("order_id"), shipInfo);
+                            }
+                            shipBatchRs.close(); shipBatchStmt.close();
+
+                            // BATCH 6 — Rejected refund IDs for appeal button
+                            java.sql.Statement rejStmt = batchConn.createStatement();
+                            java.sql.ResultSet rejBatchRs = rejStmt.executeQuery(
+                                "SELECT order_id, refund_id FROM refund_requests WHERE status='Rejected' AND order_id IN (" + orderIdList + ")");
+                            while (rejBatchRs.next()) rejectedRefundIds.put(rejBatchRs.getInt("order_id"), rejBatchRs.getInt("refund_id"));
+                            rejBatchRs.close(); rejStmt.close();
 
                             batchConn.close();
                         } catch (Exception batchEx) { batchEx.printStackTrace(); }
@@ -795,7 +839,18 @@ for (java.util.Map<String,Object> o : myOrders) {
 
                             </div>
                             <p class="mb-1 fw-semibold" style="font-size:12px; color:#0d6efd;">
-    <i class="bi bi-shop"></i> <%= ord.get("shopNames") != null ? ord.get("shopNames") : "Unknown Shop" %>
+    <i class="bi bi-shop"></i>
+    <%
+        String shopNamesStr = (String) ord.get("shopNames");
+        String sellerIdsStr = (String) ord.get("sellerIds");
+        if (shopNamesStr != null && sellerIdsStr != null) {
+            String[] shopArr = shopNamesStr.split(", ");
+            String[] idArr = sellerIdsStr.split(",");
+            for (int si = 0; si < shopArr.length; si++) {
+                String sid = si < idArr.length ? idArr[si].trim() : "";
+    %>
+        <a href="SellerPageServlet?id=<%= sid %>" class="text-decoration-none" style="color:#0d6efd;"><%= shopArr[si].trim() %></a><%= si < shopArr.length - 1 ? ", " : "" %>
+    <% } } else { %> Unknown Shop <% } %>
 </p>
                             <p class="mb-1 text-muted" style="font-size:12px;">
                                 <i class="bi bi-geo-alt"></i> <%= ord.get("address") %>
@@ -889,19 +944,12 @@ for (java.util.Map<String,Object> o : myOrders) {
     String courierName = "";
     String trackingNum = "";
     String custEDA = "";
-    try {
-            java.sql.Connection shipConn = com.shopeasy.DBConnection.getConnection();
-            java.sql.PreparedStatement shipPs = shipConn.prepareStatement(
-            		"SELECT courier_name, tracking_number, DATE_FORMAT(estimated_delivery, '%M %d, %Y') as estimated_delivery FROM shipping WHERE order_id=?");
-            shipPs.setInt(1, (Integer) ord.get("id"));
-            java.sql.ResultSet shipRs = shipPs.executeQuery();
-            if (shipRs.next()) {
-            	courierName = shipRs.getString("courier_name") != null ? shipRs.getString("courier_name") : "";
-            	trackingNum = shipRs.getString("tracking_number") != null ? shipRs.getString("tracking_number") : "";
-            	custEDA = shipRs.getString("estimated_delivery") != null ? shipRs.getString("estimated_delivery") : "";
-            }
-            shipRs.close(); shipPs.close(); shipConn.close();
-        } catch (Exception ex) { ex.printStackTrace(); }
+    java.util.Map<String,Object> shipData = allShippingInfo.get(ordIdKey);
+    if (shipData != null) {
+        courierName = (String) shipData.get("courier");
+        trackingNum = (String) shipData.get("tracking");
+        custEDA = (String) shipData.get("eda");
+    }
     %>
     <% if (!courierName.isEmpty() || !trackingNum.isEmpty()) { %>
     <div class="p-2 rounded-3 mb-2" style="background:#e0f2fe; border:1px solid #7dd3fc; font-size:12px;">
@@ -911,9 +959,25 @@ for (java.util.Map<String,Object> o : myOrders) {
         <% if (!courierName.isEmpty()) { %>
         <p class="mb-0"><i class="bi bi-box me-1"></i><strong>Courier:</strong> <%= courierName %></p>
         <% } %>
-     <% if (!trackingNum.isEmpty()) { %>
-        <p class="mb-0"><i class="bi bi-hash me-1"></i><strong>Tracking #:</strong> <%= trackingNum %></p>
-        <% } %>
+<% if (!trackingNum.isEmpty()) { %>
+<p class="mb-0"><i class="bi bi-hash me-1"></i><strong>Tracking #:</strong> <%= trackingNum %>
+<%
+    String custTrackUrl = "";
+    if (courierName.contains("LBC")) custTrackUrl = "https://www.lbcexpress.com/track/?tracking_no=" + trackingNum;
+    else if (courierName.contains("J&T")) custTrackUrl = "https://www.jtexpress.ph/trajectoryQuery?billcode=" + trackingNum;
+    else if (courierName.contains("Ninja")) custTrackUrl = "https://www.ninjavan.co/en-ph/tracking?id=" + trackingNum;
+    else if (courierName.contains("Flash")) custTrackUrl = "https://www.flashexpress.com.ph/tracking/" + trackingNum;
+    else if (courierName.contains("2GO")) custTrackUrl = "https://www.2go.com.ph/tracking/?tracking_number=" + trackingNum;
+    else if (courierName.contains("DHL")) custTrackUrl = "https://www.dhl.com/ph-en/home/tracking.html?tracking-id=" + trackingNum;
+    else if (courierName.contains("FedEx")) custTrackUrl = "https://www.fedex.com/fedextrack/?trknbr=" + trackingNum;
+%>
+<% if (!custTrackUrl.isEmpty()) { %>
+    <a href="<%= custTrackUrl %>" target="_blank" class="btn btn-outline-primary btn-sm ms-2" style="font-size:10px; padding:1px 8px;">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Track
+    </a>
+<% } %>
+</p>
+<% } %>
         <% if (!custEDA.isEmpty()) { %>
         <p class="mb-0 mt-1" style="color:#0369a1;">
             <i class="bi bi-calendar-check me-1"></i>
@@ -953,13 +1017,51 @@ for (java.util.Map<String,Object> o : myOrders) {
   String refundStatus = refundStatuses.get(ordIdKey);
     int daysSince = orderDaysSince.getOrDefault(ordIdKey, 999);
     boolean refundEligible = (daysSince <= 7);
+    int refundDaysPendingVal = refundDaysPending.getOrDefault(ordIdKey, 0);
 %>
 <% if (refundStatus != null) { %>
    <% if ("Pending".equals(refundStatus)) { %>
     <span class="badge px-3 py-2" style="font-size:12px; background:#ffc107; color:#333;">
         <i class="bi bi-hourglass-split"></i> Refund Pending
     </span>
-    <button class="btn btn-outline-secondary btn-sm fw-semibold ms-1"
+    <% if (refundDaysPendingVal >= 7) { %>
+    <%
+        int pendingRefundId = rejectedRefundIds.getOrDefault(ordIdKey, 0);
+        // For escalate — we need the refund_id even if not rejected; get from a separate lookup if needed
+        // Use a direct query here since this is an edge case (only shows after 7 days)
+        int escalateRefundId = 0;
+        try {
+            java.sql.Connection escConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement escPs = escConn.prepareStatement(
+                "SELECT refund_id FROM refund_requests WHERE order_id=? AND status='Pending'");
+            escPs.setInt(1, ordIdKey);
+            java.sql.ResultSet escRs = escPs.executeQuery();
+            if (escRs.next()) escalateRefundId = escRs.getInt("refund_id");
+            escRs.close(); escPs.close(); escConn.close();
+        } catch (Exception ignored) {}
+    %>
+    <% if (escalateRefundId > 0) { %>
+    <div class="p-2 rounded-3 mt-1 mb-1" style="background:#fff3cd; border:1px solid #ffc107; font-size:12px;">
+        <p class="mb-1 fw-bold" style="color:#856404;">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i> Seller has not responded for <%= refundDaysPendingVal %> days
+        </p>
+        <p class="mb-1 text-muted" style="font-size:11px;">You can now escalate this to Admin for final review.</p>
+        <button class="btn btn-warning btn-sm fw-semibold w-100"
+            onclick="appealToAdmin(<%= escalateRefundId %>, <%= ord.get("id") %>)">
+            <i class="bi bi-megaphone me-1"></i> Escalate to Admin
+        </button>
+    </div>
+    <% } %>
+    <% } else { %>
+    <small class="text-muted d-block mt-1" style="font-size:11px;">
+        <i class="bi bi-clock"></i> Waiting for seller response...
+        <% int daysLeft = 7 - refundDaysPendingVal; %>
+        <% if (daysLeft > 0) { %>
+        (<%= daysLeft %> day<%= daysLeft != 1 ? "s" : "" %> until you can escalate)
+        <% } %>
+    </small>
+    <% } %>
+    <button class="btn btn-outline-secondary btn-sm fw-semibold mt-1"
         onclick="cancelRefundRequest(<%= ord.get("id") %>)">
         <i class="bi bi-x-circle"></i> Cancel Return
     </button>
@@ -972,17 +1074,8 @@ for (java.util.Map<String,Object> o : myOrders) {
     <i class="bi bi-x-circle"></i> Refund Rejected
 </span>
 <%
-    // Get refund_id para sa appeal
-    int rejectedRefundId = 0;
-    try {
-        java.sql.Connection rConn = com.shopeasy.DBConnection.getConnection();
-        java.sql.PreparedStatement rPs = rConn.prepareStatement(
-            "SELECT refund_id FROM refund_requests WHERE order_id=? AND status='Rejected'");
-        rPs.setInt(1, (Integer) ord.get("id"));
-        java.sql.ResultSet rRs = rPs.executeQuery();
-        if (rRs.next()) rejectedRefundId = rRs.getInt("refund_id");
-        rRs.close(); rPs.close(); rConn.close();
-    } catch (Exception ex) { ex.printStackTrace(); }
+    // Get refund_id para sa appeal — from batch map, no per-order DB query
+    int rejectedRefundId = rejectedRefundIds.getOrDefault(ordIdKey, 0);
 %>
 <% if (rejectedRefundId > 0) { %>
 <button class="btn btn-warning btn-sm fw-semibold ms-1"
@@ -1026,10 +1119,15 @@ for (java.util.Map<String,Object> o : myOrders) {
                     hPs.setInt(1, (Integer) ord.get("id"));
                     java.sql.ResultSet hRs = hPs.executeQuery();
                     boolean hasHistory = false;
+                    java.util.List<String[]> historyList = new java.util.ArrayList<>();
                     while (hRs.next()) {
                         hasHistory = true;
-                        String hStatus = hRs.getString("status");
-                        String hTime = hRs.getString("changed_at");
+                        historyList.add(new String[]{hRs.getString("status"), hRs.getString("changed_at")});
+                    }
+                    for (int hi = 0; hi < historyList.size(); hi++) {
+                        String hStatus = historyList.get(hi)[0];
+                        String hTime = historyList.get(hi)[1];
+                        boolean isLast = (hi == historyList.size() - 1);
                         String hIcon = "pending".equals(hStatus) ? "🛒" :
                                        "accepted".equals(hStatus) ? "✅" :
                                        "processing".equals(hStatus) ? "⚙️" :
@@ -1037,15 +1135,22 @@ for (java.util.Map<String,Object> o : myOrders) {
                                        "completed".equals(hStatus) ? "📦" :
                                        "cancelled".equals(hStatus) ? "❌" : "📋";
             %>
-            <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:6px; font-size:12px;">
-                <span style="font-size:16px; line-height:1.2;"><%= hIcon %></span>
-                <div>
-                    <div class="fw-semibold text-capitalize"><%= hStatus %></div>
+            <div style="display:flex; align-items:flex-start; gap:10px; font-size:12px;">
+                <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+                    <div style="width:28px; height:28px; border-radius:50%; background:#e8f5e9; border:2px solid #198754; display:flex; align-items:center; justify-content:center; font-size:14px;">
+                        <%= hIcon %>
+                    </div>
+                    <% if (!isLast) { %>
+                    <div style="width:2px; background:#d1fae5; flex:1; min-height:20px;"></div>
+                    <% } %>
+                </div>
+                <div style="padding-bottom:16px;">
+                    <div class="fw-semibold text-capitalize" style="font-size:13px;"><%= hStatus %></div>
                     <div class="text-muted" style="font-size:11px;"><%= hTime %></div>
                 </div>
             </div>
-            <% } 
-               if (!hasHistory) { %>
+            <% } %>
+            <% if (!hasHistory) { %>
                 <p class="text-muted" style="font-size:12px;">No history available.</p>
             <% }
                hRs.close(); hPs.close(); hConn.close();
@@ -1071,7 +1176,17 @@ for (java.util.Map<String,Object> o : myOrders) {
         <%
             try {
             	Integer rvCustId = (Integer) session.getAttribute("customerId");
-                if (rvCustId == null) rvCustId = (int) session.getAttribute("userId");
+                if (rvCustId == null) {
+                    try {
+                        java.sql.Connection rvCidConn = com.shopeasy.DBConnection.getConnection();
+                        java.sql.PreparedStatement rvCidPs = rvCidConn.prepareStatement("SELECT customer_id FROM customer WHERE user_id=?");
+                        rvCidPs.setInt(1, (int) session.getAttribute("userId"));
+                        java.sql.ResultSet rvCidRs = rvCidPs.executeQuery();
+                        if (rvCidRs.next()) { rvCustId = rvCidRs.getInt("customer_id"); session.setAttribute("customerId", rvCustId); }
+                        rvCidRs.close(); rvCidPs.close(); rvCidConn.close();
+                    } catch (Exception ignored) {}
+                }
+                if (rvCustId == null) rvCustId = 0;
                 java.sql.Connection rvConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement rvPs = rvConn.prepareStatement(
                 		"SELECT r.review_id, r.product_id, r.rating, r.comment, r.photo, r.created_at, r.is_edited, " +
@@ -1099,6 +1214,9 @@ for (java.util.Map<String,Object> o : myOrders) {
         long rvDaysSince = rvCreatedAt != null
             ? (System.currentTimeMillis() - rvCreatedAt.getTime()) / (1000 * 60 * 60 * 24)
             : 999;
+        java.text.SimpleDateFormat rvSdf = new java.text.SimpleDateFormat("MMM dd, yyyy");
+        rvSdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Manila"));
+        String rvDateStr = rvCreatedAt != null ? rvSdf.format(rvCreatedAt) : "";
         int rvIsEdited = rvRs.getInt("is_edited");
         boolean rvCanEdit = rvDaysSince <= 7 && rvIsEdited == 0;
         %>
@@ -1146,6 +1264,11 @@ for (java.util.Map<String,Object> o : myOrders) {
             <% } %>
         </div>
         <p class="mb-0 text-muted" style="font-size:13px;" id="rvComment-<%= rvId %>"><%= rvComment %></p>
+        <% if (!rvDateStr.isEmpty()) { %>
+        <p class="mb-0 mt-1 text-muted" style="font-size:11px;">
+            <i class="bi bi-calendar3 me-1"></i>Reviewed on <%= rvDateStr %>
+        </p>
+        <% } %>
         <% if (rvPhoto != null && !rvPhoto.isEmpty()) { %>
             <img src="<%= rvPhoto %>" id="rvPhoto-<%= rvId %>"
                  style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid #eee; margin-top:6px;">
@@ -1230,7 +1353,17 @@ for (java.util.Map<String,Object> o : myOrders) {
             java.util.List<java.util.Map<String, Object>> addresses = new java.util.ArrayList<>();
             try {
             	Integer custId = (Integer) session.getAttribute("customerId");
-                if (custId == null) custId = (int) session.getAttribute("userId");
+                if (custId == null) {
+                    try {
+                        java.sql.Connection addrCidConn = com.shopeasy.DBConnection.getConnection();
+                        java.sql.PreparedStatement addrCidPs = addrCidConn.prepareStatement("SELECT customer_id FROM customer WHERE user_id=?");
+                        addrCidPs.setInt(1, (int) session.getAttribute("userId"));
+                        java.sql.ResultSet addrCidRs = addrCidPs.executeQuery();
+                        if (addrCidRs.next()) { custId = addrCidRs.getInt("customer_id"); session.setAttribute("customerId", custId); }
+                        addrCidRs.close(); addrCidPs.close(); addrCidConn.close();
+                    } catch (Exception ignored) {}
+                }
+                if (custId == null) custId = 0;
                 java.sql.Connection addrConn = com.shopeasy.DBConnection.getConnection();
                 java.sql.PreparedStatement addrPs = addrConn.prepareStatement(
                     "SELECT * FROM customer_address WHERE customer_id=? ORDER BY is_default DESC, address_id ASC");
@@ -1303,7 +1436,17 @@ for (java.util.Map<String,Object> o : myOrders) {
         <%
         try {
         	Integer wlCustId = (Integer) session.getAttribute("customerId");
-            if (wlCustId == null) wlCustId = (int) session.getAttribute("userId");
+            if (wlCustId == null) {
+                try {
+                    java.sql.Connection wlCidConn = com.shopeasy.DBConnection.getConnection();
+                    java.sql.PreparedStatement wlCidPs = wlCidConn.prepareStatement("SELECT customer_id FROM customer WHERE user_id=?");
+                    wlCidPs.setInt(1, (int) session.getAttribute("userId"));
+                    java.sql.ResultSet wlCidRs = wlCidPs.executeQuery();
+                    if (wlCidRs.next()) { wlCustId = wlCidRs.getInt("customer_id"); session.setAttribute("customerId", wlCustId); }
+                    wlCidRs.close(); wlCidPs.close(); wlCidConn.close();
+                } catch (Exception ignored) {}
+            }
+            if (wlCustId == null) wlCustId = 0;
             java.sql.Connection wlConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement wlPs = wlConn.prepareStatement(
             		"SELECT p.product_id, p.name, p.price, p.original_price, p.image, p.thumbnail, p.stock, " +
@@ -1556,7 +1699,17 @@ for (java.util.Map<String,Object> o : myOrders) {
         java.util.List<java.util.Map<String,Object>> walletTxns = new java.util.ArrayList<>();
         try {
             Integer wCustId = (Integer) session.getAttribute("customerId");
-            if (wCustId == null) wCustId = (int) session.getAttribute("userId");
+            if (wCustId == null) {
+                try {
+                    java.sql.Connection wCidConn = com.shopeasy.DBConnection.getConnection();
+                    java.sql.PreparedStatement wCidPs = wCidConn.prepareStatement("SELECT customer_id FROM customer WHERE user_id=?");
+                    wCidPs.setInt(1, (int) session.getAttribute("userId"));
+                    java.sql.ResultSet wCidRs = wCidPs.executeQuery();
+                    if (wCidRs.next()) { wCustId = wCidRs.getInt("customer_id"); session.setAttribute("customerId", wCustId); }
+                    wCidRs.close(); wCidPs.close(); wCidConn.close();
+                } catch (Exception ignored) {}
+            }
+            if (wCustId == null) wCustId = 0;
             java.sql.Connection wConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement wPs = wConn.prepareStatement(
                 "SELECT wallet_balance FROM customer WHERE customer_id=?");
@@ -1767,6 +1920,10 @@ function enableEdit() {
 
     function showTab(tab, el, e) {
         if (e) e.preventDefault();
+        if (tab === 'orders') {
+            window.location.href = 'customer.jsp?tab=orders';
+            return;
+        }
         document.querySelectorAll('.tab-content-section').forEach(t => {
             t.classList.remove('active');
             t.style.display = 'none';
@@ -2740,7 +2897,9 @@ function confirmReceive() {
         body: 'orderId=' + orderId + '&status=Completed'
     })
     .then(res => res.text())
-    .then(() => location.reload())
+    .then(() => {
+        window.location.href = 'customer.jsp?tab=orders';
+    })
     .catch(() => alert('Error. Please try again.'));
 }
 
@@ -2885,6 +3044,10 @@ function requestNotifPermission() {
     });
 }
 function showTabMobile(tab, el) {
+    if (tab === 'orders') {
+        window.location.href = 'customer.jsp?tab=orders';
+        return;
+    }
     if (tab === 'more') {
         const drawer = document.getElementById('moreDrawer');
         drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none';

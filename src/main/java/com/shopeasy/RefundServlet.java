@@ -165,7 +165,7 @@ public class RefundServlet extends HttpServlet {
                 int refundId = Integer.parseInt(request.getParameter("refundId"));
                 String orderId = request.getParameter("orderId");
                 PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE refund_requests SET status='Appealed' WHERE refund_id=? AND status='Rejected'");
+                		"UPDATE refund_requests SET status='Appealed' WHERE refund_id=? AND status IN ('Rejected', 'Pending')");
                 ps.setInt(1, refundId);
                 ps.executeUpdate(); ps.close();
 
@@ -192,11 +192,11 @@ public class RefundServlet extends HttpServlet {
                 String newStatus = "approve".equals(adminDecision) ? "Refunded" : "Rejected";
 
                 PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE refund_requests SET status=?, admin_action=?, admin_reviewed_at=NOW() WHERE refund_id=?");
-                ps.setString(1, newStatus);
-                ps.setString(2, adminDecision);
-                ps.setInt(3, refundId);
-                ps.executeUpdate(); ps.close();
+                	    "UPDATE refund_requests SET status=?, admin_action=?, admin_reviewed_at=NOW() WHERE refund_id=?");
+                	ps.setString(1, newStatus);
+                	ps.setString(2, adminDecision);
+                	ps.setInt(3, refundId);
+                	ps.executeUpdate(); ps.close();
 
                 if ("Refunded".equals(newStatus)) {
                     PreparedStatement amtPs = conn.prepareStatement(

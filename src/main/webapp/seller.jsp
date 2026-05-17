@@ -54,9 +54,24 @@ try {
         _sellerSuspendReason = _scRs.getString("suspend_reason");
     }
     _scRs.close(); _scPs.close(); _scConn.close();
-} catch(Exception ex) {}
-   
-    String sellerName = (String) session.getAttribute("userName");
+    } catch(Exception ex) {}
+
+    // Ensure sellerId is always in session
+    if (session.getAttribute("sellerId") == null) {
+        try {
+            java.sql.Connection sidFixConn = com.shopeasy.DBConnection.getConnection();
+            java.sql.PreparedStatement sidFixPs = sidFixConn.prepareStatement(
+                "SELECT seller_id FROM seller WHERE user_id=? LIMIT 1");
+            sidFixPs.setInt(1, (int) session.getAttribute("userId"));
+            java.sql.ResultSet sidFixRs = sidFixPs.executeQuery();
+            if (sidFixRs.next()) {
+                session.setAttribute("sellerId", sidFixRs.getInt("seller_id"));
+            }
+            sidFixRs.close(); sidFixPs.close(); sidFixConn.close();
+        } catch (Exception ex) { ex.printStackTrace(); }
+    }
+
+        String sellerName = (String) session.getAttribute("userName");
     String sellerEmail = (String) session.getAttribute("userEmail");
     String sellerPhone = (String) session.getAttribute("userPhone");
     String sellerUsername = (String) session.getAttribute("userUsername");
@@ -732,10 +747,10 @@ try {
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="stat-box" style="border-top: 3px solid #dc3545;">
-                <div class="stat-num text-danger"><%= sellerStatLowStock %></div>
-                <div class="stat-label">Low Stock</div>
-            </div>
+   <div class="stat-box" style="border-top: 3px solid #dc3545;">
+    <div class="stat-num text-danger"><%= sellerStatLowStock %></div>
+    <div class="stat-label">Low Stock</div>
+</div>
         </div>
     </div>
       
@@ -1021,10 +1036,10 @@ try {
             java.sql.Connection sOrdConn = com.shopeasy.DBConnection.getConnection();
 
             String sOrdSql = "SELECT DISTINCT o.order_id, o.status, o.order_date, o.total_amount AS total_price, " +
-            		"o.payment_method, CONCAT(c.first_name, IFNULL(CONCAT(' ', c.middle_initial, '.'), ''), ' ', c.last_name) AS buyer_name, c.email AS buyer_email, " +
-            	    		"o.shipping_address AS address, " +
-            	    				"o.shipping_address AS addr_name, NULL AS phone " +
-            	    "FROM orders o " +
+                    "o.payment_method, CONCAT(c.first_name, IFNULL(CONCAT(' ', c.middle_initial, '.'), ''), ' ', c.last_name) AS buyer_name, c.email AS buyer_email, " +
+                        "o.shipping_address AS address, " +
+                                "o.shipping_address AS addr_name, c.phone AS phone " +
+                        "FROM orders o " +
             	    "JOIN order_items oi ON o.order_id = oi.order_id " +
             	    "JOIN customer c ON o.customer_id = c.customer_id " +
             	    "WHERE oi.seller_id = ? ";
@@ -1242,17 +1257,19 @@ try {
     </button>
         <% } else if ("Shipped".equals(sStatus)) { %>
     <%
-        String sellerCourier = "";
-        String sellerTracking = "";
-        try {
+    String sellerCourier = "";
+    String sellerTracking = "";
+    String sellerEDA = "";
+    try {
             java.sql.Connection stConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement stPs = stConn.prepareStatement(
-                "SELECT courier_name, tracking_number FROM shipping WHERE order_id=?");
+            		"SELECT courier_name, tracking_number, DATE_FORMAT(estimated_delivery, '%M %d, %Y') as estimated_delivery FROM shipping WHERE order_id=?");
             stPs.setInt(1, (int) ord.get("id"));
             java.sql.ResultSet stRs = stPs.executeQuery();
             if (stRs.next()) {
-                sellerCourier = stRs.getString("courier_name") != null ? stRs.getString("courier_name") : "";
-                sellerTracking = stRs.getString("tracking_number") != null ? stRs.getString("tracking_number") : "";
+            	sellerCourier = stRs.getString("courier_name") != null ? stRs.getString("courier_name") : "";
+            	sellerTracking = stRs.getString("tracking_number") != null ? stRs.getString("tracking_number") : "";
+            	sellerEDA = stRs.getString("estimated_delivery") != null ? stRs.getString("estimated_delivery") : "";
             }
             stRs.close(); stPs.close(); stConn.close();
         } catch (Exception stEx) { stEx.printStackTrace(); }
@@ -1284,10 +1301,16 @@ try {
 <% } %>
 </p>
 <% } %>
+        <% if (!sellerEDA.isEmpty()) { %>
+        <p class="mb-0 mt-1" style="color:#0369a1;">
+            <i class="bi bi-calendar-check me-1"></i>
+            <strong>Est. Delivery:</strong> <%= sellerEDA %>
+        </p>
+        <% } %>
     </div>
     <% } %>
 <p class="text-muted mb-0 mt-1" style="font-size:11px;">
-        <i class="bi bi-hourglass-split me-1"></i> Waiting for customer to confirm receipt...
+    <i class="bi bi-hourglass-split me-1"></i> Waiting for customer to confirm receipt...
     </p>
         <% } else if ("Cancellation Requested".equals(sStatus)) { %>
             <%
@@ -1351,10 +1374,11 @@ try {
         String selRefundStatus = null;
         int selRefundId = 0;
         String selRefundReason = "", selRefundDesc = "", selRefundProof = "";
+        int selRefundDaysPending = 0;
         try {
             java.sql.Connection srConn2 = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement srPs2 = srConn2.prepareStatement(
-                "SELECT refund_id, reason, description, proof_image, status FROM refund_requests WHERE order_id=?");
+                "SELECT refund_id, reason, description, proof_image, status, DATEDIFF(NOW(), created_at) as days_pending FROM refund_requests WHERE order_id=?");
             srPs2.setInt(1, (int) ord.get("id"));
             java.sql.ResultSet srRs2 = srPs2.executeQuery();
             if (srRs2.next()) {
@@ -1363,6 +1387,7 @@ try {
                 selRefundDesc = srRs2.getString("description") != null ? srRs2.getString("description") : "";
                 selRefundProof = srRs2.getString("proof_image") != null ? srRs2.getString("proof_image") : "";
                 selRefundStatus = srRs2.getString("status");
+                selRefundDaysPending = srRs2.getInt("days_pending");
             }
             srRs2.close(); srPs2.close(); srConn2.close();
         } catch (Exception srEx) { srEx.printStackTrace(); }
@@ -1378,6 +1403,16 @@ try {
             <% if (!selRefundDesc.isEmpty()) { %><p class="mb-1"><strong>Description:</strong> <%= selRefundDesc %></p><% } %>
             <% if (!selRefundProof.isEmpty()) { %>
                 <img src="<%= selRefundProof %>" style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:1px solid #dee2e6; margin-bottom:6px;">
+            <% } %>
+            <% int selDaysLeft = 7 - selRefundDaysPending; %>
+            <% if (selRefundDaysPending >= 7) { %>
+            <p class="mb-1 fw-bold" style="color:#dc3545; font-size:11px;">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> Deadline passed! Customer can now escalate to Admin.
+            </p>
+            <% } else { %>
+            <p class="mb-1" style="color:#856404; font-size:11px;">
+                <i class="bi bi-clock me-1"></i> Please respond within <strong><%= selDaysLeft %> day<%= selDaysLeft != 1 ? "s" : "" %></strong> or customer can escalate to Admin.
+            </p>
             <% } %>
         </div>
         <button class="btn btn-success btn-sm fw-semibold w-100 mb-1"
@@ -1419,10 +1454,15 @@ try {
                     hPs.setInt(1, (int) ord.get("id"));
                     java.sql.ResultSet hRs = hPs.executeQuery();
                     boolean hasHistory = false;
+                    java.util.List<String[]> historyList = new java.util.ArrayList<>();
                     while (hRs.next()) {
                         hasHistory = true;
-                        String hStatus = hRs.getString("status");
-                        String hTime = hRs.getString("changed_at");
+                        historyList.add(new String[]{hRs.getString("status"), hRs.getString("changed_at")});
+                    }
+                    for (int hi = 0; hi < historyList.size(); hi++) {
+                        String hStatus = historyList.get(hi)[0];
+                        String hTime = historyList.get(hi)[1];
+                        boolean isLast = (hi == historyList.size() - 1);
                         String hIcon = "pending".equals(hStatus) ? "🛒" :
                                        "accepted".equals(hStatus) ? "✅" :
                                        "processing".equals(hStatus) ? "⚙️" :
@@ -1430,19 +1470,28 @@ try {
                                        "completed".equals(hStatus) ? "📦" :
                                        "cancelled".equals(hStatus) ? "❌" : "📋";
             %>
-            <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:6px; font-size:12px;">
-                <span style="font-size:16px; line-height:1.2;"><%= hIcon %></span>
-                <div>
-                    <div class="fw-semibold text-capitalize"><%= hStatus %></div>
+            <div style="display:flex; align-items:flex-start; gap:10px; font-size:12px;">
+                <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+                    <div style="width:28px; height:28px; border-radius:50%; background:#e8f5e9; border:2px solid #198754; display:flex; align-items:center; justify-content:center; font-size:14px;">
+                        <%= hIcon %>
+                    </div>
+                    <% if (!isLast) { %>
+                    <div style="width:2px; background:#d1fae5; flex:1; min-height:20px;"></div>
+                    <% } %>
+                </div>
+                <div style="padding-bottom:16px;">
+                    <div class="fw-semibold text-capitalize" style="font-size:13px;"><%= hStatus %></div>
                     <div class="text-muted" style="font-size:11px;"><%= hTime %></div>
                 </div>
-            </div>
-            <%  }
-                if (!hasHistory) { %>
+</div>
+            <% } %>
+            <% if (!hasHistory) { %>
                 <p class="text-muted" style="font-size:12px;">No history available.</p>
-            <% }
+            <% } %>
+            <%
                hRs.close(); hPs.close(); hConn.close();
-            } catch (Exception hEx) { hEx.printStackTrace(); } %>
+            } catch (Exception hEx) { hEx.printStackTrace(); }
+            %>
         </div>
     </div>
 
@@ -1551,10 +1600,38 @@ try {
                         <h4 class="fw-bold text-primary mb-0"><%= totalOrders %></h4>
                     </div>
                 </div>
-                <div class="col-md-4">
+           <div class="col-md-4">
                     <div class="p-3 rounded-3 text-center" style="background:#fefce8; border:1px solid #fde68a;">
                         <p class="mb-0 text-muted" style="font-size:12px;">Items Sold</p>
                         <h4 class="fw-bold text-warning mb-0"><%= totalItems %></h4>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                <%
+                double dashAvgRating = 0; int dashReviewCount = 0;
+                try {
+                    java.sql.Connection darConn = com.shopeasy.DBConnection.getConnection();
+                    java.sql.PreparedStatement darPs = darConn.prepareStatement(
+                        "SELECT AVG(r.rating) as avg_r, COUNT(*) as cnt FROM review r JOIN product p ON r.product_id=p.product_id WHERE p.seller_id=?");
+                    darPs.setInt(1, sellerId);
+                    java.sql.ResultSet darRs = darPs.executeQuery();
+                    if (darRs.next()) { dashAvgRating = darRs.getDouble("avg_r"); dashReviewCount = darRs.getInt("cnt"); }
+                    darRs.close(); darPs.close(); darConn.close();
+                } catch (Exception ex) { ex.printStackTrace(); }
+                %>
+                    <div class="p-3 rounded-3 text-center" style="background:#fdf2fb; border:1px solid #f5c2f5;">
+                        <p class="mb-0 text-muted" style="font-size:12px;">Store Rating</p>
+                        <h4 class="fw-bold mb-0" style="color:#9c27b0;">
+                            <% if (dashReviewCount > 0) { %>
+                                ⭐ <%= String.format("%.1f", dashAvgRating) %>
+                                <span style="font-size:13px; font-weight:400; color:#666;">/ 5</span>
+                            <% } else { %>
+                                <span style="font-size:16px; color:#aaa;">No reviews yet</span>
+                            <% } %>
+                        </h4>
+                        <% if (dashReviewCount > 0) { %>
+                        <p class="mb-0 text-muted" style="font-size:11px;"><%= dashReviewCount %> review<%= dashReviewCount != 1 ? "s" : "" %></p>
+                        <% } %>
                     </div>
                 </div>
             </div>
@@ -1655,19 +1732,20 @@ try {
                                  "Completed".equals(roStatus) ? "bg-success" :
                                  "Cancelled".equals(roStatus) ? "bg-danger" : "bg-secondary";
             %>
-                <div class="d-flex align-items-center justify-content-between p-2 mb-2 rounded-3"
-                     style="background:#f8f9fa; border:1px solid #e9ecef; font-size:13px;">
-                    <div>
-                        <span class="fw-bold">#<%= ro.get("id") %></span>
-                        <span class="text-muted ms-2"><%= ro.get("customer") != null ? ro.get("customer") : "Customer" %></span>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="text-success fw-bold">₱<%= String.format("%.0f", (double)ro.get("total")) %></span>
-                        <span class="badge <%= roBadge %>" style="font-size:10px;"><%= roStatus %></span>
-                    </div>
-                </div>
+<a href="seller.jsp?tab=orders&orderTab=All" class="d-flex align-items-center justify-content-between p-2 mb-2 rounded-3 text-decoration-none"
+     style="background:#f8f9fa; border:1px solid #e9ecef; font-size:13px; color:inherit;">
+    <div>
+        <span class="fw-bold">#<%= ro.get("id") %></span>
+        <span class="text-muted ms-2"><%= ro.get("customer") != null ? ro.get("customer") : "Customer" %></span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-success fw-bold">₱<%= String.format("%.0f", (double)ro.get("total")) %></span>
+        <span class="badge <%= roBadge %>" style="font-size:10px;"><%= roStatus %></span>
+    </div>
+</a>
             <% } } %>
-            </div>
+   </div>
+
 
           <% } catch (Exception dashEx) { dashEx.printStackTrace(); } %>
 
@@ -1739,17 +1817,69 @@ try {
 
     <div id="tab-reviews" class="tab-content-section" style="display:none;">
     <div class="card-section">
-        <p class="section-title"><i class="bi bi-star-fill text-success"></i> Customer Reviews</p>
+   <p class="section-title"><i class="bi bi-star-fill text-success"></i> Customer Reviews</p>
+<%
+double avgRating = 0; int reviewCount = 0;
+int[] starCounts = new int[6];
+try {
+    java.sql.Connection avgConn = com.shopeasy.DBConnection.getConnection();
+    java.sql.PreparedStatement avgPs = avgConn.prepareStatement(
+        "SELECT r.rating FROM review r JOIN product p ON r.product_id=p.product_id WHERE p.seller_id=?");
+    avgPs.setInt(1, (int) session.getAttribute("sellerId"));
+    java.sql.ResultSet avgRs = avgPs.executeQuery();
+    while (avgRs.next()) {
+        int s = avgRs.getInt("rating");
+        if (s >= 1 && s <= 5) starCounts[s]++;
+        reviewCount++;
+    }
+    avgRs.close(); avgPs.close(); avgConn.close();
+    if (reviewCount > 0) {
+        int total = 0;
+        for (int s = 1; s <= 5; s++) total += s * starCounts[s];
+        avgRating = (double) total / reviewCount;
+    }
+} catch (Exception ex) { ex.printStackTrace(); }
+%>
+<% if (reviewCount > 0) { %>
+<div class="p-3 mb-4 rounded-3 d-flex align-items-center gap-4 flex-wrap"
+     style="background:linear-gradient(135deg,#f0fdf4,#e8f5e9); border:1px solid #c8e6c9;">
+    <div class="text-center">
+        <div style="font-size:48px; font-weight:800; color:#198754; line-height:1;">
+            <%= String.format("%.1f", avgRating) %>
+        </div>
+        <div class="my-1">
+            <% for (int s = 1; s <= 5; s++) { %>
+            <i class="bi bi-star-fill" style="color:<%= s <= Math.round(avgRating) ? "#ffc107" : "#ddd" %>; font-size:14px;"></i>
+            <% } %>
+        </div>
+        <div class="text-muted" style="font-size:12px;"><%= reviewCount %> review<%= reviewCount != 1 ? "s" : "" %></div>
+    </div>
+    <div class="flex-grow-1" style="min-width:180px;">
+        <% for (int s = 5; s >= 1; s--) {
+            int pct = reviewCount > 0 ? (int) Math.round(starCounts[s] * 100.0 / reviewCount) : 0;
+        %>
+        <div class="d-flex align-items-center gap-2 mb-1" style="font-size:12px;">
+            <span style="width:14px; text-align:right;"><%= s %></span>
+            <i class="bi bi-star-fill text-warning" style="font-size:11px;"></i>
+            <div style="flex:1; background:#e9ecef; border-radius:4px; height:8px; overflow:hidden;">
+                <div style="width:<%= pct %>%; background:#ffc107; height:100%; border-radius:4px;"></div>
+            </div>
+            <span class="text-muted" style="width:28px;"><%= starCounts[s] %></span>
+        </div>
+        <% } %>
+    </div>
+</div>
+<% } %>
         <%
         boolean hasSellerReviews = false;
         try {
             java.sql.Connection srConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement srPs = srConn.prepareStatement(
-            		"SELECT r.rating, r.comment, r.photo, p.product_id, p.name AS pname, p.image AS pimage, p.thumbnail AS pthumbnail, " +
+            		"SELECT r.rating, r.comment, r.photo, r.created_at, p.product_id, p.name AS pname, p.image AS pimage, p.thumbnail AS pthumbnail, " +
             		        "(SELECT pv.image FROM product_variation pv WHERE pv.product_id = p.product_id AND pv.image IS NOT NULL ORDER BY pv.variation_id ASC LIMIT 1) AS var_image, " +
-            		        "c.name AS cname " +
-                "FROM review r " +
-                "JOIN product p ON r.product_id = p.product_id " +
+            		        		"c.name AS cname " +
+            		        		"FROM review r " +
+            		        "JOIN product p ON r.product_id = p.product_id " +
                 "JOIN customer c ON r.customer_id = c.customer_id " +
                 "WHERE p.seller_id = ? ORDER BY r.review_id DESC");
             srPs.setInt(1, (int) session.getAttribute("sellerId"));
@@ -1787,7 +1917,11 @@ try {
                                   font-size:13px;"></i>
                     <% } %>
                 </div>
-                <p class="mb-1 text-muted" style="font-size:13px;"><%= srRs.getString("comment") %></p>
+     <p class="mb-1 text-muted" style="font-size:13px;"><%= srRs.getString("comment") %></p>
+<p class="mb-0 text-muted" style="font-size:11px;">
+    <i class="bi bi-clock me-1"></i>
+    <%= srRs.getTimestamp("created_at") != null ? new java.text.SimpleDateFormat("MMM d, yyyy h:mm a").format(srRs.getTimestamp("created_at")) : "" %>
+</p>
                 <% if (srRs.getString("photo") != null && !srRs.getString("photo").isEmpty()) { %>
                     <img src="<%= srRs.getString("photo") %>"
                          style="width:80px; height:80px; object-fit:cover;
@@ -3254,6 +3388,9 @@ editGalleryFiles = [];
         document.getElementById('shipOrderId').value = orderId;
         document.getElementById('shipCourierName').value = '';
         document.getElementById('shipTrackingNumber').value = '';
+        document.getElementById('shipEDA').value = '';
+        document.getElementById('shipCourierError').style.display = 'none';
+        document.getElementById('shipTrackingError').style.display = 'none';
         document.getElementById('shipModal').style.display = 'flex';
     }
 
@@ -3266,10 +3403,20 @@ editGalleryFiles = [];
         const courier = document.getElementById('shipCourierName').value;
         const tracking = document.getElementById('shipTrackingNumber').value;
         const eda = document.getElementById('shipEDA').value;
+
+        if (!courier) {
+            document.getElementById('shipCourierError').style.display = 'block';
+            return;
+        }
+        if (!tracking.trim()) {
+            document.getElementById('shipTrackingError').style.display = 'block';
+            return;
+        }
+        document.getElementById('shipCourierError').style.display = 'none';
+        document.getElementById('shipTrackingError').style.display = 'none';
         closeShipModal();
         updateOrderStatus(orderId, 'Shipped', courier, tracking, eda);
     }
-    
     function approveCancel(orderId, action) {
         fetch('ApproveCancelServlet', {
             method: 'POST',
@@ -3723,11 +3870,17 @@ editGalleryFiles = [];
     <option value="FedEx">🟣 FedEx</option>
     <option value="Others">📦 Others</option>
 </select>
+<div id="shipCourierError" style="display:none; color:#dc3545; font-size:12px; margin-top:4px;">
+    <i class="bi bi-exclamation-circle"></i> Please select a courier.
+</div>
         </div>
         <div class="mb-4">
             <label class="form-label fw-semibold" style="font-size:13px;">Tracking Number</label>
             <input type="text" id="shipTrackingNumber" class="form-control" 
                    placeholder="e.g. LBC123456789"/>
+<div id="shipTrackingError" style="display:none; color:#dc3545; font-size:12px; margin-top:4px;">
+    <i class="bi bi-exclamation-circle"></i> Please enter a tracking number.
+</div>
         </div>
        <div class="mb-4">
     <label class="form-label fw-semibold" style="font-size:13px;">
@@ -4042,24 +4195,52 @@ function closeShopLogoCropModal() {
     document.getElementById('shopLogoCropModal').style.display = 'none';
 }
 
+let _pendingRefundId = 0;
+let _pendingRefundAction = '';
+
 function sellerRefundAction(refundId, action) {
+    _pendingRefundId = refundId;
+    _pendingRefundAction = action;
+
+    const modal = document.getElementById('refundConfirmModal');
+    const title = document.getElementById('refundConfirmTitle');
+    const msg = document.getElementById('refundConfirmMsg');
+    const confirmBtn = document.getElementById('refundConfirmBtn');
+
+    if (action === 'approve') {
+        title.innerHTML = '✅ Approve Refund?';
+        msg.textContent = 'Are you sure you want to approve this refund? The customer will be refunded.';
+        confirmBtn.className = 'btn btn-success px-4';
+        confirmBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Yes, Approve';
+    } else {
+        title.innerHTML = '❌ Reject Refund?';
+        msg.textContent = 'Are you sure you want to reject this refund request? The customer can appeal to Admin.';
+        confirmBtn.className = 'btn btn-danger px-4';
+        confirmBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i> Yes, Reject';
+    }
+
+    modal.style.display = 'flex';
+}
+
+function confirmRefundAction() {
+    document.getElementById('refundConfirmModal').style.display = 'none';
     fetch('RefundServlet', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'action=' + action + '&refundId=' + refundId
+        body: 'action=' + _pendingRefundAction + '&refundId=' + _pendingRefundId
     })
     .then(r => r.json())
     .then(data => {
         if (data.success) {
             document.getElementById('successBarMsg').textContent =
-                action === 'approve' ? 'Refund approved! ✅' : 'Refund rejected. ✅';
+                _pendingRefundAction === 'approve' ? 'Refund approved! ✅' : 'Refund rejected. ✅';
             document.getElementById('successBar').style.display = 'block';
             setTimeout(() => {
                 document.getElementById('successBar').style.display = 'none';
                 location.reload();
             }, 1500);
         } else {
-        	showSellerToast(data.message || 'Error processing refund.', 'error');
+            showSellerToast(data.message || 'Error processing refund.', 'error');
         }
     })
     .catch(() => showSellerToast('Server error. Please try again.', 'error'));
@@ -4276,6 +4457,23 @@ function closeMoreDrawer() {
     </div>
 </div>
 <% } %>
-
+<!-- REFUND CONFIRM MODAL -->
+<div id="refundConfirmModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+     background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:16px; padding:28px; width:90%; max-width:400px;
+         box-shadow:0 20px 60px rgba(0,0,0,0.3); text-align:center;">
+        <h5 class="fw-bold mb-2" id="refundConfirmTitle"></h5>
+        <p class="text-muted mb-4" style="font-size:13px;" id="refundConfirmMsg"></p>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-outline-secondary px-4"
+                onclick="document.getElementById('refundConfirmModal').style.display='none'">
+                Cancel
+            </button>
+            <button id="refundConfirmBtn" class="btn btn-success px-4" onclick="confirmRefundAction()">
+                Confirm
+            </button>
+        </div>
+    </div>
+</div>
 </body>
 </html>

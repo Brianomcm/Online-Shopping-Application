@@ -43,7 +43,7 @@ public class VoucherServlet extends HttpServlet {
 
                 // ── Platform vouchers ──
                 PreparedStatement ps = conn.prepareStatement(
-                    "SELECT *, 'platform' as source FROM vouchers WHERE is_active=1 ORDER BY created_at DESC");
+                    "SELECT *, 'platform' as source FROM vouchers WHERE is_active=1 AND (expiry_date IS NULL OR DATE(expiry_date) >= CURDATE()) ORDER BY created_at DESC");
                 ResultSet rs = ps.executeQuery();
                 while (rs.next()) {
                     if (!first) sb.append(",");
@@ -75,7 +75,8 @@ public class VoucherServlet extends HttpServlet {
                     usedRs.close(); usedPs.close();
 
                     boolean isFreeShip = "freeshipping".equals(type);
-                    double discount = isFreeShip ? 38 : ("fixed".equals(type) ? value : Math.min(cartTotal, cartTotal * value / 100));
+                    double shippingCost = cartTotal >= 500 ? 0 : 38;
+                    double discount = isFreeShip ? shippingCost : ("fixed".equals(type) ? value : Math.min(cartTotal, cartTotal * value / 100));
                     String desc = isFreeShip ? "Free Shipping 🚚" : "fixed".equals(type) ? "₱" + String.format("%.0f", value) + " off" : value + "% off your order";
 
                     sb.append("{\"code\":\"").append(vCode).append("\"")
@@ -94,7 +95,7 @@ public class VoucherServlet extends HttpServlet {
 
                 // ── Personal (welcome) vouchers ──
                 PreparedStatement ps2 = conn.prepareStatement(
-                    "SELECT * FROM customer_vouchers WHERE customer_id=? AND is_active=1 AND used_count < max_uses AND (expiry_date IS NULL OR expiry_date > NOW()) ORDER BY created_at DESC");
+                    "SELECT * FROM customer_vouchers WHERE customer_id=? AND is_active=1 AND used_count < max_uses AND (expiry_date IS NULL OR DATE(expiry_date) >= CURDATE()) ORDER BY created_at DESC");
                 ps2.setInt(1, customerId);
                 ResultSet rs2 = ps2.executeQuery();
                 while (rs2.next()) {
@@ -208,6 +209,7 @@ public class VoucherServlet extends HttpServlet {
             session.removeAttribute("appliedVoucherCode");
             session.removeAttribute("appliedVoucherDiscount");
             session.removeAttribute("appliedVoucherId");
+            session.removeAttribute("appliedCvId");
             session.removeAttribute("appliedVoucherFreeShipping");
             out.print("{\"success\":true}");
             return;
@@ -223,7 +225,7 @@ public class VoucherServlet extends HttpServlet {
 
                 // --- Check platform vouchers first ---
                 PreparedStatement ps = conn.prepareStatement(
-                    "SELECT * FROM vouchers WHERE code=? AND is_active=1");
+                    "SELECT * FROM vouchers WHERE code=? AND is_active=1 AND (expiry_date IS NULL OR DATE(expiry_date) >= CURDATE())");
                 ps.setString(1, cleanCode);
                 ResultSet rs = ps.executeQuery();
 
@@ -258,7 +260,8 @@ public class VoucherServlet extends HttpServlet {
                     String type = rs.getString("type");
                     double value = rs.getDouble("value");
                     boolean isFreeShipping = "freeshipping".equals(type);
-                    double discount = isFreeShipping ? 38 : ("fixed".equals(type) ? value : Math.min(cartTotal, cartTotal * value / 100));
+                    double freeShipSavings = cartTotal >= 500 ? 0 : 38;
+                    double discount = isFreeShipping ? freeShipSavings : ("fixed".equals(type) ? value : Math.min(cartTotal, cartTotal * value / 100));
                     discount = Math.min(discount, cartTotal);
                     rs.close(); ps.close(); conn.close();
                     if (isFreeShipping) {
@@ -280,7 +283,7 @@ public class VoucherServlet extends HttpServlet {
 
                 // --- Check personal (WELCOME) vouchers ---
                 PreparedStatement ps2 = conn.prepareStatement(
-                    "SELECT * FROM customer_vouchers WHERE code=? AND customer_id=? AND is_active=1 AND used_count < max_uses AND (expiry_date IS NULL OR expiry_date > NOW())");
+                    "SELECT * FROM customer_vouchers WHERE code=? AND customer_id=? AND is_active=1 AND used_count < max_uses AND (expiry_date IS NULL OR DATE(expiry_date) >= CURDATE())");
                 ps2.setString(1, cleanCode);
                 ps2.setInt(2, customerId);
                 ResultSet rs2 = ps2.executeQuery();
@@ -297,13 +300,15 @@ public class VoucherServlet extends HttpServlet {
                 }
                 String type2 = rs2.getString("type");
                 double value2 = rs2.getDouble("value");
+                int cvId = rs2.getInt("id"); // customer_vouchers primary key
                 double discount2 = "fixed".equals(type2) ? value2 : Math.min(cartTotal, cartTotal * value2 / 100);
                 discount2 = Math.min(discount2, cartTotal);
                 rs2.close(); ps2.close(); conn.close();
 
                 session.setAttribute("appliedVoucherCode", cleanCode);
                 session.setAttribute("appliedVoucherDiscount", discount2);
-                session.setAttribute("appliedVoucherId", null);
+                session.setAttribute("appliedVoucherId", null); // null = personal voucher, use cvId instead
+                session.setAttribute("appliedCvId", cvId); // store customer_vouchers id
                 session.setAttribute("appliedVoucherFreeShipping", false);
 
                 out.print("{\"success\":true,\"message\":\"Voucher applied! You save \u20b1" + String.format("%.2f", discount2) + "\",\"discount\":" + discount2 + ",\"freeshipping\":false}");

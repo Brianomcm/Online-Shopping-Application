@@ -643,7 +643,7 @@ request.setAttribute("navCartCount", navCartCount);
                             java.text.SimpleDateFormat ordSdf = new java.text.SimpleDateFormat("MMM d, yyyy h:mm a");
                             ordSdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Manila"));
                             java.sql.PreparedStatement ordPs = ordConn.prepareStatement(
-                            		"SELECT o.order_id, o.total_amount, o.status, o.payment_method, o.shipping_address, o.order_date, o.cancel_reason, " +
+                            		"SELECT o.order_id, o.total_amount, o.status, o.payment_method, o.shipping_address, o.order_date, o.cancel_reason, o.cancel_rejected, " +
                             				"GROUP_CONCAT(DISTINCT s.business_name ORDER BY s.business_name SEPARATOR ', ') AS shop_names, " +
                             				"GROUP_CONCAT(DISTINCT s.seller_id ORDER BY s.business_name SEPARATOR ',') AS seller_ids " +
                             				"FROM orders o " +
@@ -662,6 +662,7 @@ request.setAttribute("navCartCount", navCartCount);
                                 java.sql.Timestamp ordTs = ordRs.getTimestamp("order_date");
                                 ord.put("date", ordTs != null ? ordSdf.format(ordTs) : "Date not available");
                                 ord.put("cancelReason", ordRs.getString("cancel_reason"));
+                                ord.put("cancelRejected", ordRs.getInt("cancel_rejected"));
                                 ord.put("shopNames", ordRs.getString("shop_names"));
                                 ord.put("sellerIds", ordRs.getString("seller_ids"));
                                 myOrders.add(ord);
@@ -759,7 +760,7 @@ request.setAttribute("navCartCount", navCartCount);
                             // BATCH 5 — Shipping info for all orders
                             java.sql.Statement shipBatchStmt = batchConn.createStatement();
                             java.sql.ResultSet shipBatchRs = shipBatchStmt.executeQuery(
-                                "SELECT order_id, courier_name, tracking_number, DATE_FORMAT(estimated_delivery, '%M %d, %Y') as estimated_delivery FROM shipping WHERE order_id IN (" + orderIdList + ")");
+                                "SELECT order_id, courier_name, tracking_number, estimated_delivery FROM shipping WHERE order_id IN (" + orderIdList + ")");
                             while (shipBatchRs.next()) {
                                 java.util.Map<String,Object> shipInfo = new java.util.HashMap<>();
                                 shipInfo.put("courier", shipBatchRs.getString("courier_name") != null ? shipBatchRs.getString("courier_name") : "");
@@ -933,12 +934,19 @@ for (java.util.Map<String,Object> o : myOrders) {
 </button>
 <% } %>
 
-<% if ("Processing".equals(ord.get("status"))) { %>
+<% if ("Processing".equals(ord.get("status"))) { 
+    int cancelRejectedFlag = ord.get("cancelRejected") != null ? (Integer) ord.get("cancelRejected") : 0;
+    if (cancelRejectedFlag == 0) { %>
 <button class="btn btn-outline-danger btn-sm"
     onclick="openCancelModal(<%= ord.get("id") %>)">
     <i class="bi bi-x-circle"></i> Request Cancel
 </button>
-<% } %>
+<% } else { %>
+<div class="p-2 rounded-3 mb-1" style="background:#fef9ee; border:1px solid #f59e0b; font-size:12px;">
+    <i class="bi bi-exclamation-triangle text-warning me-1"></i>
+    <strong>Cancel request was declined.</strong> This order can no longer be cancelled.
+</div>
+<% } } %>
 <% if ("Shipped".equals(ord.get("status"))) { %>
     <%
     String courierName = "";
@@ -1924,6 +1932,8 @@ function enableEdit() {
             window.location.href = 'customer.jsp?tab=orders';
             return;
         }
+        // Update URL so reload (e.g. on tab-switch back) lands on same tab
+        history.replaceState(null, '', 'customer.jsp?tab=' + tab);
         document.querySelectorAll('.tab-content-section').forEach(t => {
             t.classList.remove('active');
             t.style.display = 'none';
@@ -2161,10 +2171,12 @@ function enableEdit() {
     }
     
     function doLogout() {
-        if (confirm('Are you sure you want to logout?')) {
-            document.getElementById('logoutOverlay').style.display = 'flex';
-            setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
-        }
+        new bootstrap.Modal(document.getElementById('logoutConfirmModal')).show();
+    }
+    function confirmLogout() {
+        bootstrap.Modal.getInstance(document.getElementById('logoutConfirmModal')).hide();
+        document.getElementById('logoutOverlay').style.display = 'flex';
+        setTimeout(() => { window.location.href = 'LogoutServlet'; }, 1500);
     }
     
     function searchOrders(query) {
@@ -2713,6 +2725,27 @@ function enableEdit() {
 </div>
 
 <!-- LOGOUT OVERLAY -->
+<!-- Logout Confirm Modal -->
+<div class="modal fade" id="logoutConfirmModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:340px;">
+    <div class="modal-content border-0 rounded-4 shadow text-center p-4">
+      <div class="mb-3">
+        <div style="width:64px;height:64px;background:#dc3545;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;">
+          <i class="bi bi-box-arrow-right text-white" style="font-size:28px;"></i>
+        </div>
+      </div>
+      <h5 class="fw-bold mb-1">Log Out?</h5>
+      <p class="text-muted mb-4" style="font-size:14px;">Are you sure you want to logout?</p>
+      <div class="d-flex gap-3 justify-content-center">
+        <button class="btn btn-outline-secondary px-4" onclick="bootstrap.Modal.getInstance(document.getElementById('logoutConfirmModal')).hide()">Cancel</button>
+        <button class="btn btn-danger px-4" onclick="confirmLogout()">
+          <i class="bi bi-box-arrow-right me-1"></i> Logout
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="logoutOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
     <div class="spinner-border text-primary mb-3" style="width:3rem; height:3rem;" role="status"></div>
     <p class="fw-bold text-primary fs-5">Logging out...</p>
@@ -3054,6 +3087,7 @@ function showTabMobile(tab, el) {
         return;
     }
     closeMoreDrawer();
+    history.replaceState(null, '', 'customer.jsp?tab=' + tab);
     // Use existing showTab logic
     document.querySelectorAll('.tab-content-section').forEach(t => {
         t.classList.remove('active');
@@ -3070,6 +3104,14 @@ function showTabMobile(tab, el) {
 function closeMoreDrawer() {
     document.getElementById('moreDrawer').style.display = 'none';
 }
+
+// Auto-reload when user returns to this tab — keeps data fresh like seller.jsp
+// URL already has ?tab=xxx so the reload lands on the same tab automatically
+document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) {
+        window.location.reload();
+    }
+});
 </script>
 <!-- MOBILE BOTTOM NAV -->
 <div class="mobile-bottom-nav" style="display:none;">

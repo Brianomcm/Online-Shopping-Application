@@ -329,9 +329,21 @@ public class CheckoutServlet extends HttpServlet {
                 session.removeAttribute("appliedFreeShipId");
             }
             
-         // Record personal (welcome) voucher usage
+         // Record personal (welcome) voucher usage — use session cvId (reliable)
+            Integer appliedCvId = (Integer) session.getAttribute("appliedCvId");
             String voucherCodeParam = request.getParameter("voucherCode");
-            if (voucherCodeParam != null && !voucherCodeParam.isEmpty() && voucherCodeParam.startsWith("WELCOME-")) {
+            if (appliedCvId != null) {
+                Connection vcConn2 = DBConnection.getConnection();
+                PreparedStatement cvPs = vcConn2.prepareStatement(
+                    "UPDATE customer_vouchers SET used_count = used_count + 1, is_active = 0 WHERE id=? AND customer_id=?");
+                cvPs.setInt(1, appliedCvId);
+                cvPs.setInt(2, customerId);
+                cvPs.executeUpdate();
+                cvPs.close();
+                vcConn2.close();
+                session.removeAttribute("appliedCvId");
+            } else if (voucherCodeParam != null && !voucherCodeParam.isEmpty() && voucherCodeParam.toUpperCase().startsWith("WELCOME-")) {
+                // Fallback: use code param if session cvId missing
                 Connection vcConn2 = DBConnection.getConnection();
                 PreparedStatement cvPs = vcConn2.prepareStatement(
                     "UPDATE customer_vouchers SET used_count = used_count + 1, is_active = 0 WHERE code=? AND customer_id=?");

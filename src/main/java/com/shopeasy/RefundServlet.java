@@ -105,10 +105,10 @@ public class RefundServlet extends HttpServlet {
                     ps.setString(1, newStatus); ps.setInt(2, refundId);
                     ps.executeUpdate(); ps.close();
 
-                    // If approved — credit wallet + log transaction
+                    // If approved — credit customer wallet + deduct seller wallet + log both
                     if ("Refunded".equals(newStatus)) {
                         PreparedStatement amtPs = conn.prepareStatement(
-                            "SELECT rr.order_id, o.total_amount, rr.customer_id " +
+                            "SELECT rr.order_id, o.total_amount, rr.customer_id, rr.seller_id " +
                             "FROM refund_requests rr JOIN orders o ON rr.order_id=o.order_id " +
                             "WHERE rr.refund_id=?");
                         amtPs.setInt(1, refundId);
@@ -117,20 +117,38 @@ public class RefundServlet extends HttpServlet {
                             int custId = amtRs.getInt("customer_id");
                             double refundAmt = amtRs.getDouble("total_amount");
                             int ordId = amtRs.getInt("order_id");
-                            // Add to wallet
+                            int selId = amtRs.getInt("seller_id");
+
+                            // Credit customer wallet
                             PreparedStatement walletPs = conn.prepareStatement(
                                 "UPDATE customer SET wallet_balance = wallet_balance + ? WHERE customer_id=?");
-                            walletPs.setDouble(1, refundAmt);
-                            walletPs.setInt(2, custId);
+                            walletPs.setDouble(1, refundAmt); walletPs.setInt(2, custId);
                             walletPs.executeUpdate(); walletPs.close();
-                            // Log transaction
+
+                            // Log customer wallet transaction
                             PreparedStatement logPs = conn.prepareStatement(
                                 "INSERT INTO wallet_transactions (customer_id, amount, type, description, reference_id) VALUES (?,?,'refund',?,?)");
-                            logPs.setInt(1, custId);
-                            logPs.setDouble(2, refundAmt);
+                            logPs.setInt(1, custId); logPs.setDouble(2, refundAmt);
                             logPs.setString(3, "Refund for Order #SE-" + ordId);
                             logPs.setInt(4, ordId);
                             logPs.executeUpdate(); logPs.close();
+
+                            // Deduct seller earnings + notify seller
+                            PreparedStatement selUserPs2 = conn.prepareStatement(
+                                "SELECT user_id FROM seller WHERE seller_id=?");
+                            selUserPs2.setInt(1, selId);
+                            ResultSet selUserRs2 = selUserPs2.executeQuery();
+                            if (selUserRs2.next()) {
+                                int selUserId = selUserRs2.getInt("user_id");
+                                // Notify seller of deduction
+                                PreparedStatement selNotifPs = conn.prepareStatement(
+                                    "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?,?,?,0)");
+                                selNotifPs.setInt(1, selUserId);
+                                selNotifPs.setString(2, "seller");
+                                selNotifPs.setString(3, "💸 Refund approved for Order #SE-" + ordId + ". ₱" + String.format("%.2f", refundAmt) + " has been deducted from your earnings.");
+                                selNotifPs.executeUpdate(); selNotifPs.close();
+                            }
+                            selUserRs2.close(); selUserPs2.close();
                         }
                         amtRs.close(); amtPs.close();
                     }
@@ -200,7 +218,7 @@ public class RefundServlet extends HttpServlet {
 
                 if ("Refunded".equals(newStatus)) {
                     PreparedStatement amtPs = conn.prepareStatement(
-                        "SELECT rr.order_id, o.total_amount, rr.customer_id " +
+                        "SELECT rr.order_id, o.total_amount, rr.customer_id, rr.seller_id " +
                         "FROM refund_requests rr JOIN orders o ON rr.order_id=o.order_id " +
                         "WHERE rr.refund_id=?");
                     amtPs.setInt(1, refundId);
@@ -209,16 +227,37 @@ public class RefundServlet extends HttpServlet {
                         int custId = amtRs.getInt("customer_id");
                         double refundAmt = amtRs.getDouble("total_amount");
                         int ordId = amtRs.getInt("order_id");
+                        int selId = amtRs.getInt("seller_id");
+
+                        // Credit customer wallet
                         PreparedStatement walletPs = conn.prepareStatement(
                             "UPDATE customer SET wallet_balance = wallet_balance + ? WHERE customer_id=?");
                         walletPs.setDouble(1, refundAmt); walletPs.setInt(2, custId);
                         walletPs.executeUpdate(); walletPs.close();
+
+                        // Log customer wallet transaction
                         PreparedStatement logPs = conn.prepareStatement(
                             "INSERT INTO wallet_transactions (customer_id, amount, type, description, reference_id) VALUES (?,?,'refund',?,?)");
                         logPs.setInt(1, custId); logPs.setDouble(2, refundAmt);
                         logPs.setString(3, "Refund approved by Admin for Order #SE-" + ordId);
                         logPs.setInt(4, ordId);
                         logPs.executeUpdate(); logPs.close();
+
+                        // Notify seller of admin-approved refund deduction
+                        PreparedStatement selUserPs3 = conn.prepareStatement(
+                            "SELECT user_id FROM seller WHERE seller_id=?");
+                        selUserPs3.setInt(1, selId);
+                        ResultSet selUserRs3 = selUserPs3.executeQuery();
+                        if (selUserRs3.next()) {
+                            int selUserId = selUserRs3.getInt("user_id");
+                            PreparedStatement selNotifPs = conn.prepareStatement(
+                                "INSERT INTO notifications (user_id, user_type, message, is_read) VALUES (?,?,?,0)");
+                            selNotifPs.setInt(1, selUserId);
+                            selNotifPs.setString(2, "seller");
+                            selNotifPs.setString(3, "⚠️ Admin approved a refund appeal for Order #SE-" + ordId + ". ₱" + String.format("%.2f", refundAmt) + " has been deducted from your earnings.");
+                            selNotifPs.executeUpdate(); selNotifPs.close();
+                        }
+                        selUserRs3.close(); selUserPs3.close();
                     }
                     amtRs.close(); amtPs.close();
                 }

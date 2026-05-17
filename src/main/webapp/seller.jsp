@@ -1263,7 +1263,7 @@ try {
     try {
             java.sql.Connection stConn = com.shopeasy.DBConnection.getConnection();
             java.sql.PreparedStatement stPs = stConn.prepareStatement(
-            		"SELECT courier_name, tracking_number, DATE_FORMAT(estimated_delivery, '%M %d, %Y') as estimated_delivery FROM shipping WHERE order_id=?");
+            		"SELECT courier_name, tracking_number, estimated_delivery FROM shipping WHERE order_id=?");
             stPs.setInt(1, (int) ord.get("id"));
             java.sql.ResultSet stRs = stPs.executeQuery();
             if (stRs.next()) {
@@ -1332,11 +1332,11 @@ try {
                 <strong>Cancel Reason:</strong> <%= cancelReason.isEmpty() ? "No reason provided" : cancelReason %>
             </div>
             <button class="btn btn-success btn-sm"
-                onclick="approveCancel(<%= ord.get("id") %>, 'approve')">
+                onclick="openApproveCancelModal(<%= ord.get("id") %>, 'approve')">
                 <i class="bi bi-check-circle"></i> Approve Cancel
             </button>
             <button class="btn btn-outline-danger btn-sm"
-                onclick="approveCancel(<%= ord.get("id") %>, 'decline')">
+                onclick="openApproveCancelModal(<%= ord.get("id") %>, 'decline')">
                 <i class="bi bi-x-circle"></i> Decline
             </button>
         <% } else if ("Cancelled".equals(sStatus)) { %>
@@ -3388,7 +3388,9 @@ editGalleryFiles = [];
         document.getElementById('shipOrderId').value = orderId;
         document.getElementById('shipCourierName').value = '';
         document.getElementById('shipTrackingNumber').value = '';
-        document.getElementById('shipEDA').value = '';
+        document.getElementById('shipEDAFrom').value = '';
+        document.getElementById('shipEDATo').value = '';
+        document.getElementById('shipEDAError').style.display = 'none';
         document.getElementById('shipCourierError').style.display = 'none';
         document.getElementById('shipTrackingError').style.display = 'none';
         document.getElementById('shipModal').style.display = 'flex';
@@ -3398,11 +3400,26 @@ editGalleryFiles = [];
         document.getElementById('shipModal').style.display = 'none';
     }
 
+    function validateEDARange() {
+        const from = document.getElementById('shipEDAFrom').value;
+        const to = document.getElementById('shipEDATo').value;
+        const err = document.getElementById('shipEDAError');
+        if (from && to && to <= from) {
+            err.style.display = 'block';
+            return false;
+        }
+        err.style.display = 'none';
+        // Auto-set To min to be after From
+        if (from) document.getElementById('shipEDATo').min = from;
+        return true;
+    }
+
     function confirmShip() {
         const orderId = document.getElementById('shipOrderId').value;
         const courier = document.getElementById('shipCourierName').value;
         const tracking = document.getElementById('shipTrackingNumber').value;
-        const eda = document.getElementById('shipEDA').value;
+        const edaFrom = document.getElementById('shipEDAFrom').value;
+        const edaTo = document.getElementById('shipEDATo').value;
 
         if (!courier) {
             document.getElementById('shipCourierError').style.display = 'block';
@@ -3412,24 +3429,84 @@ editGalleryFiles = [];
             document.getElementById('shipTrackingError').style.display = 'block';
             return;
         }
+        if (!validateEDARange()) return;
+
+        // Build range string: "May 23 – May 27" or single date or blank
+        let eda = '';
+        if (edaFrom && edaTo) {
+            const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+            eda = fmt(edaFrom) + ' - ' + fmt(edaTo);
+        } else if (edaFrom) {
+            eda = new Date(edaFrom + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+        }
+
         document.getElementById('shipCourierError').style.display = 'none';
         document.getElementById('shipTrackingError').style.display = 'none';
         closeShipModal();
         updateOrderStatus(orderId, 'Shipped', courier, tracking, eda);
     }
-    function approveCancel(orderId, action) {
+    let _acOrderId = null;
+    let _acAction = null;
+
+    function openApproveCancelModal(orderId, action) {
+        _acOrderId = orderId;
+        _acAction = action;
+        const title = document.getElementById('approveCancelModalTitle');
+        const desc = document.getElementById('approveCancelModalDesc');
+        const btn = document.getElementById('approveCancelConfirmBtn');
+        const reasonWrapper = document.getElementById('declineReasonWrapper');
+        const reasonInput = document.getElementById('declineReasonInput');
+        const reasonError = document.getElementById('declineReasonError');
+
+        reasonInput.value = '';
+        reasonError.style.display = 'none';
+
+        if (action === 'approve') {
+            title.innerHTML = '<i class="bi bi-check-circle text-success me-2"></i>Approve Cancellation?';
+            desc.textContent = 'Order #SE-' + orderId + ' will be cancelled and stock will be restored. This cannot be undone.';
+            btn.className = 'btn btn-success px-4 fw-semibold';
+            btn.textContent = 'Yes, Approve';
+            reasonWrapper.style.display = 'none';
+        } else {
+            title.innerHTML = '<i class="bi bi-x-circle text-danger me-2"></i>Decline Cancellation?';
+            desc.textContent = 'Order #SE-' + orderId + ' will remain in Processing. Please provide a reason for the customer.';
+            btn.className = 'btn btn-danger px-4 fw-semibold';
+            btn.textContent = 'Decline Request';
+            reasonWrapper.style.display = 'block';
+        }
+
+        new bootstrap.Modal(document.getElementById('approveCancelModal')).show();
+    }
+
+    function submitApproveCancel() {
+        const reasonInput = document.getElementById('declineReasonInput');
+        const reasonError = document.getElementById('declineReasonError');
+
+        if (_acAction === 'decline') {
+            const reason = reasonInput.value.trim();
+            if (!reason) {
+                reasonError.style.display = 'block';
+                return;
+            }
+            reasonError.style.display = 'none';
+        }
+
+        const body = 'orderId=' + _acOrderId + '&action=' + _acAction +
+            (_acAction === 'decline' ? '&declineReason=' + encodeURIComponent(reasonInput.value.trim()) : '');
+
         fetch('ApproveCancelServlet', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'orderId=' + orderId + '&action=' + action
+            body: body
         })
         .then(res => res.json())
         .then(data => {
+            bootstrap.Modal.getInstance(document.getElementById('approveCancelModal')).hide();
             if (data.success) {
                 document.getElementById('successBarMsg').textContent =
-                    action === 'approve'
+                    _acAction === 'approve'
                         ? 'Cancellation approved. Order cancelled. ✅'
-                        : 'Cancellation declined. Order returned to Processing. ✅';
+                        : 'Cancellation declined. Customer notified. ✅';
                 document.getElementById('successBar').style.display = 'block';
                 setTimeout(() => {
                     document.getElementById('successBar').style.display = 'none';
@@ -3442,6 +3519,44 @@ editGalleryFiles = [];
         .catch(() => showSellerToast('Error processing request. Please try again.', 'error'));
     }
 </script>
+
+<!-- Approve/Decline Cancel Request Modal -->
+<div class="modal fade" id="approveCancelModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="approveCancelModalTitle">
+                    <i class="bi bi-question-circle me-2"></i>Confirm Action
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-4 pb-4">
+                <p class="text-muted mb-3" id="approveCancelModalDesc" style="font-size:14px;"></p>
+
+                <!-- Decline reason — only shown for decline -->
+                <div id="declineReasonWrapper" style="display:none;">
+                    <label class="form-label fw-semibold" style="font-size:13px;">
+                        <i class="bi bi-chat-left-text me-1 text-danger"></i>
+                        Reason for Declining <span class="text-danger">*</span>
+                    </label>
+                    <textarea id="declineReasonInput" class="form-control" rows="3"
+                        placeholder="e.g. Item already packed, ready to ship..."
+                        style="font-size:13px; resize:none;"></textarea>
+                    <div id="declineReasonError" class="text-danger mt-1" style="font-size:12px; display:none;">
+                        Please provide a reason for declining.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 px-4 pb-4 gap-2">
+                <button class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn px-4 fw-semibold" id="approveCancelConfirmBtn"
+                    onclick="submitApproveCancel()">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Logout Confirm Modal -->
 <div class="modal fade" id="logoutConfirmModal" tabindex="-1">
@@ -3884,11 +3999,21 @@ editGalleryFiles = [];
         </div>
        <div class="mb-4">
     <label class="form-label fw-semibold" style="font-size:13px;">
-        <i class="bi bi-calendar-check me-1"></i>Estimated Delivery Date <span class="text-muted fw-normal">(optional)</span>
+        <i class="bi bi-calendar-check me-1"></i>Estimated Delivery Range <span class="text-muted fw-normal">(optional)</span>
     </label>
-    <input type="date" id="shipEDA" class="form-control"
-           min="<%= new java.text.SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date()) %>"/>
+    <div class="d-flex align-items-center gap-2">
+        <input type="date" id="shipEDAFrom" class="form-control"
+               min="<%= new java.text.SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date()) %>"
+               onchange="validateEDARange()"/>
+        <span class="text-muted fw-bold">–</span>
+        <input type="date" id="shipEDATo" class="form-control"
+               min="<%= new java.text.SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date()) %>"
+               onchange="validateEDARange()"/>
+    </div>
     <small class="text-muted" style="font-size:11px;">Leave blank if unsure</small>
+    <div id="shipEDAError" style="display:none; color:#dc3545; font-size:12px; margin-top:4px;">
+        <i class="bi bi-exclamation-circle"></i> End date must be after start date.
+    </div>
 </div>
 <div class="d-flex gap-2 justify-content-end">
     <button class="btn btn-outline-secondary" onclick="closeShipModal()">Cancel</button>

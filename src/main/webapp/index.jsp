@@ -22,7 +22,7 @@
             StringBuilder sf = new StringBuilder("AND (");
             for (int i = 0; i < searchWords.length; i++) {
                 if (i > 0) sf.append(" OR ");
-                sf.append("p.name LIKE ? OR p.description LIKE ?");
+                sf.append("p.name LIKE ?");
             }
             sf.append(") ");
             searchFilter = sf.toString();
@@ -57,7 +57,6 @@
             int idx = 1;
             for (String word : searchWords) {
                 String like = "%" + word + "%";
-                prodPs.setString(idx++, like);
                 prodPs.setString(idx++, like);
             }
         }
@@ -982,7 +981,9 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
                         <i class="bi bi-instagram" style="color:#e879f9; font-size:15px;"></i>
                     </div>
                     <div style="background:#1a3a2a; border-radius:8px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
-                        <i class="bi bi-twitter-x" style="color:#4ade80; font-size:15px;"></i>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="#4ade80" viewBox="0 0 16 16">
+                            <path d="M9 0h1.98c.144.715.54 1.617 1.235 2.512C12.895 3.389 13.797 4 15 4v2c-1.753 0-3.07-.814-4-1.829V11a5 5 0 1 1-5-5v2a3 3 0 1 0 3 3V0z"/>
+                        </svg>
                     </div>
                     <div style="background:#3b1f1f; border-radius:8px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
                         <i class="bi bi-youtube" style="color:#f87171; font-size:15px;"></i>
@@ -1049,22 +1050,46 @@ String searchTitle = (searchParam != null && !searchParam.trim().isEmpty()) ? "S
         </div>
 
         <!-- Stats bar -->
+        <%
+            int footerProducts = 0, footerCustomers = 0, footerSellers = 0;
+            double footerRating = 0;
+            try {
+                java.sql.Connection footerConn = com.shopeasy.DBConnection.getConnection();
+                java.sql.PreparedStatement fPs;
+                java.sql.ResultSet fRs;
+
+                fPs = footerConn.prepareStatement("SELECT COUNT(*) FROM product WHERE status='active'");
+                fRs = fPs.executeQuery(); if (fRs.next()) footerProducts = fRs.getInt(1); fRs.close(); fPs.close();
+
+                fPs = footerConn.prepareStatement("SELECT COUNT(*) FROM users WHERE role IN ('customer','both')");
+                fRs = fPs.executeQuery(); if (fRs.next()) footerCustomers = fRs.getInt(1); fRs.close(); fPs.close();
+
+                fPs = footerConn.prepareStatement("SELECT COUNT(*) FROM seller WHERE status='active'");
+                fRs = fPs.executeQuery(); if (fRs.next()) footerSellers = fRs.getInt(1); fRs.close(); fPs.close();
+
+                fPs = footerConn.prepareStatement("SELECT COALESCE(AVG(rating), 0) FROM review");
+                fRs = fPs.executeQuery(); if (fRs.next()) footerRating = fRs.getDouble(1); fRs.close(); fPs.close();
+
+                footerConn.close();
+            } catch(Exception ex) {}
+            String footerRatingStr = footerRating > 0 ? String.format("%.1f", footerRating) + "★" : "—";
+        %>
         <div style="border-top:1px solid #1e293b; padding:20px 0;" class="d-none d-md-block">
             <div class="row text-center">
                 <div class="col-3">
-                    <p style="font-size:22px; font-weight:800; color:#22c55e; margin:0;">10K+</p>
+                    <p style="font-size:22px; font-weight:800; color:#22c55e; margin:0;"><%= footerProducts %>+</p>
                     <p style="font-size:11px; color:#64748b; margin:0;">Products Listed</p>
                 </div>
                 <div class="col-3">
-                    <p style="font-size:22px; font-weight:800; color:#60a5fa; margin:0;">5K+</p>
+                    <p style="font-size:22px; font-weight:800; color:#60a5fa; margin:0;"><%= footerCustomers %>+</p>
                     <p style="font-size:11px; color:#64748b; margin:0;">Happy Customers</p>
                 </div>
                 <div class="col-3">
-                    <p style="font-size:22px; font-weight:800; color:#e879f9; margin:0;">500+</p>
+                    <p style="font-size:22px; font-weight:800; color:#e879f9; margin:0;"><%= footerSellers %>+</p>
                     <p style="font-size:11px; color:#64748b; margin:0;">Verified Sellers</p>
                 </div>
                 <div class="col-3">
-                    <p style="font-size:22px; font-weight:800; color:#f87171; margin:0;">4.8★</p>
+                    <p style="font-size:22px; font-weight:800; color:#f87171; margin:0;"><%= footerRatingStr %></p>
                     <p style="font-size:11px; color:#64748b; margin:0;">Average Rating</p>
                 </div>
             </div>

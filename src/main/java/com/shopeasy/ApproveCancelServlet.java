@@ -16,13 +16,16 @@ public class ApproveCancelServlet extends HttpServlet {
         PrintWriter out = response.getWriter();
 
         HttpSession session = request.getSession();
-        if (session.getAttribute("userId") == null || !"seller".equals(session.getAttribute("userRole"))) {
+        String acRole = (String) session.getAttribute("userRole");
+        if (session.getAttribute("userId") == null || (!"seller".equals(acRole) && !"both".equals(acRole))) {
             out.print("{\"success\":false,\"message\":\"Unauthorized\"}");
             return;
         }
 
         String orderIdParam = request.getParameter("orderId");
         String action = request.getParameter("action"); // "approve" or "decline"
+        String declineReason = request.getParameter("declineReason");
+        if (declineReason == null) declineReason = "";
 
         if (orderIdParam == null || action == null) {
             out.print("{\"success\":false,\"message\":\"Missing data\"}");
@@ -65,18 +68,28 @@ public class ApproveCancelServlet extends HttpServlet {
                 }
                 itemsRs.close(); itemsPs.close();
 
+                // Update order status (approve — just status)
+                PreparedStatement updatePs = conn.prepareStatement(
+                    "UPDATE orders SET status=? WHERE order_id=?");
+                updatePs.setString(1, newStatus);
+                updatePs.setInt(2, orderId);
+                updatePs.executeUpdate();
+                updatePs.close();
+
             } else {
                 newStatus = "Processing";
-                custMessage = "Your cancellation request for Order #SE-" + orderId + " was declined by the seller. Your order is still being processed.";
-            }
+                String reasonText = declineReason.isEmpty() ? "" : " Reason: " + declineReason;
+                custMessage = "Your cancellation request for Order #SE-" + orderId +
+                    " was declined by the seller." + reasonText + " Your order is still being processed.";
 
-            // Update order status
-            PreparedStatement updatePs = conn.prepareStatement(
-                "UPDATE orders SET status=? WHERE order_id=?");
-            updatePs.setString(1, newStatus);
-            updatePs.setInt(2, orderId);
-            updatePs.executeUpdate();
-            updatePs.close();
+                // Update status AND set cancel_rejected = 1
+                PreparedStatement updatePs = conn.prepareStatement(
+                    "UPDATE orders SET status=?, cancel_rejected=1 WHERE order_id=?");
+                updatePs.setString(1, newStatus);
+                updatePs.setInt(2, orderId);
+                updatePs.executeUpdate();
+                updatePs.close();
+            }
 
             // Notify customer
             if (customerId > 0) {

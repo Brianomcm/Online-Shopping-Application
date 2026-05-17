@@ -39,7 +39,7 @@
         } catch(Exception ex) {}
 
         try {
-            ps = conn.prepareStatement("SELECT COUNT(*) FROM refund_requests WHERE status='Pending'");
+            ps = conn.prepareStatement("SELECT COUNT(*) FROM refund_requests WHERE status IN ('Pending','Appealed')");
             rs = ps.executeQuery(); if (rs.next()) pendingRefunds = rs.getInt(1); rs.close(); ps.close();
         } catch(Exception ex) {}
 
@@ -695,26 +695,44 @@
                                 ps.setString(1, q); ps.setString(2, q); ps.setString(3, q);
                             }
                             ResultSet rs = ps.executeQuery();
-                            int totalRowsU = 0;
-                            while (rs.next()) totalRowsU++;
-                            rs.close();
-
-                            rs = ps.executeQuery();
-                            int rowNum = totalRowsU + 1;
+                            java.util.List<java.util.Map<String,Object>> userRows = new java.util.ArrayList<>();
                             while (rs.next()) {
+                                java.util.Map<String,Object> row = new java.util.LinkedHashMap<>();
+                                row.put("user_id", rs.getInt("user_id"));
+                                row.put("email", rs.getString("email"));
+                                row.put("role", rs.getString("role"));
+                                row.put("active_mode", rs.getString("active_mode"));
+                                row.put("status", rs.getString("status"));
+                                row.put("name", rs.getString("name"));
+                                row.put("username", rs.getString("username"));
+                                row.put("phone", rs.getString("phone"));
+                                row.put("offense_count", rs.getInt("offense_count"));
+                                userRows.add(row);
+                            }
+                            rs.close();
+                            int totalRowsU = userRows.size();
+                            int rowNum = totalRowsU + 1;
+                            for (java.util.Map<String,Object> uRow : userRows) {
                                 rowNum--;
-                                int uid = rs.getInt("user_id");
-                                String uName = rs.getString("name"); if (uName == null) uName = "-";
-                                String uEmail = rs.getString("email"); if (uEmail == null) uEmail = "-";
-                                String uUsername = rs.getString("username"); if (uUsername == null) uUsername = "-";
-                                String uRole = rs.getString("role"); if (uRole == null) uRole = "customer";
-                                String uMode = rs.getString("active_mode"); if (uMode == null) uMode = "customer";
+                                // inject into local vars for existing JSP code
+                                final int uid2 = (int) uRow.get("user_id");
+                                final String uName2 = uRow.get("name") != null ? (String)uRow.get("name") : "-";
+                                final String uEmail2 = uRow.get("email") != null ? (String)uRow.get("email") : "-";
+                                final String uUsername2 = uRow.get("username") != null ? (String)uRow.get("username") : "-";
+                                final String uRole2 = uRow.get("role") != null ? (String)uRow.get("role") : "customer";
+                                final String uMode2 = uRow.get("active_mode") != null ? (String)uRow.get("active_mode") : "customer";
+                                int uOffenseCount2 = (int)uRow.get("offense_count"); if (uOffenseCount2 > 3) uOffenseCount2 = 3;
+                                final String uStatus2 = uRow.get("status") != null ? (String)uRow.get("status") : "active";
+                                // alias for existing code
+                                int uid = uid2; String uName = uName2; String uEmail = uEmail2;
+                                String uUsername = uUsername2; String uRole = uRole2; String uMode = uMode2;
+                                int uOffenseCount = uOffenseCount2; String uStatus = uStatus2;
+                                if (true) {
                     %>
                         <tr>
                             <td class="text-muted"><%= rowNum %></td>
                  <%
-    int uOffenseCount = rs.getInt("offense_count");
-    if (uOffenseCount > 3) uOffenseCount = 3;
+    // uOffenseCount already set from map above
 %>
 <td>
     <strong><%= uName %></strong>
@@ -739,8 +757,7 @@
                                 <% } %>
                             </td>
                        <%
-    String uStatus = rs.getString("status");
-    if (uStatus == null) uStatus = "Active";
+    // uStatus already set from map above
 %>
 <td><span class="badge <%= "Banned".equals(uStatus) ? "bg-danger" : "bg-success" %>" style="font-size:11px;"><%= uStatus %></span></td>
                          <td>
@@ -811,8 +828,9 @@
     </div>
 </td>
                         </tr>
-                    <%      }
-                            rs.close(); ps.close(); conn.close();
+                    <%      } // end if(true)
+                            } // end for loop
+                            ps.close(); conn.close(); // rs already closed above
                             if (rowNum == 0) { %>
                         <tr><td colspan="7" class="text-center text-muted py-4">No users found.</td></tr>
                     <%      }
@@ -863,20 +881,28 @@
                                     "LEFT JOIN users u ON s.user_id = u.user_id " +
                                     "ORDER BY s.seller_id DESC LIMIT 100");
                             ResultSet rs = ps.executeQuery();
-                            int totalRowsS = 0;
-                            while (rs.next()) totalRowsS++;
-                            rs.close();
-
-                            rs = ps.executeQuery();
-                            int rowNum = totalRowsS + 1;
+                            java.util.List<java.util.Map<String,Object>> sellerRows = new java.util.ArrayList<>();
                             while (rs.next()) {
+                                java.util.Map<String,Object> row = new java.util.LinkedHashMap<>();
+                                row.put("seller_id", rs.getInt("seller_id"));
+                                row.put("user_id", rs.getInt("user_id"));
+                                row.put("business_name", rs.getString("business_name"));
+                                row.put("business_type", rs.getString("business_type"));
+                                row.put("status", rs.getString("status"));
+                                row.put("owner_name", rs.getString("owner_name"));
+                                sellerRows.add(row);
+                            }
+                            rs.close(); ps.close();
+                            int totalRowsS = sellerRows.size();
+                            int rowNum = totalRowsS + 1;
+                            for (java.util.Map<String,Object> sRow : sellerRows) {
                                 rowNum--;
-                                int sid = rs.getInt("seller_id");
-                                int saUserId = rs.getInt("user_id");
-                                String bName = rs.getString("business_name"); if (bName == null) bName = "-";
-                                String bType = rs.getString("business_type"); if (bType == null) bType = "-";
-                                String status = rs.getString("status"); if (status == null) status = "active";
-                                String ownerName = rs.getString("owner_name"); if (ownerName == null) ownerName = "-";
+                                int sid = (int) sRow.get("seller_id");
+                                int saUserId = (int) sRow.get("user_id");
+                                String bName = sRow.get("business_name") != null ? (String)sRow.get("business_name") : "-";
+                                String bType = sRow.get("business_type") != null ? (String)sRow.get("business_type") : "-";
+                                String status = sRow.get("status") != null ? (String)sRow.get("status") : "active";
+                                String ownerName = sRow.get("owner_name") != null ? (String)sRow.get("owner_name") : "-";
                             %>
                         <tr>
                             <td class="text-muted"><%= rowNum %></td>
@@ -933,7 +959,7 @@
                             </td>
                         </tr>
                     <%      }
-                            rs.close(); ps.close(); conn.close();
+                            conn.close(); // rs+ps already closed above
                             if (rowNum == 0) { %>
                         <tr><td colspan="6" class="text-center text-muted py-4">No sellers found.</td></tr>
                     <%      }
@@ -1836,10 +1862,10 @@
                     <%      }
                             rs.close(); ps.close(); conn.close();
                             if (rowNum == 0) { %>
-                        <tr><td colspan="6" class="text-center text-muted py-4">No refund requests found.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted py-4">No refund requests found.</td></tr>
                     <%      }
                         } catch(Exception e) { %>
-                        <tr><td colspan="6" class="text-center text-muted py-4">No refund data available.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted py-4">No refund data available.</td></tr>
                     <% } %>
                     </tbody>
                 </table>
@@ -1936,9 +1962,13 @@
                 <i class="bi bi-plus-lg me-1"></i> Create Voucher
             </button>
         </div>
-        <%-- Voucher List --%>
+        <%-- Auto-deactivate expired vouchers --%>
         <%
         java.sql.Connection vcConn = DBConnection.getConnection();
+        java.sql.PreparedStatement autoDeactPs = vcConn.prepareStatement(
+            "UPDATE vouchers SET is_active=0 WHERE expiry_date IS NOT NULL AND DATE(expiry_date) < CURDATE() AND is_active=1");
+        autoDeactPs.executeUpdate();
+        autoDeactPs.close();
         java.sql.PreparedStatement vcPs = vcConn.prepareStatement(
             "SELECT * FROM vouchers ORDER BY created_at DESC");
         java.sql.ResultSet vcRs = vcPs.executeQuery();
@@ -1971,17 +2001,33 @@
 <td><%= vcValueDisplay %></td>
                 <td>₱<%= vcRs.getString("min_order") %></td>
                 <td><%= vcRs.getInt("used_count") %><%= vcRs.getString("max_uses") != null ? "/" + vcRs.getString("max_uses") : "/∞" %></td>
-                <td><%= vcRs.getString("expiry_date") != null ? vcRs.getString("expiry_date") : "No expiry" %></td>
-                <td><span class="badge <%= vcRs.getInt("is_active") == 1 ? "bg-success" : "bg-secondary" %>">
-                    <%= vcRs.getInt("is_active") == 1 ? "Active" : "Inactive" %>
-                </span></td>
+                <%
+                    String vcExpiry = vcRs.getString("expiry_date");
+                    boolean vcExpired = false;
+                    if (vcExpiry != null) {
+                        try {
+                            java.sql.Timestamp vcExpiryTs = java.sql.Timestamp.valueOf(vcExpiry);
+                            vcExpired = vcExpiryTs.before(new java.util.Date());
+                        } catch (Exception ignored) {}
+                    }
+                %>
+                <td><%= vcExpiry != null ? vcExpiry : "No expiry" %></td>
+                <td>
+                    <% if (vcExpired) { %>
+                        <span class="badge bg-danger">Expired</span>
+                    <% } else if (vcRs.getInt("is_active") == 1) { %>
+                        <span class="badge bg-success">Active</span>
+                    <% } else { %>
+                        <span class="badge bg-secondary">Inactive</span>
+                    <% } %>
+                </td>
               <td>
     <div class="dropdown">
         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
             Actions
         </button>
         <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="#" onclick="editVoucher(<%= vcRs.getInt("voucher_id") %>, '<%= vcRs.getString("code") %>', '<%= vcRs.getString("type") %>', '<%= vcRs.getString("value") %>', '<%= vcRs.getString("min_order") %>', '<%= vcRs.getString("max_uses") != null ? vcRs.getString("max_uses") : "" %>')"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+            <li><a class="dropdown-item" href="#" onclick="editVoucher(<%= vcRs.getInt("voucher_id") %>, '<%= vcRs.getString("code") %>', '<%= vcRs.getString("type") %>', '<%= vcRs.getString("value") %>', '<%= vcRs.getString("min_order") %>', '<%= vcRs.getString("max_uses") != null ? vcRs.getString("max_uses") : "" %>', '<%= vcExpiry != null ? vcExpiry : "" %>')"><i class="bi bi-pencil me-2"></i>Edit</a></li>
             <% if (vcRs.getInt("is_active") == 1) { %>
             <li><a class="dropdown-item text-warning" href="#" onclick="deactivateVoucher(<%= vcRs.getInt("voucher_id") %>)"><i class="bi bi-x-circle me-2"></i>Deactivate</a></li>
             <% } else { %>
@@ -2128,15 +2174,33 @@ function deleteVoucher(id) {
     fetch('AdminServlet?action=deleteVoucher&voucherId=' + id, {method:'POST'})
     .then(r => r.json()).then(d => { showToast(d.message, d.success ? 'success' : 'danger'); if(d.success) setTimeout(() => location.reload(), 1200); });
 }
-function editVoucher(id, code, type, value, minOrder, maxUses) {
+function editVoucher(id, code, type, value, minOrder, maxUses, existingExpiry) {
     document.getElementById('vcCode').value = code;
     document.getElementById('vcType').value = type;
     updateValueLabel();
     document.getElementById('vcValue').value = value;
     document.getElementById('vcMinOrder').value = minOrder;
     document.getElementById('vcMaxUses').value = maxUses;
-    document.getElementById('vcDurationValue').value = '';
-    document.getElementById('vcDurationUnit').value = '';
+
+    // Restore expiry display if existing
+    if (existingExpiry && existingExpiry !== '') {
+        const expiryDate = new Date(existingExpiry);
+        const now = new Date();
+        const diffMs = expiryDate - now;
+        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+            document.getElementById('vcDurationValue').value = diffDays;
+            document.getElementById('vcDurationUnit').value = 'days';
+        } else {
+            // Already expired — show 0 so admin knows
+            document.getElementById('vcDurationValue').value = '';
+            document.getElementById('vcDurationUnit').value = '';
+        }
+    } else {
+        document.getElementById('vcDurationValue').value = '';
+        document.getElementById('vcDurationUnit').value = '';
+    }
+
     const btn = document.querySelector('#createVoucherModal .btn-primary');
     btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Update';
     btn.onclick = function() { updateVoucher(id); };

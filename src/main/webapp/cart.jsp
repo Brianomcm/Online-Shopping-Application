@@ -84,7 +84,6 @@ if (cartItems != null) {
 <body>
 
 <!-- NAVBAR -->
-<!-- NAVBAR -->
 <%
     int cartNavCount = 0;
     try {
@@ -154,10 +153,6 @@ if (cartItems != null) {
 </h5>
 
     <%
-boolean allZero = true;
-for (Map<String, Object> ci : cartItems) {
-    if ((int)ci.get("quantity") > 0) { allZero = false; break; }
-}
 if (cartItems.isEmpty()) { %>
     <div class="empty-cart">
         <div class="empty-cart-icon">
@@ -196,7 +191,8 @@ for (java.util.Map.Entry<Integer, java.util.List<java.util.Map<String, Object>>>
                onchange="toggleShop(<%= groupSellerId %>, this.checked)"
             <%= groupItems.stream().anyMatch(i -> (int)i.get("quantity") > 0) ? "checked" : "" %> style="width:18px; height:18px; cursor:pointer;">
         <label for="shopCheck_<%= groupSellerId %>" class="fw-bold mb-0" style="font-size:14px; cursor:pointer;">
-            <i class="bi bi-shop text-primary me-1"></i> <%= groupShopName %>
+            <i class="bi bi-shop text-primary me-1"></i>
+            <a href="SellerPageServlet?id=<%= groupSellerId %>" class="text-decoration-none text-dark" onclick="event.stopPropagation()"><%= groupShopName %></a>
         </label>
     </div>
     <!-- Shop Items -->
@@ -302,9 +298,9 @@ for (Map<String, Object> ci : cartItems) {
                     <span class="text-success fw-bold"><i class="bi bi-tag-fill"></i> You save</span>
                     <span class="text-success fw-bold" id="savingsDisplay">-₱<%= String.format("%.2f", totalSavings) %></span>
                 </div>
-                <div class="d-flex justify-content-between mb-2">
+                <div class="d-flex justify-content-between mb-2" id="shippingRow" style="<%= activeItemCount == 0 ? "display:none;" : "" %>">
                     <span class="text-muted">Shipping</span>
-                    <span class="text-success">Free</span>
+                    <span class="text-success"><i class="bi bi-truck me-1"></i>Free</span>
                 </div>
                 <hr>
                 <div class="d-flex justify-content-between fw-bold fs-5 mb-4">
@@ -321,7 +317,7 @@ for (java.util.Map<String, Object> ckItem : cartItems) {
 %>
 <button class="btn btn-primary checkout-btn w-100 text-white" 
     onclick="checkout()" <%= hasOutOfStock ? "disabled" : "" %>>
-    <i class="bi bi-bag-check"></i> Proceed to Checkout
+    <i class="bi bi-bag-check"></i> Checkout <span id="checkoutCount" class="badge bg-white text-primary ms-1"><%= activeItemCount %></span>
 </button>
 <% if (hasOutOfStock) { %>
     <p class="text-danger text-center mt-2" style="font-size:12px;">
@@ -488,8 +484,9 @@ function updateSelectAll() {
                 body: 'cartitemId=' + itemId
             }).then(response => {
                 if (response.ok) {
+                    const currentItem = document.getElementById("cartItem_" + itemId); if (currentItem) currentItem.remove();
                     const remainingItems = document.querySelectorAll('[id^="cartItem_"]');
-                    if (remainingItems.length <= 1) {
+                    if (remainingItems.length === 0) {
                         showToast('Cart is empty! Redirecting...', '#6610f2');
                         setTimeout(() => { window.location.href = 'index.jsp'; }, 1500);
                     } else {
@@ -631,9 +628,15 @@ function updateSelectAll() {
      // Update items count
         const itemsLabel = document.getElementById('itemsLabel');
         if (itemsLabel) itemsLabel.innerText = 'Items (' + checkedCount + ')';
-     // Update My Cart badge (h5 title)
+        // Show/hide shipping row
+        const shippingRow = document.getElementById('shippingRow');
+        if (shippingRow) shippingRow.style.display = checkedCount > 0 ? '' : 'none';
+        // Update My Cart badge (h5 title)
         const cartBadge = document.querySelector('h5 .badge.bg-primary');
         if (cartBadge) cartBadge.innerText = checkedCount;
+        // Update checkout button count
+        const checkoutCount = document.getElementById('checkoutCount');
+        if (checkoutCount) checkoutCount.innerText = checkedCount;
         // Update navbar cart badge
         const navBadge = document.getElementById('cartBadge');
         if (navBadge) {
